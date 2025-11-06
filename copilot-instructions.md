@@ -39,31 +39,29 @@ O objetivo é ter o projeto base a correr, com a base de dados ligada e o design
 
 ---
 
-## Fase 2: Jogo Principal - Palavras Cruzadas (Singleplayer)
+## Fase 2: Jogo Principal - Palavras Cruzadas (Singleplayer) ✅ CONCLUÍDO
 
 O objetivo é ter o jogo de palavras cruzadas totalmente funcional para um jogador.
 
-* [ ] **Task 2.1: Lógica do Jogo (Core)**
-    * [ ] Criar o componente React `<CrosswordGrid />` que renderiza a grelha.
-    * [ ] Implementar a lógica de navegação na grelha (teclas de seta, clique).
-    * [ ] Implementar a lógica de inserir/apagar letras.
-    * [ ] Implementar a lógica de verificação (se a palavra/letra está correta).
-    * [ ] Adicionar um cronómetro (timer) que começa quando o jogo inicia.
-    * [ ] Adicionar um botão "Concluir" ou detetar automaticamente o fim do jogo.
+* [x] **Task 2.1: Lógica do Jogo (Core)**
+    * [x] Criar o componente React `<CrosswordGrid />` que renderiza a grelha.
+    * [x] Implementar a lógica de navegação na grelha (teclas de seta, clique).
+    * [x] Implementar a lógica de inserir/apagar letras.
+    * [x] Implementar a lógica de verificação (se a palavra/letra está correta).
+    * [x] Adicionar um cronómetro (timer) que começa quando o jogo inicia.
+    * [x] Adicionar um botão "Concluir" ou detetar automaticamente o fim do jogo.
 
-* [ ] **Task 2.2: Integração de Dados**
-    * [ ] Criar uma API Route em Next.js (ex: `/api/puzzle/[id]`) que vai buscar um puzzle específico ao Supabase.
-    * [ ] Fazer a página do jogo consumir esta API para carregar o puzzle.
+* [x] **Task 2.2: Integração de Dados**
+    * [x] Criar uma API Route em Next.js (ex: `/api/puzzle/[id]`) que vai buscar um puzzle específico ao Supabase.
+    * [x] Fazer a página do jogo consumir esta API para carregar o puzzle.
 
-* [ ] **Task 2.3: Modo "Dicionário PT-PT"**
-    * [ ] Criar uma API Route (ex: `/api/check-word`) que consulta a tabela `dictionary_pt` no Supabase.
-    * *(Nota: Esta task pode ser mais complexa se o puzzle for gerado dinamicamente. Por agora, vamos assumir que os puzzles são pré-feitos).*
+* [x] **Task 2.3: Modo "Dicionário PT-PT"**
+    * [x] Criar uma API Route (ex: `/api/check-word`) que consulta a tabela `dictionary_pt` no Supabase.
+    *(Nota: Esta task pode ser mais complexa se o puzzle for gerado dinamicamente. Por agora, vamos assumir que os puzzles são pré-feitos).*
 
-* [ ] **Task 2.4: Submissão de Pontuação**
-    * [ ] Ao concluir o jogo, enviar o resultado (tempo) para a tabela `scores` no Supabase.
-    * [ ] Mostrar um ecrã de "Jogo Concluído!" com o tempo final.
-
----
+* [x] **Task 2.4: Submissão de Pontuação**
+    * [x] Ao concluir o jogo, enviar o resultado (tempo) para a tabela `scores` no Supabase.
+    * [x] Mostrar um ecrã de "Jogo Concluído!" com o tempo final.---
 
 ## Fase 3: Funcionalidades de Comunidade (Leaderboards)
 
