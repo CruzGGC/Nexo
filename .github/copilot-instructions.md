@@ -1,134 +1,376 @@
 # Nexo - AI Coding Agent Instructions
 
 ## Project Overview
-Nexo is a **Progressive Web App (PWA)** gaming platform focused on Portuguese (PT-PT) games, starting with crosswords and expanding to card games. The project is in **Phase 1 (Setup)** - only the Next.js skeleton exists currently.
+Nexo is a **Progressive Web App (PWA)** gaming platform focused on Portuguese (PT-PT) games. Built with Next.js 16, Supabase, and Tailwind CSS v4. Currently implementing crossword puzzles with plans to expand to card games.
 
-**Target Architecture:** Minimalist launcher homepage → Individual game pages → Leaderboards  
-**Language Focus:** Portuguese (PT-PT) dictionary integration required  
-**Key Feature:** Daily challenge mode with real-time leaderboards
+**Current Phase:** Phase 2 - Crosswords Game (MVP nearly complete)  
+**Target Architecture:** Minimalist launcher → Game pages → Leaderboards  
+**Language:** Portuguese (PT-PT) with diacritics support (á, à, â, ã, é, ê, í, ó, ô, õ, ú, ç)
 
 ## Tech Stack & Configuration
-- **Framework:** Next.js 16 with App Router (`app/` directory)
-- **Styling:** Tailwind CSS v4 (with PostCSS plugin `@tailwindcss/postcss`)
-- **Backend (Planned):** Supabase (Auth, PostgreSQL, Realtime)
-- **Deployment:** Vercel
-- **React:** v19.2.0 with new `react-jsx` transform
-- **TypeScript:** Strict mode enabled, path alias `@/*` for project root
+- **Framework:** Next.js 16 (App Router, `app/` directory structure)
+- **Styling:** Tailwind CSS v4 with `@tailwindcss/postcss` plugin
+- **Backend:** Supabase (Auth, PostgreSQL, Realtime)
+- **React:** v19.2.0 with `react-jsx` transform
+- **TypeScript:** Strict mode, path alias `@/*` → project root
+- **Fonts:** Geist Sans (UI) + Geist Mono (code/timers)
 
-## Critical Development Context
+## Completed Infrastructure ✅
 
-### Current State (Phase 1 - Foundation) ✅ COMPLETE
+**Core Components:**
+- `<CrosswordGrid />` - Full crossword logic with keyboard navigation, cell selection, and PT-PT character support
+- `<Timer />` - Millisecond-precision timer (format: `mm:ss:ms`)
+- Homepage with launcher cards and PT-PT language
+- API routes: `/api/puzzle/[id]` (GET), `/api/scores` (GET/POST)
 
-The project foundation is **fully implemented** with all core infrastructure ready. The homepage, database schema, TypeScript types, and Supabase integration are complete and tested.
+**Database:**
+- Schema fully defined in `supabase/migrations/001_initial_schema.sql`
+- TypeScript types in `lib/database.types.ts`
+- Supabase client configured in `lib/supabase.ts` with auto-refresh tokens
+- Tables: `profiles`, `puzzles`, `scores`, `dictionary_pt`, `game_rooms`
 
-**✅ Completed:**
-- Supabase JS client installed and configured
-- Database schema created (`supabase/migrations/001_initial_schema.sql`)
-- TypeScript types for all tables (`lib/database.types.ts`)
-- Minimalist homepage with PT-PT language
-- Placeholder pages for all routes
-- Environment variables template
-- Development server running successfully
+**Environment:**
+- `.env.local` template ready (needs `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`)
+- Development server working (`npm run dev`)
 
-**Next Priority Tasks (Phase 2 - Crosswords Game):**
-1. Create `<CrosswordGrid />` component with game logic
-2. Implement timer functionality (start to completion tracking)
-3. Build API route `/api/puzzle/[id]` to fetch puzzles from Supabase
-4. Build API route `/api/scores` to submit scores
-5. Update `/palavras-cruzadas/page.tsx` with game UI
+## Next Priority Tasks (Deployment Ready)
+1. ✅ Run migrations: `002_add_definitions_to_dictionary.sql`, `003_schedule_daily_crossword.sql`
+2. ✅ Populate dictionary: Execute `supabase/portuguese_words.sql` in Supabase SQL Editor
+3. Deploy Edge Function: `supabase functions deploy generate-daily-crossword`
+4. Store secrets in Vault: `project_url`, `service_role_key` (for cron authentication)
+5. Test cron: Manually trigger function or wait until midnight Portugal time
+6. Connect crossword page to fetch real puzzles from API
+7. Implement leaderboard page (`/leaderboards`) with Top 10 display
+8. Add authentication flow (Supabase Auth with Email/Google)
+9. Deploy to Vercel with environment variables
 
-### Essential Database Schema (To Be Created)
-```sql
-profiles (id, username, avatar_url)
-puzzles (id, type, grid_data, clues, solutions, publish_date)
-scores (id, user_id, puzzle_id, time_ms, created_at)
-dictionary_pt (word) -- PT-PT word list from LibreOffice dictionaries
-game_rooms (id, game_type, players, game_state, status) -- For multiplayer
+## Critical Architecture Patterns
+
+### Automatic Daily Crossword Generation System ⭐
+**Overview:** Fully automated system that generates a new crossword puzzle every day at midnight (Portugal timezone) using a curated list of Portuguese words.
+
+**Components:**
+1. **Dictionary (`dictionary_pt` table):**
+   - Stores Portuguese words with definitions
+   - Schema: `word TEXT PRIMARY KEY, definition TEXT`
+   - Words filtered by length (3-10 characters) for crossword suitability
+   - Expandable from 200 to 1000+ words
+
+2. **Generator Algorithm (`lib/crossword-generator.ts`):**
+   ```typescript
+   class CrosswordGenerator {
+     generate(words: WordEntry[], maxWords: number = 10)
+     // 1. Filter words by length (3-10 chars)
+     // 2. Place first word horizontally in center
+     // 3. Find intersections for remaining words
+     // 4. Trim grid and assign cell numbers
+     // 5. Return {grid: Cell[][], clues: {across, down}}
+   }
+   ```
+   - **Placement Logic:** Tries to intersect new words with placed words via common letters
+   - **Grid Building:** 15x15 initial size, trimmed to content + padding
+   - **Numbering:** Top-to-bottom, left-to-right sequential numbering
+   - **Retry Mechanism:** Up to 5 generation attempts for quality
+
+3. **Edge Function (`supabase/functions/generate-daily-crossword/index.ts`):**
+   - Fetches 100 random words from `dictionary_pt`
+   - Creates `CrosswordGenerator` instance
+   - Generates puzzle (retries if needed)
+   - Inserts into `puzzles` table with:
+     - `type='daily'`
+     - `publish_date=CURRENT_DATE` (Portugal timezone)
+     - `grid_data=<generated grid>`
+     - `clues=<generated clues>`
+
+4. **Cron Scheduler (`migrations/003_schedule_daily_crossword.sql`):**
+   ```sql
+   SELECT cron.schedule(
+     'generate-daily-crossword',
+     '0 0 * * *', -- Midnight Portugal time
+     $$SELECT net.http_post(...)$$ -- Triggers Edge Function
+   );
+   ```
+   - Uses `pg_cron` + `pg_net` extensions
+   - Authenticates with `service_role_key` from Vault
+   - 60-second timeout for generation
+
+**Data Flow:**
 ```
+Midnight (Portugal) 
+  → pg_cron triggers
+  → net.http_post to Edge Function
+  → Fetch 100 random words
+  → CrosswordGenerator.generate()
+  → Insert puzzle to DB
+  → Users fetch via /api/puzzle endpoint
+```
+
+**Frontend Integration:**
+```typescript
+// Fetch today's daily puzzle
+const { data: puzzle } = await supabase
+  .from('puzzles')
+  .select('*')
+  .eq('type', 'daily')
+  .order('publish_date', { ascending: false })
+  .limit(1)
+  .single();
+```
+
+**Deployment Checklist:**
+- [ ] Run `002_add_definitions_to_dictionary.sql` migration
+- [ ] Import words: `supabase/portuguese_words.sql`
+- [ ] Deploy Edge Function: `supabase functions deploy generate-daily-crossword`
+- [ ] Store in Vault: `project_url`, `service_role_key`
+- [ ] Run `003_schedule_daily_crossword.sql` to activate cron
+- [ ] Verify: Check `cron.job` table for scheduled job
+- [ ] Test: Manually trigger or wait until midnight
+
+
+
+### Crossword Game Logic (`components/CrosswordGrid.tsx`)
+The crossword component implements a sophisticated keyboard-driven interface:
+
+**State Management:**
+- `grid`: 2D array of `Cell` objects with `{value, correct, number?, isBlack, row, col}`
+- `selectedCell`: Current focus position `{row, col}`
+- `direction`: Toggle between `'across'` | `'down'` (changes on Tab or re-click)
+- `selectedClue`: Auto-computed from `selectedCell` + `direction`
+
+**Keyboard Navigation:**
+- **Arrow keys:** Move focus (auto-skips black cells, changes direction)
+- **Tab:** Toggle direction without moving cell
+- **Backspace:** Clear cell and move backwards
+- **Letters:** Accept `[a-záàâãéêíóôõúçA-ZÁÀÂÃÉÊÍÓÔÕÚÇ]` regex (PT-PT diacritics)
+- Auto-advances after letter entry in current direction
+
+**Completion Detection:**
+- `checkComplete()` compares `cell.value.toUpperCase() === cell.correct.toUpperCase()` for all non-black cells
+- Triggers `onComplete()` callback when puzzle solved
+
+**UI Highlighting:**
+- Yellow background for selected cell
+- Light yellow for cells in current word (computed via `isCellInCurrentWord()`)
+- Clue buttons highlight when their word is selected
+
+### Timer Component (`components/Timer.tsx`)
+**Implementation Details:**
+- Uses `setInterval` with 10ms precision (not 1000ms!)
+- Stores elapsed time in milliseconds
+- Format: `mm:ss:ms` (e.g., "03:45:67")
+- Callback `onTimeUpdate(timeMs)` fires every 10ms for real-time tracking
+- Restarts from last value when `isRunning` changes (doesn't reset automatically)
+
+### API Route Patterns
+
+**GET `/api/puzzle/[id]`:**
+```typescript
+// Returns full puzzle object from Supabase
+const { data: puzzle } = await supabase
+  .from('puzzles')
+  .select('*')
+  .eq('id', id)
+  .single();
+```
+
+**POST `/api/scores`:**
+```typescript
+// Validates user_id, puzzle_id, time_ms (must be > 0)
+// Uses .insert().select().single() pattern for returning inserted row
+```
+
+**GET `/api/scores?puzzle_id=X`:**
+```typescript
+// Returns Top 10 with joined profile data
+.select('*, profiles:user_id (username, avatar_url)')
+.order('time_ms', { ascending: true })
+.limit(10)
+```
+
+### Database Schema Key Details
+
+**Puzzle Data Structure (JSONB columns):**
+```typescript
+grid_data: Cell[][]  // 2D array with isBlack flags
+clues: { 
+  across: Clue[],  // {number, text, answer, startRow, startCol, direction}
+  down: Clue[] 
+}
+solutions: Json  // Currently unused (answers in grid_data.correct)
+```
+
+**Score Leaderboard Query:**
+- Index on `scores(puzzle_id, time_ms)` for fast leaderboard lookups
+- RLS policies: Public read, insert requires `auth.uid() = user_id`
+- `time_ms` stored as `INTEGER` (milliseconds, not seconds!)
+
+### Supabase Client Pattern
+**Always use the singleton from `lib/supabase.ts`:**
+```typescript
+import { supabase } from '@/lib/supabase'
+// Never create new clients in components/routes
+```
+
+**Error Handling Standard:**
+```typescript
+const { data, error } = await supabase.from('table').select()
+if (error) {
+  console.error('Context-specific message:', error)
+  return NextResponse.json({ error: 'User-facing message' }, { status: 404|500 })
+}
+```
+
+
+
 
 ## Project-Specific Conventions
 
 ### File Organization Pattern
-- `/app/page.tsx` - Homepage (launcher interface)
-- `/app/[game]/page.tsx` - Individual game pages (e.g., `/crosswords/page.tsx`)
-- `/app/api/[resource]/route.ts` - API routes for Supabase queries
-- `/app/leaderboards/page.tsx` - Unified leaderboards page with filters
+- `/app/page.tsx` - Homepage with launcher cards (see example: emoji icons, PT-PT descriptions)
+- `/app/[game]/page.tsx` - Game pages (e.g., `/palavras-cruzadas/page.tsx` with timer + grid)
+- `/app/api/[resource]/route.ts` - API routes using `NextResponse.json()`
+- `/components/[Component].tsx` - Shared React components (use `'use client'` for state)
+- `/lib/` - Utilities and Supabase client (no React hooks here)
 
-### Design System Requirements
-- **Mobile-first:** All components must be responsive
-- **Dark/Light Mode:** Use Tailwind's `dark:` variant throughout
-- **Minimalist UI:** Clean, modern design matching existing mockups
-- **Fonts:** Geist Sans (UI) + Geist Mono (code/numbers) already configured
+### Styling Conventions
+- **Mobile-first:** Always test responsive breakpoints (`sm:`, `lg:`)
+- **Dark mode:** Every component uses `dark:` variant (e.g., `dark:bg-zinc-900`)
+- **Spacing:** Use Tailwind's `gap-*` over margin in flex/grid layouts
+- **Colors:** Zinc palette for neutrals, yellow for interactive highlights
+- **Typography:** `font-sans` (Geist Sans) for UI, `font-mono` (Geist Mono) for timers/numbers
 
-### Game Implementation Pattern
-Each game follows this structure:
-1. **Core Logic Component:** React component with game state (e.g., `<CrosswordGrid />`)
-2. **Timer Integration:** Track time from start to completion in milliseconds
-3. **API Route:** Fetch puzzle data (`/api/puzzle/[id]`) and submit scores (`/api/scores`)
-4. **Dictionary Validation:** For PT-PT mode, validate words against `dictionary_pt` table
+### TypeScript Patterns
+- **No `any` types** except when Supabase types require casting (use `(supabase as any)` sparingly)
+- **Import types with `type`:** `import type { Database } from '@/lib/database.types'`
+- **Async params in route handlers (Next.js 16):**
+  ```typescript
+  export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
+    const { id } = await params  // Must await!
+  }
+  ```
 
-### Multiplayer Architecture (Phase 4)
-- **Real-time Sync:** Use Supabase Realtime subscriptions on `game_rooms` table
-- **Game State Management:** Store JSON game state in `game_rooms.game_state`
-- **Flow:** Player action → Update `game_rooms` → Broadcast via Realtime → UI updates for all players
+### Portuguese Language Requirements
+- **All UI text** must be PT-PT (not PT-BR): "Pontuação" not "Pontuação", "Leaderboards" not "Rankings"
+- **Crossword clues** use PT-PT vocabulary (see example puzzle: "CAFÉ", "FADO", "OLÁ")
+- **Regex for input:** `/[a-záàâãéêíóôõúçA-ZÁÀÂÃÉÊÍÓÔÕÚÇ]/` includes all PT-PT diacritics
+- **Dictionary validation:** Use `dictionary_pt` table (lowercase normalized)
 
 ## Development Workflows
 
-### Local Development
+### Local Development Commands
 ```bash
-npm run dev          # Start dev server on localhost:3000
-npm run build        # Production build (test before deploy)
-npm run lint         # ESLint with Next.js config
+npm run dev      # Start dev server on http://localhost:3000
+npm run build    # Production build (validates TypeScript + ESLint)
+npm run lint     # Run ESLint checks
+npm start        # Production server (after npm run build)
 ```
 
-### Supabase Integration (Once Setup)
-```typescript
-// Pattern for client creation (use environment variables)
-import { createClient } from '@supabase/supabase-js'
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+### Environment Setup
+Create `.env.local` with Supabase credentials:
+```bash
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 ```
+**Warning:** App will throw error if these are missing (see `lib/supabase.ts` validation)
 
-### PWA Configuration (Phase 5)
-Install `next-pwa` and configure:
-- `manifest.json` with Nexo branding
-- Service worker for offline homepage access
-- Icons for iOS/Android (180x180, 512x512)
+### Component Development Pattern
+1. **Client components:** Add `'use client'` directive if using hooks or event handlers
+2. **Server components:** Default in App Router, can fetch data directly (no useState/useEffect)
+3. **Example flow for new game:**
+   - Create `/app/[game-name]/page.tsx` (server component with metadata)
+   - Create `/components/[GameName]Grid.tsx` (client component with game logic)
+   - Add API route `/app/api/[game-name]/route.ts`
+
+### Database Migration Workflow
+1. Edit SQL in `supabase/migrations/` directory
+2. Run migration via Supabase dashboard SQL editor
+3. Regenerate types: `npx supabase gen types typescript --project-id <id> > lib/database.types.ts`
+4. Commit both migration and updated types
 
 ## Key Integration Points
 
-### Daily Challenge System
-- **Cron Job:** Supabase function runs at midnight to update `daily_puzzle` table
-- **Leaderboard Filter:** Query `scores` WHERE `puzzle_id` = today's daily puzzle
-- **Timer Competition:** Display Top 10 fastest times in `mm:ss:ms` format
+### Example Puzzle Structure (see `/app/palavras-cruzadas/page.tsx`)
+```typescript
+const grid: Cell[][] = [
+  [
+    { value: '', correct: 'C', number: 1, isBlack: false, row: 0, col: 0 },
+    { value: '', correct: 'A', isBlack: false, row: 0, col: 1 },
+    // ...
+  ]
+]
 
-### Portuguese Dictionary Integration
-- **Source:** LibreOffice PT-PT word list (open-source)
-- **Loading:** Bulk insert into `dictionary_pt` during Phase 1
-- **Validation Endpoint:** `/api/check-word` queries this table
+const clues = {
+  across: [
+    { number: 1, text: 'Habitação, moradia', answer: 'CASA', 
+      startRow: 0, startCol: 0, direction: 'across' }
+  ],
+  down: [...]
+}
+```
 
-### Authentication Flow
-- **Anonymous Play:** Allow singleplayer without login
-- **Required for:** Leaderboard submissions, multiplayer games
-- **Provider:** Supabase Auth (Email/Password + Google OAuth)
+### Daily Challenge Implementation ✅ AUTOMATED
+**Automatic Crossword Generation System:**
+- **Cron Job:** `pg_cron` executes at **00:00 Portugal time** (see `migrations/003_schedule_daily_crossword.sql`)
+- **Edge Function:** `supabase/functions/generate-daily-crossword/index.ts` generates puzzle
+- **Algorithm:** `lib/crossword-generator.ts` - Crossword placement logic
+- **Word Source:** `dictionary_pt` table with `word` + `definition` columns (~200+ words, expandable to 1000+)
+- **Generation Flow:**
+  1. Cron triggers Edge Function at midnight
+  2. Function fetches 100 random words from `dictionary_pt`
+  3. `CrosswordGenerator` creates 15x15 grid with 8-12 intersecting words
+  4. Puzzle inserted with `type='daily'` and `publish_date=TODAY`
+  5. Frontend fetches latest daily puzzle via `WHERE type='daily' ORDER BY publish_date DESC LIMIT 1`
+
+**Key Algorithm Features:**
+- Words must be 3-10 characters
+- First word placed horizontally in center
+- Subsequent words find intersections (common letters)
+- Grid trimmed to minimum size + 1 cell padding
+- Cells numbered top-to-bottom, left-to-right
+- Retries up to 5 times if generation fails
+
+**Leaderboard:** Filter scores by `puzzle_id` of daily puzzle, order by `time_ms ASC`
+
+### Portuguese Dictionary Integration ✅ IMPLEMENTED
+- **Source:** Manual curation + LibreOffice PT-PT word list (open-source)
+- **Storage:** `dictionary_pt` table with columns:
+  - `word TEXT PRIMARY KEY` - Lowercase normalized word (3-10 chars)
+  - `definition TEXT` - Crossword clue (e.g., "Bebida estimulante escura" for "café")
+- **Initial Data:** `supabase/portuguese_words.sql` (~200 words with definitions)
+- **Expansion:** Add more words with same INSERT format, target 1000+ for variety
+- **Query Pattern:** `SELECT word, definition FROM dictionary_pt WHERE length(word) BETWEEN 3 AND 10 ORDER BY random() LIMIT 100`
+- **Validation endpoint (future):** `GET /api/check-word?word=palavra` queries this table
+
+### Authentication Flow (Planned - Phase 3)
+- **Anonymous play:** Allow without login (local state only, no leaderboard submission)
+- **Sign-in required for:** Score submission, multiplayer games
+- **Providers:** Supabase Auth with Email/Password + Google OAuth
+- **Profile creation:** Auto-create `profiles` row via Supabase trigger on `auth.users` insert
+
+### Multiplayer Real-time (Planned - Phase 4)
+- **Subscribe to game room:** `supabase.channel('room:uuid').on('postgres_changes'...)`
+- **Broadcast moves:** Update `game_rooms.game_state` JSONB column
+- **UI sync:** All players receive update via Realtime subscription, re-render game state
 
 ## Common Pitfalls to Avoid
-- Don't hardcode puzzle data - always fetch from Supabase
-- Don't use European Portuguese (PT-PT) and Brazilian Portuguese (PT-BR) interchangeably
-- Don't implement multiplayer without real-time subscriptions (REST polling insufficient)
-- Don't forget millisecond precision for leaderboard times (use `time_ms` not seconds)
-- Don't skip PWA manifest - it's core to the product identity
+- **Async params:** Next.js 16 requires `await params` in route handlers - don't destructure directly
+- **Supabase types:** Use `(supabase as any)` only when TypeScript can't infer `.insert().select().single()` chain
+- **PT-PT vs PT-BR:** Use "Horizontais/Verticais" not "Horizontal/Vertical", "Leaderboards" not "Classificações"
+- **Timer precision:** Store `time_ms` as INTEGER milliseconds, not seconds - critical for leaderboard sorting
+- **Cell navigation:** Always skip black cells in arrow key handlers (see `moveHorizontal/moveVertical` helpers)
+- **Grid mutations:** Always create new arrays with spread `[...grid]` - don't mutate state directly
+- **Completion check:** Run in `setTimeout(() => checkComplete(), 100)` to ensure state update completes
 
 ## Testing & Deployment
-- **Preview Deployments:** Every Git push triggers Vercel preview
-- **Production:** Push to `main` branch auto-deploys to production
-- **Environment Variables:** Configure Supabase keys in Vercel dashboard
-- **Mobile Testing:** Use Chrome DevTools device emulation + real iOS/Android devices
+- **Local testing:** Run `npm run build` before deploying to catch type/lint errors
+- **Environment variables:** Configure in Vercel dashboard under Settings → Environment Variables
+- **Preview deploys:** Every push to non-main branches creates preview URL
+- **Production:** Push to `main` branch triggers auto-deployment
+- **Mobile testing:** Use Chrome DevTools device emulation + real iOS Safari/Android Chrome
 
 ## Documentation References
-- Full project spec: `/README.md`
-- Task breakdown: `/copilot-instructions.md` (track progress with checkboxes)
-- Supabase docs: https://supabase.com/docs
-- Next.js App Router: https://nextjs.org/docs/app
+- **Project spec:** `/README.md` (full requirements in Portuguese)
+- **Example puzzles:** `supabase/example_puzzles.sql` (SQL INSERT statements)
+- **Database schema:** `supabase/migrations/001_initial_schema.sql` (complete with RLS policies)
+- **Supabase docs:** https://supabase.com/docs (Auth, Realtime, RLS)
+- **Next.js App Router:** https://nextjs.org/docs/app (dynamic routes, server components)
