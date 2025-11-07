@@ -41,17 +41,22 @@ export default function CrosswordGrid({
   const [direction, setDirection] = useState<'across' | 'down'>('across');
   const [selectedClue, setSelectedClue] = useState<Clue | null>(null);
 
-  // Verifica se o puzzle está completo
-  const checkComplete = useCallback(() => {
-    for (let row = 0; row < grid.length; row++) {
-      for (let col = 0; col < grid[row].length; col++) {
-        const cell = grid[row][col];
+  // Helper function to check if puzzle is complete (accepts grid as parameter)
+  const checkIsComplete = (gridToCheck: Cell[][]): boolean => {
+    for (let row = 0; row < gridToCheck.length; row++) {
+      for (let col = 0; col < gridToCheck[row].length; col++) {
+        const cell = gridToCheck[row][col];
         if (!cell.isBlack && cell.value.toUpperCase() !== cell.correct.toUpperCase()) {
           return false;
         }
       }
     }
     return true;
+  };
+
+  // Verifica se o puzzle está completo (uses current state)
+  const checkComplete = useCallback(() => {
+    return checkIsComplete(grid);
   }, [grid]);
 
   // Encontra a pista associada à célula selecionada
@@ -105,7 +110,7 @@ export default function CrosswordGrid({
 
     if (e.key === 'Backspace') {
       e.preventDefault();
-      const newGrid = [...grid];
+      const newGrid = grid.map(r => [...r]); // Deep copy
       newGrid[row][col] = { ...newGrid[row][col], value: '' };
       setGrid(newGrid);
       onCellChange?.();
@@ -148,7 +153,7 @@ export default function CrosswordGrid({
     // Aceita apenas letras
     if (e.key.length === 1 && /[a-záàâãéêíóôõúçA-ZÁÀÂÃÉÊÍÓÔÕÚÇ]/.test(e.key)) {
       e.preventDefault();
-      const newGrid = [...grid];
+      const newGrid = grid.map(r => [...r]); // Deep copy
       newGrid[row][col] = {
         ...newGrid[row][col],
         value: e.key.toUpperCase(),
@@ -156,12 +161,13 @@ export default function CrosswordGrid({
       setGrid(newGrid);
       onCellChange?.();
 
-      // Verifica se está completo
-      setTimeout(() => {
-        if (checkComplete()) {
+      // Verifica se está completo com o novo grid
+      const isComplete = checkIsComplete(newGrid);
+      if (isComplete) {
+        setTimeout(() => {
           onComplete();
-        }
-      }, 100);
+        }, 100);
+      }
 
       // Move para a próxima célula
       moveToNextCell(row, col, false);

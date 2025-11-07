@@ -36,15 +36,58 @@ Nexo is a **Progressive Web App (PWA)** gaming platform focused on Portuguese (P
 ## Next Priority Tasks (Deployment Ready)
 1. ✅ Run migrations: `002_add_definitions_to_dictionary.sql`, `003_schedule_daily_crossword.sql`
 2. ✅ Populate dictionary: Execute `supabase/portuguese_words.sql` in Supabase SQL Editor
-3. Deploy Edge Function: `supabase functions deploy generate-daily-crossword`
-4. Store secrets in Vault: `project_url`, `service_role_key` (for cron authentication)
-5. Test cron: Manually trigger function or wait until midnight Portugal time
-6. Connect crossword page to fetch real puzzles from API
-7. Implement leaderboard page (`/leaderboards`) with Top 10 display
-8. Add authentication flow (Supabase Auth with Email/Google)
-9. Deploy to Vercel with environment variables
+3. ✅ Create API endpoints: `/api/puzzle/daily` and `/api/puzzle/random`
+4. ✅ Implement mode selection UI with both game modes
+5. Deploy Edge Function: `supabase functions deploy generate-daily-crossword`
+6. Store secrets in Vault: `project_url`, `service_role_key` (for cron authentication)
+7. Test cron: Manually trigger function or wait until midnight Portugal time
+8. Implement leaderboard page (`/leaderboards`) with Top 10 display (daily mode only)
+9. Add authentication flow (Supabase Auth with Email/Google)
+10. Deploy to Vercel with environment variables
 
 ## Critical Architecture Patterns
+
+### Game Modes System ⭐
+**Two distinct play modes for crosswords:**
+
+**1. Daily Mode (`/api/puzzle/daily`):**
+- Fetches today's puzzle from database (`type='daily'`, `publish_date=TODAY`)
+- Portugal timezone aware (Europe/Lisbon)
+- Same puzzle for all players globally
+- Enables leaderboard competition
+- Fallback to most recent puzzle if today's not yet generated
+- Returns `isFromPreviousDay` flag when showing old puzzle
+
+**2. Random Mode (`/api/puzzle/random`):**
+- Generates NEW puzzle on every request
+- Uses `CrosswordGenerator` with 100 random words from `dictionary_pt`
+- NOT saved to database (stateless)
+- Retry mechanism (5 attempts) for quality
+- Perfect for practice/training
+- No leaderboard (or personal only)
+
+**UI Flow:**
+```typescript
+// Mode selection screen
+showModeSelection → User picks → fetchPuzzle(mode)
+  ├─ Daily: GET /api/puzzle/daily
+  └─ Random: GET /api/puzzle/random
+
+// Game screen shows mode badge
+gameMode === 'daily' ? '📅 Diário' : '🎲 Aleatório'
+
+// Completion screen
+- Daily: "Ver Classificações" button
+- Random: "Novo Puzzle Aleatório" button
+```
+
+**Implementation Details:**
+- Mode stored in component state (`gameMode: 'daily' | 'random'`)
+- Header shows active mode with icon badge
+- "Mudar Modo" button returns to selection screen
+- Restart behavior differs by mode (reload vs new generation)
+
+
 
 ### Automatic Daily Crossword Generation System ⭐
 **Overview:** Fully automated system that generates a new crossword puzzle every day at midnight (Portugal timezone) using a curated list of Portuguese words.

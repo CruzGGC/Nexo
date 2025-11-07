@@ -6,121 +6,49 @@ import CrosswordGrid, { type Cell, type Clue } from '@/components/CrosswordGrid'
 import Timer from '@/components/Timer';
 import Link from 'next/link';
 
+type GameMode = 'daily' | 'random';
+
 export default function PalavrasCruzadasPage() {
   const router = useRouter();
-  const [isLoading, setIsLoading] = useState(true);
+  const [gameMode, setGameMode] = useState<GameMode>('daily');
+  const [isLoading, setIsLoading] = useState(false);
   const [puzzle, setPuzzle] = useState<any>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
   const [finalTime, setFinalTime] = useState(0);
-  const [showInstructions, setShowInstructions] = useState(true);
+  const [showModeSelection, setShowModeSelection] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Exemplo de puzzle (vamos buscar da API depois)
-  useEffect(() => {
-    // Por agora, vamos criar um puzzle de exemplo
-    // TODO: Buscar da API quando tivermos puzzles na base de dados
-    const examplePuzzle = createExamplePuzzle();
-    setPuzzle(examplePuzzle);
-    setIsLoading(false);
-  }, []);
+  const fetchPuzzle = async (mode: GameMode) => {
+    setIsLoading(true);
+    setError(null);
 
-  const createExamplePuzzle = () => {
-    // Puzzle de exemplo simples 5x5
-    const grid: Cell[][] = [
-      [
-        { value: '', correct: 'C', number: 1, isBlack: false, row: 0, col: 0 },
-        { value: '', correct: 'A', isBlack: false, row: 0, col: 1 },
-        { value: '', correct: 'S', isBlack: false, row: 0, col: 2 },
-        { value: '', correct: 'A', isBlack: false, row: 0, col: 3 },
-        { value: '', correct: '', isBlack: true, row: 0, col: 4 },
-      ],
-      [
-        { value: '', correct: 'A', isBlack: false, row: 1, col: 0 },
-        { value: '', correct: '', isBlack: true, row: 1, col: 1 },
-        { value: '', correct: 'O', number: 2, isBlack: false, row: 1, col: 2 },
-        { value: '', correct: 'L', isBlack: false, row: 1, col: 3 },
-        { value: '', correct: 'A', isBlack: false, row: 1, col: 4 },
-      ],
-      [
-        { value: '', correct: 'F', number: 3, isBlack: false, row: 2, col: 0 },
-        { value: '', correct: 'A', isBlack: false, row: 2, col: 1 },
-        { value: '', correct: 'D', isBlack: false, row: 2, col: 2 },
-        { value: '', correct: 'O', isBlack: false, row: 2, col: 3 },
-        { value: '', correct: '', isBlack: true, row: 2, col: 4 },
-      ],
-      [
-        { value: '', correct: 'E', isBlack: false, row: 3, col: 0 },
-        { value: '', correct: '', isBlack: true, row: 3, col: 1 },
-        { value: '', correct: 'A', isBlack: false, row: 3, col: 2 },
-        { value: '', correct: '', isBlack: true, row: 3, col: 3 },
-        { value: '', correct: '', isBlack: true, row: 3, col: 4 },
-      ],
-      [
-        { value: '', correct: '', isBlack: true, row: 4, col: 0 },
-        { value: '', correct: '', isBlack: true, row: 4, col: 1 },
-        { value: '', correct: 'R', isBlack: false, row: 4, col: 2 },
-        { value: '', correct: '', isBlack: true, row: 4, col: 3 },
-        { value: '', correct: '', isBlack: true, row: 4, col: 4 },
-      ],
-    ];
+    try {
+      const endpoint = mode === 'daily' ? '/api/puzzle/daily' : '/api/puzzle/random';
+      const response = await fetch(endpoint);
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Erro ao carregar puzzle');
+      }
 
-    const clues = {
-      across: [
-        {
-          number: 1,
-          text: 'Habitação, moradia',
-          answer: 'CASA',
-          startRow: 0,
-          startCol: 0,
-          direction: 'across' as const,
-        },
-        {
-          number: 2,
-          text: 'Saudação informal',
-          answer: 'OLA',
-          startRow: 1,
-          startCol: 2,
-          direction: 'across' as const,
-        },
-        {
-          number: 3,
-          text: 'Destino, género musical português',
-          answer: 'FADO',
-          startRow: 2,
-          startCol: 0,
-          direction: 'across' as const,
-        },
-      ],
-      down: [
-        {
-          number: 1,
-          text: 'Bebida estimulante',
-          answer: 'CAFE',
-          startRow: 0,
-          startCol: 0,
-          direction: 'down' as const,
-        },
-        {
-          number: 2,
-          text: 'Nota musical + Lá + Ré',
-          answer: 'SOLAR',
-          startRow: 0,
-          startCol: 2,
-          direction: 'down' as const,
-        },
-      ],
-    };
+      const data = await response.json();
+      setPuzzle(data);
+      setShowModeSelection(false);
+    } catch (err) {
+      console.error('Erro ao buscar puzzle:', err);
+      setError(err instanceof Error ? err.message : 'Erro ao carregar puzzle');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-    return {
-      id: 1,
-      grid_data: grid,
-      clues,
-      type: 'standard_pt',
-    };
+  const handleSelectMode = (mode: GameMode) => {
+    setGameMode(mode);
+    fetchPuzzle(mode);
   };
 
   const handleStartGame = () => {
-    setShowInstructions(false);
     setIsPlaying(true);
   };
 
@@ -134,8 +62,124 @@ export default function PalavrasCruzadasPage() {
   };
 
   const handleRestart = () => {
-    router.refresh();
+    if (gameMode === 'random') {
+      // Generate new random puzzle
+      fetchPuzzle('random');
+      setIsPlaying(false);
+      setIsComplete(false);
+      setFinalTime(0);
+    } else {
+      // Reload daily puzzle
+      router.refresh();
+    }
   };
+
+  const handleChangMode = () => {
+    setPuzzle(null);
+    setShowModeSelection(true);
+    setIsPlaying(false);
+    setIsComplete(false);
+    setFinalTime(0);
+    setError(null);
+  };
+
+  // Mode Selection Screen
+  if (showModeSelection) {
+    return (
+      <div className="flex min-h-screen flex-col bg-gradient-to-br from-zinc-50 to-zinc-100 dark:from-zinc-950 dark:to-black">
+        <header className="border-b border-zinc-200 bg-white/80 backdrop-blur-sm dark:border-zinc-800 dark:bg-zinc-900/80">
+          <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
+            <Link
+              href="/"
+              className="text-sm font-medium text-zinc-600 transition-colors hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-50"
+            >
+              ← Voltar
+            </Link>
+            <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-50">
+              Palavras Cruzadas
+            </h1>
+            <div className="w-20"></div>
+          </div>
+        </header>
+
+        <main className="flex flex-1 items-center justify-center px-6 py-16">
+          <div className="w-full max-w-2xl">
+            <div className="mb-8 text-center">
+              <h2 className="mb-2 text-3xl font-bold text-zinc-900 dark:text-zinc-50">
+                Escolha o Modo de Jogo
+              </h2>
+              <p className="text-zinc-600 dark:text-zinc-400">
+                Selecione como quer jogar palavras cruzadas
+              </p>
+            </div>
+
+            {error && (
+              <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-900 dark:bg-red-950">
+                <p className="text-sm text-red-800 dark:text-red-200">{error}</p>
+              </div>
+            )}
+
+            <div className="grid gap-6 sm:grid-cols-2">
+              {/* Daily Mode */}
+              <button
+                onClick={() => handleSelectMode('daily')}
+                disabled={isLoading}
+                className="group relative overflow-hidden rounded-2xl border-2 border-zinc-200 bg-white p-8 text-left transition-all hover:border-yellow-400 hover:shadow-lg disabled:opacity-50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-yellow-600"
+              >
+                <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-xl bg-yellow-100 text-4xl transition-transform group-hover:scale-110 dark:bg-yellow-900">
+                  📅
+                </div>
+                <h3 className="mb-2 text-2xl font-bold text-zinc-900 dark:text-zinc-50">
+                  Modo Diário
+                </h3>
+                <p className="mb-4 text-sm text-zinc-600 dark:text-zinc-400">
+                  O mesmo puzzle para todos os jogadores. Novo puzzle todos os dias à meia-noite.
+                </p>
+                <ul className="space-y-1 text-xs text-zinc-500 dark:text-zinc-500">
+                  <li>✓ Competição global</li>
+                  <li>✓ Leaderboard partilhada</li>
+                  <li>✓ 1 puzzle por dia</li>
+                </ul>
+                <div className="absolute bottom-0 right-0 h-24 w-24 translate-x-8 translate-y-8 rounded-full bg-yellow-200 opacity-20 transition-transform group-hover:scale-150 dark:bg-yellow-800"></div>
+              </button>
+
+              {/* Random Mode */}
+              <button
+                onClick={() => handleSelectMode('random')}
+                disabled={isLoading}
+                className="group relative overflow-hidden rounded-2xl border-2 border-zinc-200 bg-white p-8 text-left transition-all hover:border-blue-400 hover:shadow-lg disabled:opacity-50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-blue-600"
+              >
+                <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-xl bg-blue-100 text-4xl transition-transform group-hover:scale-110 dark:bg-blue-900">
+                  🎲
+                </div>
+                <h3 className="mb-2 text-2xl font-bold text-zinc-900 dark:text-zinc-50">
+                  Modo Aleatório
+                </h3>
+                <p className="mb-4 text-sm text-zinc-600 dark:text-zinc-400">
+                  Puzzle novo gerado automaticamente a cada jogo. Treino ilimitado!
+                </p>
+                <ul className="space-y-1 text-xs text-zinc-500 dark:text-zinc-500">
+                  <li>✓ Puzzles infinitos</li>
+                  <li>✓ Prática sem pressão</li>
+                  <li>✓ Sem limite de tempo</li>
+                </ul>
+                <div className="absolute bottom-0 right-0 h-24 w-24 translate-x-8 translate-y-8 rounded-full bg-blue-200 opacity-20 transition-transform group-hover:scale-150 dark:bg-blue-800"></div>
+              </button>
+            </div>
+
+            {isLoading && (
+              <div className="mt-8 text-center">
+                <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-4 border-zinc-200 border-t-zinc-900 dark:border-zinc-800 dark:border-t-zinc-50"></div>
+                <p className="text-zinc-600 dark:text-zinc-400">
+                  {gameMode === 'daily' ? 'A carregar puzzle diário...' : 'A gerar puzzle aleatório...'}
+                </p>
+              </div>
+            )}
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -153,13 +197,16 @@ export default function PalavrasCruzadasPage() {
       {/* Cabeçalho */}
       <header className="border-b border-zinc-200 bg-white/80 backdrop-blur-sm dark:border-zinc-800 dark:bg-zinc-900/80">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
-          <Link
-            href="/"
-            className="text-2xl font-bold text-zinc-900 dark:text-zinc-50"
+          <button
+            onClick={handleChangMode}
+            className="text-sm font-medium text-zinc-600 transition-colors hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-50"
           >
-            ← Nexo
-          </Link>
-          <div className="flex items-center gap-6">
+            ← Mudar Modo
+          </button>
+          <div className="flex items-center gap-3">
+            <span className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+              {gameMode === 'daily' ? '📅 Diário' : '🎲 Aleatório'}
+            </span>
             <div className="text-center">
               <div className="text-xs text-zinc-600 dark:text-zinc-400">Tempo</div>
               <Timer isRunning={isPlaying} onTimeUpdate={handleTimeUpdate} />
@@ -170,7 +217,7 @@ export default function PalavrasCruzadasPage() {
 
       {/* Conteúdo Principal */}
       <main className="mx-auto max-w-7xl px-6 py-8">
-        {showInstructions && (
+        {!isPlaying && !isComplete && puzzle && (
           <div className="mb-8 rounded-2xl border border-zinc-200 bg-white p-8 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
             <h2 className="mb-4 text-2xl font-bold text-zinc-900 dark:text-zinc-50">
               Como Jogar
@@ -183,6 +230,13 @@ export default function PalavrasCruzadasPage() {
               <li>• Clique nas pistas para saltar para essa palavra</li>
               <li>• O temporizador começa quando clicar em &quot;Iniciar Jogo&quot;</li>
             </ul>
+            {gameMode === 'daily' && puzzle.isFromPreviousDay && (
+              <div className="mb-4 rounded-lg border border-yellow-200 bg-yellow-50 p-4 dark:border-yellow-900 dark:bg-yellow-950">
+                <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                  ⚠️ Este é o puzzle de um dia anterior. O puzzle de hoje será gerado à meia-noite.
+                </p>
+              </div>
+            )}
             <button
               onClick={handleStartGame}
               className="rounded-full bg-zinc-900 px-8 py-3 font-semibold text-white transition-colors hover:bg-zinc-700 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
@@ -192,7 +246,7 @@ export default function PalavrasCruzadasPage() {
           </div>
         )}
 
-        {!showInstructions && !isComplete && puzzle && (
+        {isPlaying && !isComplete && puzzle && (
           <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
             <CrosswordGrid
               grid={puzzle.grid_data}
@@ -211,25 +265,40 @@ export default function PalavrasCruzadasPage() {
             <h2 className="mb-4 text-3xl font-bold text-zinc-900 dark:text-zinc-50">
               Parabéns!
             </h2>
-            <p className="mb-6 text-lg text-zinc-700 dark:text-zinc-300">
-              Completou o puzzle em
+            <p className="mb-2 text-lg text-zinc-700 dark:text-zinc-300">
+              Completou o puzzle {gameMode === 'daily' ? 'diário' : 'aleatório'} em
             </p>
             <div className="mb-8 font-mono text-4xl font-bold text-zinc-900 dark:text-zinc-50">
               {formatTime(finalTime)}
             </div>
+            
+            {gameMode === 'random' && (
+              <p className="mb-6 text-sm text-zinc-600 dark:text-zinc-400">
+                Modo aleatório não conta para a leaderboard global
+              </p>
+            )}
+
             <div className="flex flex-col gap-4 sm:flex-row sm:justify-center">
               <button
                 onClick={handleRestart}
                 className="rounded-full bg-zinc-900 px-8 py-3 font-semibold text-white transition-colors hover:bg-zinc-700 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
               >
-                Jogar Novamente
+                {gameMode === 'daily' ? 'Jogar Novamente' : 'Novo Puzzle Aleatório'}
               </button>
-              <Link
-                href="/leaderboards"
+              {gameMode === 'daily' && (
+                <Link
+                  href="/leaderboards"
+                  className="rounded-full border border-zinc-300 px-8 py-3 font-semibold text-zinc-900 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-50 dark:hover:bg-zinc-800"
+                >
+                  Ver Classificações
+                </Link>
+              )}
+              <button
+                onClick={handleChangMode}
                 className="rounded-full border border-zinc-300 px-8 py-3 font-semibold text-zinc-900 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-50 dark:hover:bg-zinc-800"
               >
-                Ver Classificações
-              </Link>
+                Mudar Modo
+              </button>
             </div>
           </div>
         )}
@@ -247,3 +316,4 @@ function formatTime(ms: number): string {
     .toString()
     .padStart(2, '0')}:${milliseconds.toString().padStart(2, '0')}`;
 }
+
