@@ -207,26 +207,53 @@ class CrosswordGenerator {
     })
 
     for (const word of sorted) {
-      const key = `${word.row},${word.col}`
+      // Include direction in the key to allow both across and down at same position
+      const key = `${word.row},${word.col},${word.direction}`
       if (!numbered.has(key)) {
-        word.number = number
-        this.grid[word.row][word.col].number = number
+        // Check if this position already has a number (from another direction)
+        const existingNumber = this.grid[word.row][word.col].number
+        
+        if (existingNumber) {
+          // Reuse the existing number for this position
+          word.number = existingNumber
+        } else {
+          // Assign new number
+          word.number = number
+          this.grid[word.row][word.col].number = number
+          number++
+        }
+        
         numbered.add(key)
-        number++
       }
     }
   }
 
   private buildPuzzle() {
+    // First, mark all cells that belong to placed words
+    const validCells = new Set<string>()
+    for (const word of this.placedWords) {
+      for (let i = 0; i < word.word.length; i++) {
+        const r = word.direction === 'across' ? word.row : word.row + i
+        const c = word.direction === 'across' ? word.col + i : word.col
+        validCells.add(`${r},${c}`)
+      }
+    }
+
+    // Build grid, only including cells that belong to placed words
     const grid = this.grid.map((row, rowIndex) =>
-      row.map((cell, colIndex) => ({
-        value: '',
-        correct: cell.letter,
-        number: cell.number,
-        isBlack: cell.isBlack,
-        row: rowIndex,
-        col: colIndex,
-      }))
+      row.map((cell, colIndex) => {
+        const key = `${rowIndex},${colIndex}`
+        const isValid = validCells.has(key)
+        
+        return {
+          value: '',
+          correct: isValid ? cell.letter : '', // Only set correct value for valid cells
+          number: cell.number,
+          isBlack: !isValid || cell.isBlack, // Mark invalid cells as black
+          row: rowIndex,
+          col: colIndex,
+        }
+      })
     )
 
     const across: any[] = []
@@ -274,9 +301,7 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseKey)
 
-    console.log('🎯 Generating daily crossword...')
-
-    // Get random words from dictionary (50 words to have options)
+    // Get random words from dictionary
     const { data: words, error: wordsError } = await supabase
       .from('dictionary_pt')
       .select('word, definition')
@@ -293,8 +318,6 @@ serve(async (req) => {
       throw new Error('No words found in dictionary')
     }
 
-    console.log(`📚 Found ${words.length} words`)
-
     // Generate crossword (try up to 5 times for a good puzzle)
     let puzzle = null
     let attempts = 0
@@ -302,8 +325,6 @@ serve(async (req) => {
 
     while (!puzzle && attempts < maxAttempts) {
       attempts++
-      console.log(`🔄 Attempt ${attempts}/${maxAttempts}`)
-      
       const generator = new CrosswordGenerator(15)
       puzzle = generator.generate(words, 12)
     }
@@ -311,8 +332,6 @@ serve(async (req) => {
     if (!puzzle) {
       throw new Error('Failed to generate puzzle after multiple attempts')
     }
-
-    console.log('✅ Puzzle generated successfully')
 
     // Get today's date in Portugal timezone
     const today = new Date()
@@ -326,8 +345,6 @@ serve(async (req) => {
     const [day, month, year] = portugalDate.split('/')
     const publishDate = `${year}-${month}-${day}`
 
-    console.log(`📅 Publishing for date: ${publishDate}`)
-
     // Check if puzzle for today already exists
     const { data: existingPuzzle } = await supabase
       .from('puzzles')
@@ -337,7 +354,6 @@ serve(async (req) => {
       .single()
 
     if (existingPuzzle) {
-      console.log('⚠️  Puzzle for today already exists, skipping')
       return new Response(
         JSON.stringify({ 
           message: 'Puzzle already exists for today',
@@ -364,8 +380,6 @@ serve(async (req) => {
       throw new Error(`Failed to insert puzzle: ${insertError.message}`)
     }
 
-    console.log('🎉 Daily crossword generated and saved!')
-
     return new Response(
       JSON.stringify({
         success: true,
@@ -376,7 +390,7 @@ serve(async (req) => {
       { headers: { 'Content-Type': 'application/json' }, status: 200 }
     )
   } catch (error) {
-    console.error('❌ Error generating daily crossword:', error)
+    console.error('Error generating daily crossword:', error)
     return new Response(
       JSON.stringify({ 
         error: error.message || 'Internal server error',

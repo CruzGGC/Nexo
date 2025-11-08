@@ -93,7 +93,7 @@ export class CrosswordGenerator {
     }
 
     // Trim grid to minimum size and add black cells
-    const trimmedGrid = this.trimGrid();
+    this.trimGrid();
     
     // Assign numbers to starting positions
     this.assignNumbers();
@@ -261,12 +261,24 @@ export class CrosswordGenerator {
     });
 
     for (const word of sorted) {
-      const key = `${word.row},${word.col}`;
+      // Include direction in the key to allow both across and down at same position
+      const key = `${word.row},${word.col},${word.direction}`;
       if (!numbered.has(key)) {
-        word.number = number;
-        this.grid[word.row][word.col].number = number;
+        // Check if this position already has a number (from another direction)
+        const positionKey = `${word.row},${word.col}`;
+        const existingNumber = this.grid[word.row][word.col].number;
+        
+        if (existingNumber) {
+          // Reuse the existing number for this position
+          word.number = existingNumber;
+        } else {
+          // Assign new number
+          word.number = number;
+          this.grid[word.row][word.col].number = number;
+          number++;
+        }
+        
         numbered.add(key);
-        number++;
       }
     }
   }
@@ -275,15 +287,31 @@ export class CrosswordGenerator {
     grid: Cell[][];
     clues: { across: Clue[]; down: Clue[] };
   } {
+    // First, mark all cells that belong to placed words
+    const validCells = new Set<string>();
+    for (const word of this.placedWords) {
+      for (let i = 0; i < word.word.length; i++) {
+        const r = word.direction === 'across' ? word.row : word.row + i;
+        const c = word.direction === 'across' ? word.col + i : word.col;
+        validCells.add(`${r},${c}`);
+      }
+    }
+
+    // Build grid, only including cells that belong to placed words
     const grid: Cell[][] = this.grid.map((row, rowIndex) =>
-      row.map((cell, colIndex) => ({
-        value: '',
-        correct: cell.letter,
-        number: cell.number,
-        isBlack: cell.isBlack,
-        row: rowIndex,
-        col: colIndex,
-      }))
+      row.map((cell, colIndex) => {
+        const key = `${rowIndex},${colIndex}`;
+        const isValid = validCells.has(key);
+        
+        return {
+          value: '',
+          correct: isValid ? cell.letter : '', // Only set correct value for valid cells
+          number: cell.number,
+          isBlack: !isValid || cell.isBlack, // Mark invalid cells as black
+          row: rowIndex,
+          col: colIndex,
+        };
+      })
     );
 
     const across: Clue[] = [];

@@ -39,8 +39,6 @@ export async function GET() {
       .sort(() => Math.random() - 0.5)
       .slice(0, 100); // Use 100 random words
 
-    console.log(`🎲 Generating random puzzle with ${shuffledWords.length} words`);
-
     // Generate crossword (try up to 5 times for a good puzzle)
     let puzzle = null;
     let attempts = 0;
@@ -48,14 +46,11 @@ export async function GET() {
 
     while (!puzzle && attempts < maxAttempts) {
       attempts++;
-      console.log(`🔄 Attempt ${attempts}/${maxAttempts}`);
-      
       const generator = new CrosswordGenerator(15);
       puzzle = generator.generate(shuffledWords, 12);
     }
 
     if (!puzzle) {
-      console.error('❌ Failed to generate puzzle after multiple attempts');
       return NextResponse.json(
         { 
           error: 'Erro ao gerar puzzle',
@@ -64,8 +59,6 @@ export async function GET() {
         { status: 500 }
       );
     }
-
-    console.log('✅ Random puzzle generated successfully');
 
     // Return puzzle with metadata
     return NextResponse.json({

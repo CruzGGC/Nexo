@@ -1,5 +1,24 @@
 'use client';
 
+/**
+ * DEBUG MODE: Extensive console logging enabled
+ * 
+ * IMPORTANT FIX: Only cells with `correct` value are counted as playable.
+ * Cells with empty `correct` are "structural" (padding) and treated like black cells.
+ * 
+ * Logs to watch:
+ * - 🎮 Grid loaded: Shows dimensions, playable vs structural cells
+ * - ✅ Playable cell: Has correct answer, can be clicked/filled
+ * - ⬜ Structural cell: Empty padding, treated as black (unclickable)
+ * - ⌨️ Letter input: Shows each letter typed vs expected value
+ * - ⌫ Backspace: Shows when cells are cleared
+ * - 🔍 Checking completion: Validation start (only checks playable cells)
+ * - ❌ Cell mismatch: Individual incorrect cells with values
+ * - 📊 Statistics: Total playable, filled, correct counts
+ * - ✅ Is Complete: Final completion status
+ * - 🎉 Puzzle completed: When onComplete callback fires
+ */
+
 import { useState, useEffect, useCallback } from 'react';
 
 export interface Cell {
@@ -43,15 +62,31 @@ export default function CrosswordGrid({
 
   // Helper function to check if puzzle is complete (accepts grid as parameter)
   const checkIsComplete = (gridToCheck: Cell[][]): boolean => {
+    let totalCells = 0;
+    let correctCells = 0;
+    
     for (let row = 0; row < gridToCheck.length; row++) {
       for (let col = 0; col < gridToCheck[row].length; col++) {
         const cell = gridToCheck[row][col];
-        if (!cell.isBlack && cell.value.toUpperCase() !== cell.correct.toUpperCase()) {
-          return false;
+        
+        // Skip black cells AND cells without a correct answer (structural empty cells)
+        if (cell.isBlack || !cell.correct || cell.correct.trim() === '') {
+          continue;
+        }
+        
+        totalCells++;
+        
+        const cellValue = (cell.value || '').trim().toUpperCase();
+        const correctValue = cell.correct.trim().toUpperCase();
+        
+        if (cellValue === correctValue) {
+          correctCells++;
         }
       }
     }
-    return true;
+    
+    const isComplete = correctCells === totalCells && totalCells > 0;
+    return isComplete;
   };
 
   // Verifica se o puzzle está completo (uses current state)
@@ -93,7 +128,9 @@ export default function CrosswordGrid({
   }, [selectedCell, direction, clues]);
 
   const handleCellClick = (row: number, col: number) => {
-    if (grid[row][col].isBlack) return;
+    const cell = grid[row][col];
+    // Skip black cells AND structural empty cells (no correct answer)
+    if (cell.isBlack || !cell.correct || cell.correct.trim() === '') return;
 
     // Se clicar na mesma célula, muda a direção
     if (selectedCell?.row === row && selectedCell?.col === col) {
@@ -154,6 +191,7 @@ export default function CrosswordGrid({
     if (e.key.length === 1 && /[a-záàâãéêíóôõúçA-ZÁÀÂÃÉÊÍÓÔÕÚÇ]/.test(e.key)) {
       e.preventDefault();
       const newGrid = grid.map(r => [...r]); // Deep copy
+      
       newGrid[row][col] = {
         ...newGrid[row][col],
         value: e.key.toUpperCase(),
@@ -180,7 +218,9 @@ export default function CrosswordGrid({
     if (direction === 'across') {
       let newCol = col + delta;
       while (newCol >= 0 && newCol < grid[row].length) {
-        if (!grid[row][newCol].isBlack) {
+        const cell = grid[row][newCol];
+        // Skip black cells AND structural empty cells
+        if (!cell.isBlack && cell.correct && cell.correct.trim() !== '') {
           setSelectedCell({ row, col: newCol });
           return;
         }
@@ -189,7 +229,9 @@ export default function CrosswordGrid({
     } else {
       let newRow = row + delta;
       while (newRow >= 0 && newRow < grid.length) {
-        if (!grid[newRow][col].isBlack) {
+        const cell = grid[newRow][col];
+        // Skip black cells AND structural empty cells
+        if (!cell.isBlack && cell.correct && cell.correct.trim() !== '') {
           setSelectedCell({ row: newRow, col });
           return;
         }
@@ -201,7 +243,9 @@ export default function CrosswordGrid({
   const moveHorizontal = (row: number, col: number, delta: number) => {
     let newCol = col + delta;
     while (newCol >= 0 && newCol < grid[row].length) {
-      if (!grid[row][newCol].isBlack) {
+      const cell = grid[row][newCol];
+      // Skip black cells AND structural empty cells
+      if (!cell.isBlack && cell.correct && cell.correct.trim() !== '') {
         setSelectedCell({ row, col: newCol });
         setDirection('across');
         return;
@@ -213,7 +257,9 @@ export default function CrosswordGrid({
   const moveVertical = (row: number, col: number, delta: number) => {
     let newRow = row + delta;
     while (newRow >= 0 && newRow < grid.length) {
-      if (!grid[newRow][col].isBlack) {
+      const cell = grid[newRow][col];
+      // Skip black cells AND structural empty cells
+      if (!cell.isBlack && cell.correct && cell.correct.trim() !== '') {
         setSelectedCell({ row: newRow, col });
         setDirection('down');
         return;
@@ -257,6 +303,7 @@ export default function CrosswordGrid({
               const isSelected =
                 selectedCell?.row === rowIndex && selectedCell?.col === colIndex;
               const isInCurrentWord = isCellInCurrentWord(rowIndex, colIndex);
+              const isStructural = !cell.correct || cell.correct.trim() === '';
 
               return (
                 <div
@@ -265,7 +312,7 @@ export default function CrosswordGrid({
                     relative flex h-10 w-10 items-center justify-center border border-zinc-300 text-lg font-bold
                     transition-colors dark:border-zinc-700 sm:h-12 sm:w-12
                     ${
-                      cell.isBlack
+                      cell.isBlack || isStructural
                         ? 'bg-zinc-900 dark:bg-zinc-950'
                         : isSelected
                         ? 'bg-yellow-200 dark:bg-yellow-900'
@@ -273,7 +320,7 @@ export default function CrosswordGrid({
                         ? 'bg-yellow-100 dark:bg-yellow-950'
                         : 'bg-white hover:bg-zinc-50 dark:bg-zinc-900 dark:hover:bg-zinc-800'
                     }
-                    ${!cell.isBlack && 'cursor-pointer'}
+                    ${!cell.isBlack && !isStructural && 'cursor-pointer'}
                   `}
                   onClick={() => handleCellClick(rowIndex, colIndex)}
                 >
@@ -282,7 +329,7 @@ export default function CrosswordGrid({
                       {cell.number}
                     </span>
                   )}
-                  {!cell.isBlack && (
+                  {!cell.isBlack && !isStructural && (
                     <span className="text-zinc-900 dark:text-zinc-50">
                       {cell.value}
                     </span>
