@@ -4,12 +4,12 @@ import { NextResponse } from 'next/server';
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { user_id, puzzle_id, time_ms } = body;
+    const { user_id, puzzle_id, time_ms, game_type } = body;
 
     // Validação básica
-    if (!user_id || !puzzle_id || !time_ms) {
+    if (!user_id || !puzzle_id || !time_ms || !game_type) {
       return NextResponse.json(
-        { error: 'Dados incompletos' },
+        { error: 'Dados incompletos. Required: user_id, puzzle_id, time_ms, game_type' },
         { status: 400 }
       );
     }
@@ -21,12 +21,20 @@ export async function POST(request: Request) {
       );
     }
 
+    if (!['crossword', 'wordsearch'].includes(game_type)) {
+      return NextResponse.json(
+        { error: 'game_type deve ser "crossword" ou "wordsearch"' },
+        { status: 400 }
+      );
+    }
+
     // Insere a pontuação
     const { data, error } = await (supabase as any)
       .from('scores')
       .insert({
         user_id,
-        puzzle_id: parseInt(puzzle_id),
+        game_type,
+        puzzle_id, // Agora é UUID
         time_ms: parseInt(time_ms),
       })
       .select()
@@ -55,10 +63,18 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const puzzle_id = searchParams.get('puzzle_id');
+    const game_type = searchParams.get('game_type'); // Novo parâmetro
 
     if (!puzzle_id) {
       return NextResponse.json(
         { error: 'ID do puzzle é obrigatório' },
+        { status: 400 }
+      );
+    }
+
+    if (!game_type || !['crossword', 'wordsearch'].includes(game_type)) {
+      return NextResponse.json(
+        { error: 'game_type deve ser "crossword" ou "wordsearch"' },
         { status: 400 }
       );
     }
@@ -73,6 +89,7 @@ export async function GET(request: Request) {
         )
       `)
       .eq('puzzle_id', puzzle_id)
+      .eq('game_type', game_type)
       .order('time_ms', { ascending: true })
       .limit(10);
 

@@ -301,22 +301,25 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseKey)
 
-    // Get random words from dictionary
-    const { data: words, error: wordsError } = await supabase
+    // Get all words from dictionary and randomize in-memory
+    const { data: allWords, error: wordsError } = await supabase
       .from('dictionary_pt')
       .select('word, definition')
       .not('definition', 'is', null)
-      .gte('word', 'a')
-      .lte('word', 'z')
-      .limit(100)
 
     if (wordsError) {
       throw new Error(`Failed to fetch words: ${wordsError.message}`)
     }
 
-    if (!words || words.length === 0) {
+    if (!allWords || allWords.length === 0) {
       throw new Error('No words found in dictionary')
     }
+
+    // Filter by length and randomize in-memory
+    const words = allWords
+      .filter((w: any) => w.word.length >= 3 && w.word.length <= 10)
+      .sort(() => Math.random() - 0.5)
+      .slice(0, 100)
 
     // Generate crossword (try up to 5 times for a good puzzle)
     let puzzle = null
@@ -345,9 +348,9 @@ serve(async (req) => {
     const [day, month, year] = portugalDate.split('/')
     const publishDate = `${year}-${month}-${day}`
 
-    // Check if puzzle for today already exists
+    // Check if crossword for today already exists
     const { data: existingPuzzle } = await supabase
-      .from('puzzles')
+      .from('crosswords')
       .select('id')
       .eq('type', 'daily')
       .eq('publish_date', publishDate)
@@ -356,16 +359,16 @@ serve(async (req) => {
     if (existingPuzzle) {
       return new Response(
         JSON.stringify({ 
-          message: 'Puzzle already exists for today',
+          message: 'Crossword already exists for today',
           date: publishDate 
         }),
         { headers: { 'Content-Type': 'application/json' }, status: 200 }
       )
     }
 
-    // Insert puzzle into database
+    // Insert crossword into database
     const { data: insertedPuzzle, error: insertError } = await supabase
-      .from('puzzles')
+      .from('crosswords')
       .insert({
         type: 'daily',
         grid_data: puzzle.grid,
@@ -377,7 +380,7 @@ serve(async (req) => {
       .single()
 
     if (insertError) {
-      throw new Error(`Failed to insert puzzle: ${insertError.message}`)
+      throw new Error(`Failed to insert crossword: ${insertError.message}`)
     }
 
     return new Response(

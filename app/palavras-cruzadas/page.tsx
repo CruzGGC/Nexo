@@ -24,7 +24,7 @@ export default function PalavrasCruzadasPage() {
     setError(null);
 
     try {
-      const endpoint = mode === 'daily' ? '/api/puzzle/daily' : '/api/puzzle/random';
+      const endpoint = mode === 'daily' ? '/api/crossword/daily' : '/api/crossword/random';
       const response = await fetch(endpoint);
       
       if (!response.ok) {

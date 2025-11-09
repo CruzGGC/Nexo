@@ -15,7 +15,7 @@ export default function Home() {
         </div>
 
         {/* Game Cards */}
-        <div className="grid w-full gap-6 sm:grid-cols-2">
+        <div className="grid w-full gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {/* Crosswords Card */}
           <Link
             href="/palavras-cruzadas"
@@ -32,6 +32,27 @@ export default function Home() {
                 Desafio diário • Dicionário PT-PT • Leaderboards
               </p>
             </div>
+          </Link>
+
+          {/* Word Search Card - NEW! */}
+          <Link
+            href="/sopa-de-letras"
+            className="group flex flex-col gap-4 rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-8 shadow-sm transition-all hover:shadow-md hover:border-emerald-300 dark:border-emerald-800 dark:from-emerald-950 dark:to-zinc-900 dark:hover:border-emerald-700"
+          >
+            <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-emerald-100 text-3xl transition-transform group-hover:scale-110 dark:bg-emerald-900">
+              🔍
+            </div>
+            <div>
+              <h2 className="mb-2 text-2xl font-semibold text-zinc-900 dark:text-zinc-50">
+                Sopa de Letras
+              </h2>
+              <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                Encontra palavras • 8 direções • Animações
+              </p>
+            </div>
+            <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
+              NOVO! ✨
+            </span>
           </Link>
 
           {/* Card Games Card - Coming Soon */}
