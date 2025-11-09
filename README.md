@@ -87,3 +87,38 @@ Esta é a funcionalidade inicial. Deve ter dois modos de jogo distintos:
     * `players` (array de UUIDs, FKs para `profiles`)
     * `game_state` (jsonb) - O estado atual do jogo (cartas na mão, vez do jogador, etc.).
     * `status` (enum: 'waiting', 'in_progress', 'finished')
+
+---
+
+## 🚀 Como Fazer Deployment
+
+Este projeto está pronto para deployment na **Vercel** (plano gratuito). Para instruções detalhadas de deployment, consultar **[DEPLOYMENT.md](./DEPLOYMENT.md)**.
+
+### Quick Start
+
+1. **Configurar Supabase**
+   ```bash
+   # Criar projeto em supabase.com
+   # Executar migrações no SQL Editor
+   # Copiar Project URL e anon key
+   ```
+
+2. **Deploy na Vercel**
+   ```bash
+   # Via Dashboard (recomendado)
+   # 1. Conectar repositório em vercel.com/new
+   # 2. Adicionar environment variables
+   # 3. Fazer deploy
+   
+   # Ou via CLI
+   npm i -g vercel
+   vercel
+   ```
+
+3. **Environment Variables Necessárias**
+   ```env
+   NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
+   ```
+
+Ver **[DEPLOYMENT.md](./DEPLOYMENT.md)** para o guia completo de deployment, incluindo configuração de Edge Functions, cron jobs, e troubleshooting.
