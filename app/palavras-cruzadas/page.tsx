@@ -61,13 +61,14 @@ export default function PalavrasCruzadasPage() {
     setFinalTime(timeMs);
   };
 
-  const handleRestart = () => {
+  const handleRestart = async () => {
     if (gameMode === 'random') {
-      // Generate new random puzzle
-      fetchPuzzle('random');
-      setIsPlaying(false);
+      // Generate new random puzzle with loading state
+      setIsLoading(true);
       setIsComplete(false);
+      setIsPlaying(false);
       setFinalTime(0);
+      await fetchPuzzle('random');
     } else {
       // Reload daily puzzle
       router.refresh();

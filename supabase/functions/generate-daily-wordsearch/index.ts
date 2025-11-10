@@ -167,105 +167,174 @@ class WordSearchGenerator {
 }
 
 serve(async (req) => {
+  const startTime = Date.now();
+  const requestId = crypto.randomUUID();
+  
+  console.log(`[${requestId}] 🚀 Starting daily word search generation`);
+  
   try {
     // Validar autenticação (service_role_key do cron)
-    const authHeader = req.headers.get('Authorization')
+    const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
+      console.warn(`[${requestId}] ⚠️ Missing authorization header`);
       return new Response(
-        JSON.stringify({ error: 'Unauthorized' }),
+        JSON.stringify({ error: 'Unauthorized', request_id: requestId }),
         { status: 401, headers: { 'Content-Type': 'application/json' } }
-      )
+      );
     }
 
     // Criar cliente Supabase
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    const supabase = createClient(supabaseUrl, supabaseKey)
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
+    console.log(`[${requestId}] ✅ Supabase client initialized`);
 
     // Buscar todas as palavras do dicionário e randomizar in-memory
+    const wordsStartTime = Date.now();
     const { data: allWords, error: wordsError } = await supabase
       .from('dictionary_pt')
-      .select('word, definition')
+      .select('word, definition');
 
     if (wordsError || !allWords || allWords.length === 0) {
-      console.error('Erro ao buscar palavras:', wordsError)
+      console.error(`[${requestId}] ❌ Failed to fetch words:`, wordsError);
       return new Response(
-        JSON.stringify({ error: 'Failed to fetch words' }),
+        JSON.stringify({ 
+          error: 'Failed to fetch words',
+          request_id: requestId 
+        }),
         { status: 500, headers: { 'Content-Type': 'application/json' } }
-      )
+      );
     }
+
+    console.log(`[${requestId}] 📚 Fetched ${allWords.length} words in ${Date.now() - wordsStartTime}ms`);
 
     // Filtrar por tamanho e embaralhar in-memory
     const words = allWords
       .filter((w: any) => w.word.length >= 6 && w.word.length <= 10)
       .sort(() => Math.random() - 0.5)
-      .slice(0, 100)
+      .slice(0, 100);
+
+    console.log(`[${requestId}] 🔍 Filtered to ${words.length} suitable words (6-10 chars)`);
 
     // Gerar puzzle (tentar até 5 vezes)
-    let puzzle = null
-    let attempts = 0
-    const maxAttempts = 5
+    let puzzle = null;
+    let attempts = 0;
+    const maxAttempts = 5;
+    let bestAttempt: any = null;
+    let bestWordCount = 0;
 
+    const genStartTime = Date.now();
     while (!puzzle && attempts < maxAttempts) {
+      attempts++;
+      console.log(`[${requestId}] 🎲 Generation attempt ${attempts}/${maxAttempts}`);
+      
       try {
-        const generator = new WordSearchGenerator(15)
-        const result = generator.generate(words, 10)
+        const generator = new WordSearchGenerator(15);
+        const result = generator.generate(words, 10);
 
-        if (result.words.length >= 8) {
-          puzzle = result
+        const wordCount = result.words.length;
+        console.log(`[${requestId}] ✅ Attempt ${attempts} generated puzzle with ${wordCount} words`);
+
+        if (wordCount > bestWordCount) {
+          bestAttempt = result;
+          bestWordCount = wordCount;
+        }
+
+        if (wordCount >= 8) {
+          puzzle = result;
+          console.log(`[${requestId}] 🎉 Accepted puzzle with ${wordCount} words (quality threshold met)`);
+          break;
         }
       } catch (err) {
-        console.warn(`Attempt ${attempts + 1} failed:`, err)
+        console.warn(`[${requestId}] ⚠️ Attempt ${attempts} failed:`, err);
       }
-      attempts++
+    }
+
+    // Use best attempt if no puzzle met quality threshold
+    if (!puzzle && bestAttempt) {
+      puzzle = bestAttempt;
+      console.log(`[${requestId}] ⚠️ Using best attempt with ${bestWordCount} words (below ideal threshold)`);
     }
 
     if (!puzzle) {
+      console.error(`[${requestId}] ❌ Failed to generate puzzle after ${maxAttempts} attempts`);
       return new Response(
-        JSON.stringify({ error: 'Failed to generate quality puzzle' }),
+        JSON.stringify({ 
+          error: 'Failed to generate quality puzzle',
+          request_id: requestId,
+          elapsed_ms: Date.now() - startTime
+        }),
         { status: 500, headers: { 'Content-Type': 'application/json' } }
-      )
+      );
     }
+
+    const genTime = Date.now() - genStartTime;
+    console.log(`[${requestId}] ⏱️ Generation completed in ${genTime}ms (${attempts} attempts)`);
 
     // Data atual (Portugal timezone)
     const today = new Date().toLocaleDateString('en-CA', {
       timeZone: 'Europe/Lisbon'
-    })
+    });
+    console.log(`[${requestId}] 📅 Target date: ${today} (Portugal timezone)`);
 
     // Inserir puzzle no banco de dados (tabela wordsearch)
+    const insertStartTime = Date.now();
     const { data: insertedPuzzle, error: insertError } = await supabase
       .from('wordsearch')
       .insert({
         type: 'daily',
         grid_data: puzzle.grid,
-        words: puzzle.words, // Agora é 'words' em vez de 'clues'
+        words: puzzle.words,
         size: puzzle.size,
         publish_date: today
       })
       .select()
-      .single()
+      .single();
 
     if (insertError) {
-      console.error('Erro ao inserir wordsearch:', insertError)
+      console.error(`[${requestId}] ❌ Failed to insert wordsearch:`, insertError);
       return new Response(
-        JSON.stringify({ error: 'Failed to insert wordsearch', details: insertError }),
+        JSON.stringify({ 
+          error: 'Failed to insert wordsearch', 
+          details: insertError,
+          request_id: requestId
+        }),
         { status: 500, headers: { 'Content-Type': 'application/json' } }
-      )
+      );
     }
+
+    const insertTime = Date.now() - insertStartTime;
+    const totalTime = Date.now() - startTime;
+    
+    console.log(`[${requestId}] 💾 Saved to database in ${insertTime}ms`);
+    console.log(`[${requestId}] ✅ SUCCESS - Total time: ${totalTime}ms`);
+    console.log(`[${requestId}] 📊 Stats: ${puzzle.words.length} words, grid size ${puzzle.size}x${puzzle.size}`);
 
     return new Response(
       JSON.stringify({
+        success: true,
         message: 'Daily word search puzzle generated successfully',
         puzzle: insertedPuzzle,
-        wordsCount: puzzle.words.length
+        words_count: puzzle.words.length,
+        generation_time_ms: genTime,
+        total_time_ms: totalTime,
+        attempts: attempts
       }),
       { status: 200, headers: { 'Content-Type': 'application/json' } }
-    )
+    );
   } catch (error) {
-    console.error('Error:', error)
+    const totalTime = Date.now() - startTime;
+    console.error(`[${requestId}] ❌ ERROR after ${totalTime}ms:`, error);
+    console.error(`[${requestId}] Stack:`, error.stack);
+    
     return new Response(
-      JSON.stringify({ error: 'Internal server error', details: error.message }),
+      JSON.stringify({ 
+        error: 'Internal server error', 
+        details: error.message,
+        request_id: requestId,
+        elapsed_ms: totalTime
+      }),
       { status: 500, headers: { 'Content-Type': 'application/json' } }
-    )
+    );
   }
-})
+});

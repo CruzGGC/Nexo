@@ -1,25 +1,16 @@
 'use client';
 
 /**
- * DEBUG MODE: Extensive console logging enabled
+ * Crossword Grid with Mobile Support
  * 
- * IMPORTANT FIX: Only cells with `correct` value are counted as playable.
- * Cells with empty `correct` are "structural" (padding) and treated like black cells.
- * 
- * Logs to watch:
- * - 🎮 Grid loaded: Shows dimensions, playable vs structural cells
- * - ✅ Playable cell: Has correct answer, can be clicked/filled
- * - ⬜ Structural cell: Empty padding, treated as black (unclickable)
- * - ⌨️ Letter input: Shows each letter typed vs expected value
- * - ⌫ Backspace: Shows when cells are cleared
- * - 🔍 Checking completion: Validation start (only checks playable cells)
- * - ❌ Cell mismatch: Individual incorrect cells with values
- * - 📊 Statistics: Total playable, filled, correct counts
- * - ✅ Is Complete: Final completion status
- * - 🎉 Puzzle completed: When onComplete callback fires
+ * Features:
+ * - Desktop: Keyboard navigation with arrow keys
+ * - Mobile: Touch input with virtual keyboard
+ * - Error tracking and visual feedback
+ * - Accessible color coding for different cell states
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 export interface Cell {
   value: string;
@@ -59,6 +50,35 @@ export default function CrosswordGrid({
   const [selectedCell, setSelectedCell] = useState<{ row: number; col: number } | null>(null);
   const [direction, setDirection] = useState<'across' | 'down'>('across');
   const [selectedClue, setSelectedClue] = useState<Clue | null>(null);
+  const [errorCount, setErrorCount] = useState(0);
+  const [showOnlyErrors, setShowOnlyErrors] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Focus hidden input when cell is selected (mobile support)
+  useEffect(() => {
+    if (selectedCell && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [selectedCell]);
+
+  // Calculate error count
+  useEffect(() => {
+    let errors = 0;
+    for (let row = 0; row < grid.length; row++) {
+      for (let col = 0; col < grid[row].length; col++) {
+        const cell = grid[row][col];
+        if (cell.isBlack || !cell.correct || cell.correct.trim() === '') continue;
+        
+        const cellValue = (cell.value || '').trim().toUpperCase();
+        const correctValue = cell.correct.trim().toUpperCase();
+        
+        if (cellValue && cellValue !== correctValue) {
+          errors++;
+        }
+      }
+    }
+    setErrorCount(errors);
+  }, [grid]);
 
   // Helper function to check if puzzle is complete (accepts grid as parameter)
   const checkIsComplete = (gridToCheck: Cell[][]): boolean => {
@@ -147,7 +167,7 @@ export default function CrosswordGrid({
 
     if (e.key === 'Backspace') {
       e.preventDefault();
-      const newGrid = grid.map(r => [...r]); // Deep copy
+      const newGrid = grid.map((r) => [...r]); // Deep copy
       newGrid[row][col] = { ...newGrid[row][col], value: '' };
       setGrid(newGrid);
       onCellChange?.();
@@ -190,26 +210,46 @@ export default function CrosswordGrid({
     // Aceita apenas letras
     if (e.key.length === 1 && /[a-záàâãéêíóôõúçA-ZÁÀÂÃÉÊÍÓÔÕÚÇ]/.test(e.key)) {
       e.preventDefault();
-      const newGrid = grid.map(r => [...r]); // Deep copy
-      
-      newGrid[row][col] = {
-        ...newGrid[row][col],
-        value: e.key.toUpperCase(),
-      };
-      setGrid(newGrid);
-      onCellChange?.();
-
-      // Verifica se está completo com o novo grid
-      const isComplete = checkIsComplete(newGrid);
-      if (isComplete) {
-        setTimeout(() => {
-          onComplete();
-        }, 100);
-      }
-
-      // Move para a próxima célula
-      moveToNextCell(row, col, false);
+      handleLetterInput(e.key.toUpperCase());
     }
+  };
+
+  // Handle mobile input
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!selectedCell) return;
+    
+    const value = e.target.value.slice(-1).toUpperCase(); // Get last character
+    if (value && /[A-ZÁÀÂÃÉÊÍÓÔÕÚÇ]/.test(value)) {
+      handleLetterInput(value);
+    }
+    
+    // Clear input for next character
+    e.target.value = '';
+  };
+
+  const handleLetterInput = (letter: string) => {
+    if (!selectedCell) return;
+    
+    const { row, col } = selectedCell;
+    const newGrid = grid.map((r) => [...r]); // Deep copy
+    
+    newGrid[row][col] = {
+      ...newGrid[row][col],
+      value: letter,
+    };
+    setGrid(newGrid);
+    onCellChange?.();
+
+    // Verifica se está completo com o novo grid
+    const isComplete = checkIsComplete(newGrid);
+    if (isComplete) {
+      setTimeout(() => {
+        onComplete();
+      }, 100);
+    }
+
+    // Move para a próxima célula
+    moveToNextCell(row, col, false);
   };
 
   const moveToNextCell = (row: number, col: number, backwards: boolean) => {
@@ -287,122 +327,181 @@ export default function CrosswordGrid({
   };
 
   return (
-    <div className="flex flex-col gap-6 lg:flex-row">
-      {/* Grelha */}
-      <div className="flex-1">
-        <div
-          className="inline-grid gap-0 border-2 border-zinc-900 dark:border-zinc-50"
-          style={{
-            gridTemplateColumns: `repeat(${grid[0].length}, minmax(0, 1fr))`,
-          }}
-          onKeyDown={handleKeyDown}
-          tabIndex={0}
-        >
-          {grid.map((row, rowIndex) =>
-            row.map((cell, colIndex) => {
-              const isSelected =
-                selectedCell?.row === rowIndex && selectedCell?.col === colIndex;
-              const isInCurrentWord = isCellInCurrentWord(rowIndex, colIndex);
-              const isStructural = !cell.correct || cell.correct.trim() === '';
+    <div className="flex flex-col gap-6">
+      {/* Hidden input for mobile keyboard */}
+      <input
+        ref={inputRef}
+        type="text"
+        inputMode="text"
+        autoComplete="off"
+        autoCorrect="off"
+        autoCapitalize="characters"
+        onChange={handleInputChange}
+        onKeyDown={handleKeyDown}
+        className="sr-only"
+        aria-hidden="true"
+      />
 
-              return (
-                <div
-                  key={`${rowIndex}-${colIndex}`}
-                  className={`
-                    relative flex h-10 w-10 items-center justify-center border border-zinc-300 text-lg font-bold
-                    transition-colors dark:border-zinc-700 sm:h-12 sm:w-12
-                    ${
-                      cell.isBlack || isStructural
-                        ? 'bg-zinc-900 dark:bg-zinc-950'
-                        : isSelected
-                        ? 'bg-yellow-200 dark:bg-yellow-900'
-                        : isInCurrentWord
-                        ? 'bg-yellow-100 dark:bg-yellow-950'
-                        : 'bg-white hover:bg-zinc-50 dark:bg-zinc-900 dark:hover:bg-zinc-800'
-                    }
-                    ${!cell.isBlack && !isStructural && 'cursor-pointer'}
-                  `}
-                  onClick={() => handleCellClick(rowIndex, colIndex)}
-                >
-                  {cell.number && (
-                    <span className="absolute left-0.5 top-0 text-[10px] text-zinc-600 dark:text-zinc-400">
-                      {cell.number}
-                    </span>
-                  )}
-                  {!cell.isBlack && !isStructural && (
-                    <span className="text-zinc-900 dark:text-zinc-50">
-                      {cell.value}
-                    </span>
-                  )}
-                </div>
-              );
-            })
-          )}
+      {/* Error counter and toggle */}
+      <div className="flex items-center justify-between rounded-lg bg-zinc-100 p-4 dark:bg-zinc-800">
+        <div className="flex items-center gap-4">
+          <div className="text-sm">
+            <span className="font-semibold text-zinc-900 dark:text-zinc-50">
+              Erros: {errorCount}
+            </span>
+          </div>
+          <button
+            onClick={() => setShowOnlyErrors(!showOnlyErrors)}
+            className="rounded-md bg-zinc-200 px-3 py-1 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-300 dark:bg-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-600"
+          >
+            {showOnlyErrors ? '👁️ Mostrar Tudo' : '❌ Mostrar Apenas Erros'}
+          </button>
         </div>
-        <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-400">
-          Use as setas para navegar • Tab para mudar de direção • Escreva para preencher
-        </p>
-      </div>
-
-      {/* Pistas */}
-      <div className="w-full space-y-6 lg:w-80">
-        <div>
-          <h3 className="mb-3 text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-            Horizontais
-          </h3>
-          <div className="space-y-2">
-            {clues.across.map((clue) => (
-              <button
-                key={clue.number}
-                onClick={() => {
-                  setSelectedCell({ row: clue.startRow, col: clue.startCol });
-                  setDirection('across');
-                }}
-                className={`
-                  w-full rounded-lg p-3 text-left text-sm transition-colors
-                  ${
-                    selectedClue?.number === clue.number && direction === 'across'
-                      ? 'bg-yellow-100 dark:bg-yellow-950'
-                      : 'bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700'
-                  }
-                `}
-              >
-                <span className="font-semibold text-zinc-900 dark:text-zinc-50">
-                  {clue.number}.
-                </span>{' '}
-                <span className="text-zinc-700 dark:text-zinc-300">{clue.text}</span>
-              </button>
-            ))}
+        <div className="flex gap-2 text-xs">
+          <div className="flex items-center gap-1">
+            <div className="h-3 w-3 rounded bg-yellow-200 dark:bg-yellow-900"></div>
+            <span className="text-zinc-600 dark:text-zinc-400">Selecionada</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="h-3 w-3 rounded bg-red-200 dark:bg-red-900"></div>
+            <span className="text-zinc-600 dark:text-zinc-400">Erro</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="h-3 w-3 rounded bg-green-200 dark:bg-green-900"></div>
+            <span className="text-zinc-600 dark:text-zinc-400">Correta</span>
           </div>
         </div>
+      </div>
 
-        <div>
-          <h3 className="mb-3 text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-            Verticais
-          </h3>
-          <div className="space-y-2">
-            {clues.down.map((clue) => (
-              <button
-                key={clue.number}
-                onClick={() => {
-                  setSelectedCell({ row: clue.startRow, col: clue.startCol });
-                  setDirection('down');
-                }}
-                className={`
-                  w-full rounded-lg p-3 text-left text-sm transition-colors
-                  ${
-                    selectedClue?.number === clue.number && direction === 'down'
-                      ? 'bg-yellow-100 dark:bg-yellow-950'
-                      : 'bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700'
-                  }
-                `}
-              >
-                <span className="font-semibold text-zinc-900 dark:text-zinc-50">
-                  {clue.number}.
-                </span>{' '}
-                <span className="text-zinc-700 dark:text-zinc-300">{clue.text}</span>
-              </button>
-            ))}
+      <div className="flex flex-col gap-6 lg:flex-row">
+        {/* Grelha */}
+        <div className="flex-1">
+          <div
+            className="inline-grid gap-0 border-2 border-zinc-900 dark:border-zinc-50"
+            style={{
+              gridTemplateColumns: `repeat(${grid[0].length}, minmax(0, 1fr))`,
+            }}
+            onKeyDown={handleKeyDown}
+            tabIndex={0}
+          >
+            {grid.map((row, rowIndex) =>
+              row.map((cell, colIndex) => {
+                const isSelected =
+                  selectedCell?.row === rowIndex && selectedCell?.col === colIndex;
+                const isInCurrentWord = isCellInCurrentWord(rowIndex, colIndex);
+                const isStructural = !cell.correct || cell.correct.trim() === '';
+                
+                // Check if cell has error
+                const cellValue = (cell.value || '').trim().toUpperCase();
+                const correctValue = (cell.correct || '').trim().toUpperCase();
+                const hasError = cellValue && correctValue && cellValue !== correctValue;
+                const isCorrect = cellValue && correctValue && cellValue === correctValue;
+
+                return (
+                  <div
+                    key={`${rowIndex}-${colIndex}`}
+                    className={`
+                      relative flex h-10 w-10 items-center justify-center border border-zinc-300 text-lg font-bold
+                      transition-colors dark:border-zinc-700 sm:h-12 sm:w-12
+                      ${
+                        cell.isBlack || isStructural
+                          ? 'bg-zinc-900 dark:bg-zinc-950'
+                          : isSelected
+                          ? 'bg-yellow-200 dark:bg-yellow-900'
+                          : hasError && showOnlyErrors
+                          ? 'bg-red-200 dark:bg-red-900'
+                          : hasError
+                          ? 'bg-red-100 dark:bg-red-950'
+                          : isCorrect && showOnlyErrors
+                          ? 'bg-green-200 dark:bg-green-900'
+                          : isInCurrentWord
+                          ? 'bg-yellow-100 dark:bg-yellow-950'
+                          : 'bg-white hover:bg-zinc-50 dark:bg-zinc-900 dark:hover:bg-zinc-800'
+                      }
+                      ${!cell.isBlack && !isStructural && 'cursor-pointer'}
+                    `}
+                    onClick={() => handleCellClick(rowIndex, colIndex)}
+                  >
+                    {cell.number && (
+                      <span className="absolute left-0.5 top-0 text-[10px] text-zinc-600 dark:text-zinc-400">
+                        {cell.number}
+                      </span>
+                    )}
+                    {!cell.isBlack && !isStructural && (
+                      <span className={`${hasError ? 'text-red-700 dark:text-red-300' : isCorrect ? 'text-green-700 dark:text-green-300' : 'text-zinc-900 dark:text-zinc-50'}`}>
+                        {cell.value}
+                      </span>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+          <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-400">
+            💡 Toque numa célula para escrever • Use as setas para navegar • Tab para mudar direção
+          </p>
+        </div>
+
+        {/* Pistas */}
+        <div className="w-full space-y-6 lg:w-80">
+          <div>
+            <h3 className="mb-3 text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+              Horizontais
+            </h3>
+            <div className="space-y-2">
+              {clues.across.map((clue) => (
+                <button
+                  key={clue.number}
+                  onClick={() => {
+                    setSelectedCell({ row: clue.startRow, col: clue.startCol });
+                    setDirection('across');
+                  }}
+                  className={`
+                    w-full rounded-lg p-3 text-left text-sm transition-colors
+                    ${
+                      selectedClue?.number === clue.number && direction === 'across'
+                        ? 'bg-yellow-100 dark:bg-yellow-950'
+                        : 'bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700'
+                    }
+                  `}
+                >
+                  <span className="font-semibold text-zinc-900 dark:text-zinc-50">
+                    {clue.number}.
+                  </span>{' '}
+                  <span className="text-zinc-700 dark:text-zinc-300">{clue.text}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <h3 className="mb-3 text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+              Verticais
+            </h3>
+            <div className="space-y-2">
+              {clues.down.map((clue) => (
+                <button
+                  key={clue.number}
+                  onClick={() => {
+                    setSelectedCell({ row: clue.startRow, col: clue.startCol });
+                    setDirection('down');
+                  }}
+                  className={`
+                    w-full rounded-lg p-3 text-left text-sm transition-colors
+                    ${
+                      selectedClue?.number === clue.number && direction === 'down'
+                        ? 'bg-yellow-100 dark:bg-yellow-950'
+                        : 'bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700'
+                    }
+                  `}
+                >
+                  <span className="font-semibold text-zinc-900 dark:text-zinc-50">
+                    {clue.number}.
+                  </span>{' '}
+                  <span className="text-zinc-700 dark:text-zinc-300">{clue.text}</span>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </div>

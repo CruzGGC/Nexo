@@ -53,10 +53,12 @@ export class CrosswordGenerator {
 
   /**
    * Generate a crossword puzzle from a list of words
+   * Now includes quality metrics and intersection scoring
    */
   generate(words: WordEntry[], maxWords: number = 10): {
     grid: Cell[][];
     clues: { across: Clue[]; down: Clue[] };
+    quality: { intersections: number; density: number; score: number };
   } | null {
     // Filter words by suitable length (3-10 characters)
     const filteredWords = words
@@ -81,14 +83,27 @@ export class CrosswordGenerator {
 
     // Try to place remaining words
     let wordsPlaced = 1;
+    let totalIntersections = 0;
+    
     for (let i = 1; i < shuffled.length && wordsPlaced < maxWords; i++) {
-      if (this.tryPlaceWord(shuffled[i])) {
+      const intersections = this.tryPlaceWordWithScore(shuffled[i]);
+      if (intersections > 0) {
         wordsPlaced++;
+        totalIntersections += intersections;
       }
     }
 
-    // Need at least 5 words for a valid puzzle
+    // Quality check: need at least 5 words and good intersection ratio
     if (wordsPlaced < 5) {
+      return null;
+    }
+
+    // Calculate quality metrics
+    const avgIntersections = totalIntersections / wordsPlaced;
+    const minIntersections = 0.4; // At least 40% of words should intersect
+    
+    if (avgIntersections < minIntersections) {
+      console.log(`❌ Puzzle rejected: avg intersections ${avgIntersections.toFixed(2)} < ${minIntersections}`);
       return null;
     }
 
@@ -98,8 +113,29 @@ export class CrosswordGenerator {
     // Assign numbers to starting positions
     this.assignNumbers();
 
+    // Calculate density (filled cells / total cells)
+    const filledCells = this.placedWords.reduce((sum, word) => sum + word.word.length, 0);
+    const totalCells = this.grid.length * this.grid[0].length;
+    const density = filledCells / totalCells;
+
+    // Calculate overall quality score (0-100)
+    const qualityScore = Math.min(100, Math.round(
+      (wordsPlaced * 10) + // More words = better
+      (avgIntersections * 50) + // More intersections = better
+      (density * 30) // Higher density = better
+    ));
+
     // Convert to Cell format and generate clues
-    return this.buildPuzzle();
+    const puzzle = this.buildPuzzle();
+    
+    return {
+      ...puzzle,
+      quality: {
+        intersections: totalIntersections,
+        density: Math.round(density * 100) / 100,
+        score: qualityScore
+      }
+    };
   }
 
   private placeWord(
@@ -196,6 +232,109 @@ export class CrosswordGenerator {
     }
 
     return false;
+  }
+
+  /**
+   * Try to place word and return number of intersections (quality metric)
+   */
+  private tryPlaceWordWithScore(word: WordEntry): number {
+    const wordUpper = word.word.toUpperCase();
+    let bestIntersections = 0;
+    let bestPlacement: { row: number; col: number; direction: 'across' | 'down' } | null = null;
+
+    // Try to find intersection with existing words
+    for (const placed of this.placedWords) {
+      // Try both directions
+      for (const direction of ['across', 'down'] as const) {
+        // Skip if same direction as placed word
+        if (direction === placed.direction) continue;
+
+        // Find common letters (count intersections)
+        for (let i = 0; i < wordUpper.length; i++) {
+          for (let j = 0; j < placed.word.length; j++) {
+            if (wordUpper[i] === placed.word[j]) {
+              // Calculate position
+              let newRow: number, newCol: number;
+
+              if (direction === 'across') {
+                newRow = placed.direction === 'across' 
+                  ? placed.row 
+                  : placed.row + j;
+                newCol = placed.direction === 'across' 
+                  ? placed.col + j - i 
+                  : placed.col;
+              } else {
+                newRow = placed.direction === 'across' 
+                  ? placed.row 
+                  : placed.row + j - i;
+                newCol = placed.direction === 'across' 
+                  ? placed.col + j 
+                  : placed.col;
+              }
+
+              // Check if position is valid
+              if (
+                newRow >= 0 &&
+                newCol >= 0 &&
+                newRow < this.gridSize &&
+                newCol < this.gridSize
+              ) {
+                // Count potential intersections at this position
+                const intersections = this.countIntersections(word, newRow, newCol, direction);
+                if (intersections > bestIntersections) {
+                  bestIntersections = intersections;
+                  bestPlacement = { row: newRow, col: newCol, direction };
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Place word at best position if found
+    if (bestPlacement && this.placeWord(word, bestPlacement.row, bestPlacement.col, bestPlacement.direction)) {
+      return bestIntersections;
+    }
+
+    return 0;
+  }
+
+  /**
+   * Count how many intersections a word would have at a given position
+   */
+  private countIntersections(
+    word: WordEntry,
+    row: number,
+    col: number,
+    direction: 'across' | 'down'
+  ): number {
+    const wordUpper = word.word.toUpperCase();
+    let intersections = 0;
+
+    // Check if word fits
+    if (direction === 'across') {
+      if (col + wordUpper.length > this.gridSize) return 0;
+    } else {
+      if (row + wordUpper.length > this.gridSize) return 0;
+    }
+
+    // Count intersections (matching letters with existing grid)
+    for (let i = 0; i < wordUpper.length; i++) {
+      const r = direction === 'across' ? row : row + i;
+      const c = direction === 'across' ? col + i : col;
+
+      if (this.grid[r][c].letter) {
+        if (this.grid[r][c].letter === wordUpper[i]) {
+          intersections++;
+        } else {
+          // Conflict! This placement is invalid
+          return 0;
+        }
+      }
+    }
+
+    return intersections;
   }
 
   private trimGrid(): GridCell[][] {
