@@ -143,7 +143,11 @@ class WordSearchGenerator {
   }
 
   private fillEmptyCells(): void {
-    const portugueseLetters = 'ABCDEFGHIJLMNOPQRSTUVXZÁÉÍÓÚÃÕÂÊÔÇ'
+    // Use array instead of string to avoid UTF-8 length issues with accented chars
+    const portugueseLetters = [
+      'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'X', 'Z',
+      'Á', 'É', 'Í', 'Ó', 'Ú', 'Â', 'Ê', 'Ô', 'Ã', 'Õ', 'Ç'
+    ]
     
     for (let r = 0; r < this.size; r++) {
       for (let c = 0; c < this.size; c++) {
@@ -228,7 +232,6 @@ serve(async (req) => {
         type: 'daily',
         grid_data: puzzle.grid,
         words: puzzle.words,
-        solutions: {},
         size: puzzle.size,
         publish_date: today
       })

@@ -44,12 +44,14 @@ const DIRECTIONS: Record<Direction, { row: number; col: number; name: string }> 
 
 /**
  * Letras comuns em português para preenchimento
+ * Incluindo caracteres acentuados portugueses
  * Ponderadas por frequência aproximada
  */
 const PT_LETTERS = [
   'A', 'A', 'A', 'E', 'E', 'E', 'O', 'O', 'I', 'I',
   'S', 'R', 'N', 'D', 'M', 'U', 'T', 'C', 'L', 'P',
-  'V', 'G', 'H', 'Q', 'B', 'F', 'Z', 'J', 'X', 'K'
+  'V', 'G', 'H', 'Q', 'B', 'F', 'Z', 'J', 'X', 'K',
+  'Á', 'É', 'Í', 'Ó', 'Ú', 'Â', 'Ê', 'Ô', 'Ã', 'Õ', 'Ç'
 ];
 
 export class WordSearchGenerator {
@@ -99,13 +101,10 @@ export class WordSearchGenerator {
   }
 
   /**
-   * Normaliza palavra: uppercase e remove acentos
+   * Normaliza palavra: apenas uppercase, PRESERVA acentos portugueses
    */
   private normalizeWord(word: string): string {
-    return word
-      .toUpperCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '');
+    return word.toUpperCase();
   }
 
   /**

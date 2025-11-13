@@ -18,7 +18,7 @@ export async function GET() {
 
     // Buscar puzzle do dia
     const { data: puzzle, error } = await supabase
-      .from('wordsearch')
+      .from('wordsearches')
       .select('*')
       .eq('type', 'daily')
       .eq('publish_date', today)
@@ -30,7 +30,7 @@ export async function GET() {
     // Se não existe puzzle de hoje, buscar o mais recente
     if (error || !puzzle) {
       const { data: latestPuzzle, error: latestError } = await supabase
-        .from('wordsearch')
+        .from('wordsearches')
         .select('*')
         .eq('type', 'daily')
         .order('publish_date', { ascending: false })
@@ -56,15 +56,39 @@ export async function GET() {
       )
     }
 
+    // Parse JSONB columns if they come as strings from Supabase
+    const puzzleData = finalPuzzle as any
+    
+    console.log('🔍 DEBUG - Raw puzzle data types:', {
+      grid_data_type: typeof puzzleData.grid_data,
+      words_type: typeof puzzleData.words,
+      grid_data_sample: puzzleData.grid_data ? JSON.stringify(puzzleData.grid_data).substring(0, 100) : 'null',
+      words_sample: puzzleData.words ? JSON.stringify(puzzleData.words).substring(0, 100) : 'null'
+    })
+    
+    const gridData = typeof puzzleData.grid_data === 'string'
+      ? JSON.parse(puzzleData.grid_data)
+      : puzzleData.grid_data
+    
+    const words = typeof puzzleData.words === 'string'
+      ? JSON.parse(puzzleData.words)
+      : puzzleData.words
+
+    console.log('✅ DEBUG - Parsed data:', {
+      gridData_isArray: Array.isArray(gridData),
+      gridData_length: gridData?.length,
+      words_isArray: Array.isArray(words),
+      words_length: words?.length,
+      first_cell_sample: gridData?.[0]?.[0]
+    })
+
     return NextResponse.json({
-      id: (finalPuzzle as any).id,
-      type: (finalPuzzle as any).type,
-      grid_data: (finalPuzzle as any).grid_data,
-      words: (finalPuzzle as any).words, // Agora é 'words' em vez de 'clues'
-      size: (finalPuzzle as any).size,
-      publish_date: (finalPuzzle as any).publish_date,
-      created_at: (finalPuzzle as any).created_at,
-      isFromPreviousDay
+      id: puzzleData.id,
+      type: puzzleData.type,
+      grid_data: gridData,
+      words: words,
+      publish_date: puzzleData.publish_date,
+      isFromPreviousDay: isFromPreviousDay
     })
   } catch (error) {
     console.error('Erro ao buscar puzzle diário:', error)
