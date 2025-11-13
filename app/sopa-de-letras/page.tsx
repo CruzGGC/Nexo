@@ -11,10 +11,21 @@ type GameMode = 'daily' | 'random' | null
 interface Puzzle {
   id: string
   type: string
+  category?: string | null
   grid_data: string[][]
   words: WordPlacement[]
   publish_date: string
   isFromPreviousDay?: boolean
+}
+
+interface Category {
+  id: string
+  slug: string
+  name: string
+  description: string
+  icon: string
+  color: string
+  word_count: number
 }
 
 export default function WordSearchPage() {
@@ -27,22 +38,46 @@ export default function WordSearchPage() {
   const [timeMs, setTimeMs] = useState(0)
   const [isComplete, setIsComplete] = useState(false)
   const [showConfetti, setShowConfetti] = useState(false)
+  const [categories, setCategories] = useState<Category[]>([])
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
+  const [showCategorySelection, setShowCategorySelection] = useState(false)
+
+  useEffect(() => {
+    // Fetch categories on mount
+    fetchCategories()
+  }, [])
+
+  const fetchCategories = async () => {
+    try {
+      const response = await fetch('/api/categories')
+      if (response.ok) {
+        const data = await response.json()
+        setCategories(data)
+      }
+    } catch (err) {
+      console.error('Erro ao carregar categorias:', err)
+    }
+  }
 
   // Buscar puzzle quando modo é selecionado
   useEffect(() => {
-    if (gameMode && !puzzle) {
+    if (gameMode && !puzzle && gameMode === 'daily') {
       fetchPuzzle(gameMode)
     }
   }, [gameMode])
 
-  const fetchPuzzle = async (mode: 'daily' | 'random') => {
+  const fetchPuzzle = async (mode: 'daily' | 'random', category?: string | null) => {
     setLoading(true)
     setError(null)
 
     try {
-      const endpoint = mode === 'daily' 
+      let endpoint = mode === 'daily' 
         ? '/api/wordsearch/daily' 
         : '/api/wordsearch/random'
+      
+      if (category) {
+        endpoint += `?category=${category}`
+      }
       
       const response = await fetch(endpoint)
       const data = await response.json()
@@ -53,6 +88,7 @@ export default function WordSearchPage() {
 
       setPuzzle(data)
       setIsTimerRunning(true)
+      setShowCategorySelection(false)
     } catch (err) {
       console.error('Erro ao buscar puzzle:', err)
       setError(err instanceof Error ? err.message : 'Erro desconhecido')
@@ -89,7 +125,7 @@ export default function WordSearchPage() {
       setIsTimerRunning(false)
       setTimeMs(0)
       setIsComplete(false)
-      fetchPuzzle('random')
+      fetchPuzzle('random', selectedCategory)
     } else {
       // Modo diário: reiniciar puzzle atual
       setIsTimerRunning(true)
@@ -108,6 +144,23 @@ export default function WordSearchPage() {
     setIsTimerRunning(false)
     setTimeMs(0)
     setIsComplete(false)
+    setShowCategorySelection(false)
+    setSelectedCategory(null)
+  }
+
+  const handleSelectMode = (mode: 'daily' | 'random') => {
+    setGameMode(mode)
+    if (mode === 'daily') {
+      fetchPuzzle(mode)
+    } else {
+      // Show category selection for random mode
+      setShowCategorySelection(true)
+    }
+  }
+
+  const handleSelectCategory = (categorySlug: string | null) => {
+    setSelectedCategory(categorySlug)
+    fetchPuzzle('random', categorySlug)
   }
 
   const formatTime = (ms: number): string => {
@@ -117,6 +170,95 @@ export default function WordSearchPage() {
     return `${minutes.toString().padStart(2, '0')}:${seconds
       .toString()
       .padStart(2, '0')}:${milliseconds.toString().padStart(2, '0')}`
+  }
+
+  // Category Selection Screen
+  if (showCategorySelection) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-zinc-50 via-white to-zinc-50 dark:from-zinc-950 dark:via-zinc-900 dark:to-zinc-950 p-4 sm:p-8">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center mb-8">
+            <button
+              onClick={() => {
+                setShowCategorySelection(false)
+                setGameMode(null)
+              }}
+              className="mb-4 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors"
+            >
+              ← Voltar
+            </button>
+            <h1 className="text-3xl sm:text-4xl font-bold text-zinc-900 dark:text-white mb-2">
+              Escolha um Tema
+            </h1>
+            <p className="text-zinc-600 dark:text-zinc-400">
+              Selecione uma categoria temática ou jogue com todas as palavras
+            </p>
+          </div>
+
+          {loading && (
+            <div className="mb-6 text-center">
+              <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-4 border-zinc-200 border-t-zinc-900 dark:border-zinc-800 dark:border-t-zinc-50"></div>
+              <p className="text-zinc-600 dark:text-zinc-400">A gerar puzzle...</p>
+            </div>
+          )}
+
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {/* Todas as Palavras */}
+            <button
+              onClick={() => handleSelectCategory(null)}
+              disabled={loading}
+              className="group relative overflow-hidden rounded-xl border-2 border-zinc-300 bg-white p-6 text-left transition-all hover:border-zinc-500 hover:shadow-lg disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:border-zinc-500"
+            >
+              <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-zinc-100 text-2xl transition-transform group-hover:scale-110 dark:bg-zinc-800">
+                🎲
+              </div>
+              <h3 className="mb-1 text-lg font-bold text-zinc-900 dark:text-zinc-50">
+                Todas as Palavras
+              </h3>
+              <p className="text-xs text-zinc-600 dark:text-zinc-400">
+                Puzzle com palavras de todos os temas
+              </p>
+            </button>
+
+            {/* Categorias */}
+            {categories.map((category) => (
+              <button
+                key={category.id}
+                onClick={() => handleSelectCategory(category.slug)}
+                disabled={loading || category.word_count < 10}
+                className="group relative overflow-hidden rounded-xl border-2 border-zinc-200 bg-white p-6 text-left transition-all hover:border-zinc-400 hover:shadow-lg disabled:opacity-50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-600"
+                style={{
+                  borderColor: category.word_count >= 10 ? `${category.color}30` : undefined,
+                }}
+              >
+                <div
+                  className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg text-2xl transition-transform group-hover:scale-110"
+                  style={{
+                    backgroundColor: `${category.color}20`,
+                  }}
+                >
+                  {category.icon}
+                </div>
+                <h3 className="mb-1 text-lg font-bold text-zinc-900 dark:text-zinc-50">
+                  {category.name}
+                </h3>
+                <p className="mb-2 text-xs text-zinc-600 dark:text-zinc-400">
+                  {category.description}
+                </p>
+                <span className="text-xs font-medium text-zinc-500 dark:text-zinc-500">
+                  {category.word_count} palavras
+                </span>
+                {category.word_count < 10 && (
+                  <div className="mt-2 text-xs text-red-600 dark:text-red-400">
+                    Mínimo 10 palavras necessário
+                  </div>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    )
   }
 
   // Tela de seleção de modo
@@ -136,7 +278,7 @@ export default function WordSearchPage() {
           <div className="grid md:grid-cols-2 gap-6">
             {/* Modo Diário */}
             <button
-              onClick={() => setGameMode('daily')}
+              onClick={() => handleSelectMode('daily')}
               className="group relative p-8 bg-white dark:bg-zinc-900 rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 hover:scale-105 border-2 border-transparent hover:border-yellow-400 dark:hover:border-yellow-600"
             >
               <div className="text-6xl mb-4 group-hover:animate-bounce">📅</div>
@@ -154,7 +296,7 @@ export default function WordSearchPage() {
 
             {/* Modo Aleatório */}
             <button
-              onClick={() => setGameMode('random')}
+              onClick={() => handleSelectMode('random')}
               className="group relative p-8 bg-white dark:bg-zinc-900 rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 hover:scale-105 border-2 border-transparent hover:border-emerald-400 dark:hover:border-emerald-600"
             >
               <div className="text-6xl mb-4 group-hover:animate-spin">🎲</div>
@@ -162,11 +304,11 @@ export default function WordSearchPage() {
                 Modo Aleatório
               </h2>
               <p className="text-zinc-600 dark:text-zinc-400 mb-4">
-                Gera novo puzzle a cada partida. Perfeito para praticar!
+                Gera novo puzzle a cada partida. Escolha um tema específico!
               </p>
               <div className="flex items-center justify-center gap-2 text-sm text-emerald-600 dark:text-emerald-400 font-semibold">
-                <span>♾️</span>
-                <span>Puzzles Ilimitados</span>
+                <span>🎨</span>
+                <span>Puzzles Temáticos</span>
               </div>
             </button>
           </div>

@@ -3,16 +3,116 @@ import { NextResponse } from 'next/server'
 import { CrosswordGenerator } from '@/lib/crossword-generator'
 
 /**
- * GET /api/crossword/random
+ * Helper function to generate puzzle from words array
+ */
+async function generatePuzzleFromWords(
+  allWords: Array<{ word: string; definition: string }>,
+  category?: string | null
+) {
+  // Filter by length and shuffle in-memory
+  const validWords = allWords
+    .filter(w => w.word.length >= 3 && w.word.length <= 10)
+    .sort(() => Math.random() - 0.5)
+    .slice(0, 100)
+
+  if (validWords.length === 0) {
+    console.error('Nenhuma palavra válida encontrada')
+    return NextResponse.json(
+      { error: 'Dicionário vazio ou sem palavras válidas' },
+      { status: 500 }
+    )
+  }
+
+  const words = validWords
+
+  // Try to generate puzzle up to 5 times
+  const maxAttempts = 5
+  let puzzle = null
+  let attempts = 0
+
+  while (!puzzle && attempts < maxAttempts) {
+    try {
+      const generator = new CrosswordGenerator()
+      const result = generator.generate(words, 10) // 10 palavras
+
+      // Validate that at least 6 words were placed
+      if (result && result.clues.across.length + result.clues.down.length >= 6) {
+        puzzle = result
+      }
+    } catch (err) {
+      console.warn(`Attempt ${attempts + 1} failed:`, err)
+    }
+    attempts++
+  }
+
+  if (!puzzle) {
+    return NextResponse.json(
+      { error: 'Não foi possível gerar um puzzle de qualidade' },
+      { status: 500 }
+    )
+  }
+
+  // Format response similar to daily endpoint
+  return NextResponse.json({
+    id: `random-${Date.now()}`,
+    type: 'random',
+    category: category || null,
+    grid_data: puzzle.grid,
+    clues: puzzle.clues,
+    solutions: {},
+    quality: puzzle.quality,
+    publish_date: null,
+    created_at: new Date().toISOString()
+  })
+}
+
+/**
+ * GET /api/crossword/random?category=slug
  * Generates and returns a new random crossword puzzle
  * Not saved to database - stateless generation
+ * Optional query param: category (e.g., 'animais', 'comida', 'desporto')
  */
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    // Fetch all words from dictionary (3-10 characters) and randomize in-memory
-    const { data: allWords, error } = await supabase
+    // Parse query params for category filter
+    const { searchParams } = new URL(request.url)
+    const category = searchParams.get('category')
+
+    // Build query with optional category filter
+    let query = supabase
       .from('dictionary_pt')
       .select('word, definition')
+
+    // If category is specified, join with dictionary_categories
+    if (category) {
+      const { data: allWords, error } = await supabase
+        .from('dictionary_categories')
+        .select(`
+          word,
+          dictionary_pt!inner(word, definition),
+          word_categories!inner(slug)
+        `)
+        .eq('word_categories.slug', category)
+
+      if (error || !allWords || allWords.length === 0) {
+        console.error('Erro ao buscar palavras com categoria:', error)
+        return NextResponse.json(
+          { error: `Nenhuma palavra encontrada para categoria "${category}"` },
+          { status: 404 }
+        )
+      }
+
+      // Transform joined data to flat structure
+      const words = (allWords as any[]).map(item => ({
+        word: item.dictionary_pt.word,
+        definition: item.dictionary_pt.definition
+      }))
+
+      return await generatePuzzleFromWords(words, category)
+    }
+
+    // No category filter - fetch all words
+    const { data: allWords, error } = await query
 
     if (error || !allWords || allWords.length === 0) {
       console.error('Erro ao buscar palavras:', error)
@@ -22,59 +122,7 @@ export async function GET() {
       )
     }
 
-    // Filter by length and shuffle in-memory
-    const validWords = (allWords as Array<{ word: string; definition: string }>)
-      .filter(w => w.word.length >= 3 && w.word.length <= 10)
-      .sort(() => Math.random() - 0.5)
-      .slice(0, 100)
-
-    if (validWords.length === 0) {
-      console.error('Nenhuma palavra válida encontrada')
-      return NextResponse.json(
-        { error: 'Dicionário vazio ou sem palavras válidas' },
-        { status: 500 }
-      )
-    }
-
-    const words = validWords
-
-    // Try to generate puzzle up to 5 times
-    const maxAttempts = 5
-    let puzzle = null
-    let attempts = 0
-
-    while (!puzzle && attempts < maxAttempts) {
-      try {
-        const generator = new CrosswordGenerator()
-        const result = generator.generate(words, 10) // 10 palavras
-
-        // Validate that at least 6 words were placed
-        if (result && result.clues.across.length + result.clues.down.length >= 6) {
-          puzzle = result
-        }
-      } catch (err) {
-        console.warn(`Attempt ${attempts + 1} failed:`, err)
-      }
-      attempts++
-    }
-
-    if (!puzzle) {
-      return NextResponse.json(
-        { error: 'Não foi possível gerar um puzzle de qualidade' },
-        { status: 500 }
-      )
-    }
-
-    // Format response similar to daily endpoint
-    return NextResponse.json({
-      id: `random-${Date.now()}`,
-      type: 'random',
-      grid_data: puzzle.grid,
-      clues: puzzle.clues,
-      solutions: {},
-      publish_date: null,
-      created_at: new Date().toISOString()
-    })
+    return await generatePuzzleFromWords(allWords as Array<{ word: string; definition: string }>, null)
   } catch (error) {
     console.error('Erro ao gerar puzzle aleatório:', error)
     return NextResponse.json(

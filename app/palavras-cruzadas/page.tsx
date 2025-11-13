@@ -8,6 +8,16 @@ import Link from 'next/link';
 
 type GameMode = 'daily' | 'random';
 
+interface Category {
+  id: string;
+  slug: string;
+  name: string;
+  description: string;
+  icon: string;
+  color: string;
+  word_count: number;
+}
+
 export default function PalavrasCruzadasPage() {
   const router = useRouter();
   const [gameMode, setGameMode] = useState<GameMode>('daily');
@@ -18,13 +28,36 @@ export default function PalavrasCruzadasPage() {
   const [finalTime, setFinalTime] = useState(0);
   const [showModeSelection, setShowModeSelection] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [showCategorySelection, setShowCategorySelection] = useState(false);
 
-  const fetchPuzzle = async (mode: GameMode) => {
+  useEffect(() => {
+    // Fetch categories on mount
+    fetchCategories();
+  }, []);
+
+  const fetchCategories = async () => {
+    try {
+      const response = await fetch('/api/categories');
+      if (response.ok) {
+        const data = await response.json();
+        setCategories(data);
+      }
+    } catch (err) {
+      console.error('Erro ao carregar categorias:', err);
+    }
+  };
+
+  const fetchPuzzle = async (mode: GameMode, category?: string | null) => {
     setIsLoading(true);
     setError(null);
 
     try {
-      const endpoint = mode === 'daily' ? '/api/crossword/daily' : '/api/crossword/random';
+      let endpoint = mode === 'daily' ? '/api/crossword/daily' : '/api/crossword/random';
+      if (category) {
+        endpoint += `?category=${category}`;
+      }
       const response = await fetch(endpoint);
       
       if (!response.ok) {
@@ -35,6 +68,7 @@ export default function PalavrasCruzadasPage() {
       const data = await response.json();
       setPuzzle(data);
       setShowModeSelection(false);
+      setShowCategorySelection(false);
     } catch (err) {
       console.error('Erro ao buscar puzzle:', err);
       setError(err instanceof Error ? err.message : 'Erro ao carregar puzzle');
@@ -45,7 +79,18 @@ export default function PalavrasCruzadasPage() {
 
   const handleSelectMode = (mode: GameMode) => {
     setGameMode(mode);
-    fetchPuzzle(mode);
+    if (mode === 'daily') {
+      fetchPuzzle(mode);
+    } else {
+      // Show category selection for random mode
+      setShowCategorySelection(true);
+      setShowModeSelection(false);
+    }
+  };
+
+  const handleSelectCategory = (categorySlug: string | null) => {
+    setSelectedCategory(categorySlug);
+    fetchPuzzle('random', categorySlug);
   };
 
   const handleStartGame = () => {
@@ -68,7 +113,7 @@ export default function PalavrasCruzadasPage() {
       setIsComplete(false);
       setIsPlaying(false);
       setFinalTime(0);
-      await fetchPuzzle('random');
+      await fetchPuzzle('random', selectedCategory);
     } else {
       // Reload daily puzzle
       router.refresh();
@@ -78,11 +123,113 @@ export default function PalavrasCruzadasPage() {
   const handleChangMode = () => {
     setPuzzle(null);
     setShowModeSelection(true);
+    setShowCategorySelection(false);
     setIsPlaying(false);
     setIsComplete(false);
     setFinalTime(0);
     setError(null);
+    setSelectedCategory(null);
   };
+
+  // Category Selection Screen
+  if (showCategorySelection) {
+    return (
+      <div className="flex min-h-screen flex-col bg-gradient-to-br from-zinc-50 to-zinc-100 dark:from-zinc-950 dark:to-black">
+        <header className="border-b border-zinc-200 bg-white/80 backdrop-blur-sm dark:border-zinc-800 dark:bg-zinc-900/80">
+          <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
+            <button
+              onClick={() => {
+                setShowCategorySelection(false);
+                setShowModeSelection(true);
+              }}
+              className="text-sm font-medium text-zinc-600 transition-colors hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-50"
+            >
+              ← Voltar
+            </button>
+            <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-50">
+              Escolher Tema
+            </h1>
+            <div className="w-20"></div>
+          </div>
+        </header>
+
+        <main className="flex flex-1 items-center justify-center px-6 py-16">
+          <div className="w-full max-w-5xl">
+            <div className="mb-8 text-center">
+              <h2 className="mb-2 text-3xl font-bold text-zinc-900 dark:text-zinc-50">
+                Modo Aleatório - Escolha um Tema
+              </h2>
+              <p className="text-zinc-600 dark:text-zinc-400">
+                Selecione uma categoria temática ou jogue com todas as palavras
+              </p>
+            </div>
+
+            {isLoading && (
+              <div className="mb-6 text-center">
+                <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-4 border-zinc-200 border-t-zinc-900 dark:border-zinc-800 dark:border-t-zinc-50"></div>
+                <p className="text-zinc-600 dark:text-zinc-400">A gerar puzzle...</p>
+              </div>
+            )}
+
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {/* Todas as Palavras */}
+              <button
+                onClick={() => handleSelectCategory(null)}
+                disabled={isLoading}
+                className="group relative overflow-hidden rounded-xl border-2 border-zinc-300 bg-white p-6 text-left transition-all hover:border-zinc-500 hover:shadow-lg disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:border-zinc-500"
+              >
+                <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-zinc-100 text-2xl transition-transform group-hover:scale-110 dark:bg-zinc-800">
+                  🎲
+                </div>
+                <h3 className="mb-1 text-lg font-bold text-zinc-900 dark:text-zinc-50">
+                  Todas as Palavras
+                </h3>
+                <p className="text-xs text-zinc-600 dark:text-zinc-400">
+                  Puzzle com palavras de todos os temas
+                </p>
+              </button>
+
+              {/* Categorias */}
+              {categories.map((category) => (
+                <button
+                  key={category.id}
+                  onClick={() => handleSelectCategory(category.slug)}
+                  disabled={isLoading || category.word_count < 10}
+                  className="group relative overflow-hidden rounded-xl border-2 border-zinc-200 bg-white p-6 text-left transition-all hover:border-zinc-400 hover:shadow-lg disabled:opacity-50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-600"
+                  style={{
+                    borderColor: category.word_count >= 10 ? `${category.color}30` : undefined,
+                  }}
+                >
+                  <div
+                    className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg text-2xl transition-transform group-hover:scale-110"
+                    style={{
+                      backgroundColor: `${category.color}20`,
+                    }}
+                  >
+                    {category.icon}
+                  </div>
+                  <h3 className="mb-1 text-lg font-bold text-zinc-900 dark:text-zinc-50">
+                    {category.name}
+                  </h3>
+                  <p className="mb-2 text-xs text-zinc-600 dark:text-zinc-400">
+                    {category.description}
+                  </p>
+                  <span className="text-xs font-medium text-zinc-500 dark:text-zinc-500">
+                    {category.word_count} palavras
+                  </span>
+                  {category.word_count < 10 && (
+                    <div className="mt-2 text-xs text-red-600 dark:text-red-400">
+                      Mínimo 10 palavras necessário
+                    </div>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   // Mode Selection Screen
   if (showModeSelection) {
@@ -206,7 +353,12 @@ export default function PalavrasCruzadasPage() {
           </button>
           <div className="flex items-center gap-3">
             <span className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
-              {gameMode === 'daily' ? '📅 Diário' : '🎲 Aleatório'}
+              {gameMode === 'daily' ? '📅 Diário' : selectedCategory ? (
+                <>
+                  {categories.find(c => c.slug === selectedCategory)?.icon || '🎲'}{' '}
+                  {categories.find(c => c.slug === selectedCategory)?.name || 'Aleatório'}
+                </>
+              ) : '🎲 Aleatório'}
             </span>
             <div className="text-center">
               <div className="text-xs text-zinc-600 dark:text-zinc-400">Tempo</div>
@@ -267,7 +419,7 @@ export default function PalavrasCruzadasPage() {
               Parabéns!
             </h2>
             <p className="mb-2 text-lg text-zinc-700 dark:text-zinc-300">
-              Completou o puzzle {gameMode === 'daily' ? 'diário' : 'aleatório'} em
+              Completou o puzzle {gameMode === 'daily' ? 'diário' : (selectedCategory ? `de ${categories.find(c => c.slug === selectedCategory)?.name || 'aleatório'}` : 'aleatório')} em
             </p>
             <div className="mb-8 font-mono text-4xl font-bold text-zinc-900 dark:text-zinc-50">
               {formatTime(finalTime)}
@@ -284,7 +436,7 @@ export default function PalavrasCruzadasPage() {
                 onClick={handleRestart}
                 className="rounded-full bg-zinc-900 px-8 py-3 font-semibold text-white transition-colors hover:bg-zinc-700 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
               >
-                {gameMode === 'daily' ? 'Jogar Novamente' : 'Novo Puzzle Aleatório'}
+                {gameMode === 'daily' ? 'Jogar Novamente' : selectedCategory ? `Novo Puzzle de ${categories.find(c => c.slug === selectedCategory)?.name}` : 'Novo Puzzle Aleatório'}
               </button>
               {gameMode === 'daily' && (
                 <Link
