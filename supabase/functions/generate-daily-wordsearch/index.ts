@@ -1,340 +1,271 @@
+// Supabase Edge Function: Generate Daily Word Search
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
-// Importar gerador de wordsearch (inline para Deno)
 interface WordEntry {
   word: string
   definition: string
 }
 
-type Direction = 'E' | 'W' | 'S' | 'N' | 'SE' | 'SW' | 'NE' | 'NW'
-
-interface WordPlacement {
+interface PlacedWord {
   word: string
-  definition: string
-  startRow: number
-  startCol: number
-  direction: Direction
+  row: number
+  col: number
+  direction: string
 }
 
-const DIRECTIONS: Record<Direction, { row: number; col: number }> = {
-  E: { row: 0, col: 1 },
-  W: { row: 0, col: -1 },
-  S: { row: 1, col: 0 },
-  N: { row: -1, col: 0 },
-  SE: { row: 1, col: 1 },
-  SW: { row: 1, col: -1 },
-  NE: { row: -1, col: 1 },
-  NW: { row: -1, col: -1 }
+interface GridCell {
+  letter: string
+  row: number
+  col: number
 }
 
-const PT_LETTERS = [
-  'A', 'A', 'A', 'E', 'E', 'E', 'O', 'O', 'I', 'I',
-  'S', 'R', 'N', 'D', 'M', 'U', 'T', 'C', 'L', 'P',
-  'V', 'G', 'H', 'Q', 'B', 'F', 'Z', 'J', 'X', 'K'
-]
+interface GeneratedPuzzle {
+  grid: GridCell[][]
+  words: Array<{
+    word: string
+    definition: string
+    row: number
+    col: number
+    direction: string
+  }>
+  size: number
+}
 
 class WordSearchGenerator {
-  private gridSize: number
   private grid: string[][]
-  private placedWords: WordPlacement[]
+  private readonly size: number
+  private placedWords: PlacedWord[] = []
+  private readonly directions = [
+    { dx: 1, dy: 0, name: 'horizontal' },
+    { dx: 0, dy: 1, name: 'vertical' },
+    { dx: 1, dy: 1, name: 'diagonal-down' },
+    { dx: 1, dy: -1, name: 'diagonal-up' },
+    { dx: -1, dy: 0, name: 'horizontal-reverse' },
+    { dx: 0, dy: -1, name: 'vertical-reverse' },
+    { dx: -1, dy: -1, name: 'diagonal-down-reverse' },
+    { dx: -1, dy: 1, name: 'diagonal-up-reverse' }
+  ]
 
-  constructor(gridSize: number = 15) {
-    this.gridSize = gridSize
-    this.grid = Array(gridSize).fill(null).map(() => 
-      Array(gridSize).fill('')
-    )
-    this.placedWords = []
+  constructor(size: number = 15) {
+    this.size = size
+    this.grid = Array(size).fill(null).map(() => Array(size).fill(''))
   }
 
-  generate(words: WordEntry[], maxWords: number = 10) {
-    const validWords = words
-      .filter(w => w.word.length >= 6 && w.word.length <= 12)
-      .slice(0, maxWords)
+  generate(words: WordEntry[], maxWords: number = 15): GeneratedPuzzle | null {
+    const filtered = words
+      .filter(w => w.word.length >= 6 && w.word.length <= 10)
+      .sort(() => Math.random() - 0.5)
+      .slice(0, maxWords * 2)
 
-    const normalizedWords = validWords.map(w => ({
-      ...w,
-      word: this.normalizeWord(w.word)
-    }))
+    if (filtered.length < 8) return null
 
-    normalizedWords.sort((a, b) => b.word.length - a.word.length)
+    const sorted = [...filtered].sort((a, b) => b.word.length - a.word.length)
 
-    for (const wordEntry of normalizedWords) {
-      this.placeWord(wordEntry)
+    let placed = 0
+    for (const word of sorted) {
+      if (placed >= maxWords) break
+      if (this.placeWord(word.word.toUpperCase())) {
+        placed++
+      }
     }
+
+    if (placed < 8) return null
 
     this.fillEmptyCells()
 
+    const gridCells = this.grid.map((row, r) =>
+      row.map((letter, c) => ({
+        letter,
+        row: r,
+        col: c
+      }))
+    )
+
+    const wordsWithDefs = this.placedWords.map(pw => {
+      const wordEntry = filtered.find(w => w.word.toUpperCase() === pw.word)
+      return {
+        word: pw.word,
+        definition: wordEntry?.definition || '',
+        row: pw.row,
+        col: pw.col,
+        direction: pw.direction
+      }
+    })
+
     return {
-      grid: this.grid,
-      words: this.placedWords,
-      size: this.gridSize
+      grid: gridCells,
+      words: wordsWithDefs,
+      size: this.size
     }
   }
 
-  private normalizeWord(word: string): string {
-    return word
-      .toUpperCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-  }
-
-  private placeWord(wordEntry: WordEntry): boolean {
-    const { word } = wordEntry
-    const directions = Object.keys(DIRECTIONS) as Direction[]
-    const shuffledDirections = this.shuffle(directions)
-
-    for (const direction of shuffledDirections) {
-      for (let attempt = 0; attempt < 50; attempt++) {
-        const startRow = Math.floor(Math.random() * this.gridSize)
-        const startCol = Math.floor(Math.random() * this.gridSize)
-
-        if (this.canPlaceWord(word, startRow, startCol, direction)) {
-          this.setWord(word, startRow, startCol, direction)
-          this.placedWords.push({
-            word,
-            definition: wordEntry.definition,
-            startRow,
-            startCol,
-            direction
-          })
+  private placeWord(word: string): boolean {
+    const shuffled = [...this.directions].sort(() => Math.random() - 0.5)
+    
+    for (let attempt = 0; attempt < 50; attempt++) {
+      const row = Math.floor(Math.random() * this.size)
+      const col = Math.floor(Math.random() * this.size)
+      
+      for (const dir of shuffled) {
+        if (this.canPlaceWord(word, row, col, dir.dx, dir.dy)) {
+          this.placeWordAt(word, row, col, dir.dx, dir.dy, dir.name)
           return true
         }
       }
     }
-
     return false
   }
 
-  private canPlaceWord(
-    word: string,
-    startRow: number,
-    startCol: number,
-    direction: Direction
-  ): boolean {
-    const { row: dRow, col: dCol } = DIRECTIONS[direction]
-
+  private canPlaceWord(word: string, row: number, col: number, dx: number, dy: number): boolean {
     for (let i = 0; i < word.length; i++) {
-      const row = startRow + i * dRow
-      const col = startCol + i * dCol
-
-      if (row < 0 || row >= this.gridSize || col < 0 || col >= this.gridSize) {
+      const newRow = row + i * dy
+      const newCol = col + i * dx
+      
+      if (newRow < 0 || newRow >= this.size || newCol < 0 || newCol >= this.size) {
         return false
       }
-
-      const cellValue = this.grid[row][col]
-      if (cellValue !== '' && cellValue !== word[i]) {
+      
+      const existing = this.grid[newRow][newCol]
+      if (existing && existing !== word[i]) {
         return false
       }
     }
-
     return true
   }
 
-  private setWord(
-    word: string,
-    startRow: number,
-    startCol: number,
-    direction: Direction
-  ): void {
-    const { row: dRow, col: dCol } = DIRECTIONS[direction]
-
+  private placeWordAt(word: string, row: number, col: number, dx: number, dy: number, direction: string): void {
     for (let i = 0; i < word.length; i++) {
-      const row = startRow + i * dRow
-      const col = startCol + i * dCol
-      this.grid[row][col] = word[i]
+      this.grid[row + i * dy][col + i * dx] = word[i]
     }
+    
+    this.placedWords.push({ word, row, col, direction })
   }
 
   private fillEmptyCells(): void {
-    for (let row = 0; row < this.gridSize; row++) {
-      for (let col = 0; col < this.gridSize; col++) {
-        if (this.grid[row][col] === '') {
-          this.grid[row][col] = PT_LETTERS[Math.floor(Math.random() * PT_LETTERS.length)]
+    const portugueseLetters = 'ABCDEFGHIJLMNOPQRSTUVXZÁÉÍÓÚÃÕÂÊÔÇ'
+    
+    for (let r = 0; r < this.size; r++) {
+      for (let c = 0; c < this.size; c++) {
+        if (!this.grid[r][c]) {
+          this.grid[r][c] = portugueseLetters[Math.floor(Math.random() * portugueseLetters.length)]
         }
       }
     }
-  }
-
-  private shuffle<T>(array: T[]): T[] {
-    const shuffled = [...array]
-    for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
-    }
-    return shuffled
   }
 }
 
 serve(async (req) => {
-  const startTime = Date.now();
-  const requestId = crypto.randomUUID();
+  const requestId = crypto.randomUUID()
+  const startTime = Date.now()
   
-  console.log(`[${requestId}] 🚀 Starting daily word search generation`);
+  console.log(`[${requestId}] Starting daily word search generation`)
   
   try {
-    // Validar autenticação (service_role_key do cron)
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      console.warn(`[${requestId}] ⚠️ Missing authorization header`);
-      return new Response(
-        JSON.stringify({ error: 'Unauthorized', request_id: requestId }),
-        { status: 401, headers: { 'Content-Type': 'application/json' } }
-      );
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+    
+    if (!supabaseUrl || !supabaseKey) {
+      throw new Error('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY')
     }
-
-    // Criar cliente Supabase
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
-    console.log(`[${requestId}] ✅ Supabase client initialized`);
-
-    // Buscar todas as palavras do dicionário e randomizar in-memory
-    const wordsStartTime = Date.now();
-    const { data: allWords, error: wordsError } = await supabase
+    
+    const supabase = createClient(supabaseUrl, supabaseKey)
+    
+    const { data: words, error: wordsError } = await supabase
       .from('dictionary_pt')
-      .select('word, definition');
+      .select('word, definition')
+      .not('definition', 'is', null)
+      .gte('word', 'aaa')
+      .limit(200)
 
-    if (wordsError || !allWords || allWords.length === 0) {
-      console.error(`[${requestId}] ❌ Failed to fetch words:`, wordsError);
-      return new Response(
-        JSON.stringify({ 
-          error: 'Failed to fetch words',
-          request_id: requestId 
-        }),
-        { status: 500, headers: { 'Content-Type': 'application/json' } }
-      );
-    }
+    if (wordsError) throw new Error(`Failed to fetch words: ${wordsError.message}`)
+    if (!words || words.length < 15) throw new Error('Insufficient words in dictionary')
 
-    console.log(`[${requestId}] 📚 Fetched ${allWords.length} words in ${Date.now() - wordsStartTime}ms`);
+    console.log(`[${requestId}] Fetched ${words.length} words`)
 
-    // Filtrar por tamanho e embaralhar in-memory
-    const words = allWords
-      .filter((w: any) => w.word.length >= 6 && w.word.length <= 10)
-      .sort(() => Math.random() - 0.5)
-      .slice(0, 100);
+    let puzzle: GeneratedPuzzle | null = null
+    let attempts = 0
+    const maxAttempts = 5
 
-    console.log(`[${requestId}] 🔍 Filtered to ${words.length} suitable words (6-10 chars)`);
-
-    // Gerar puzzle (tentar até 5 vezes)
-    let puzzle = null;
-    let attempts = 0;
-    const maxAttempts = 5;
-    let bestAttempt: any = null;
-    let bestWordCount = 0;
-
-    const genStartTime = Date.now();
     while (!puzzle && attempts < maxAttempts) {
-      attempts++;
-      console.log(`[${requestId}] 🎲 Generation attempt ${attempts}/${maxAttempts}`);
+      attempts++
+      const generator = new WordSearchGenerator(15)
+      puzzle = generator.generate(words, 15)
       
-      try {
-        const generator = new WordSearchGenerator(15);
-        const result = generator.generate(words, 10);
-
-        const wordCount = result.words.length;
-        console.log(`[${requestId}] ✅ Attempt ${attempts} generated puzzle with ${wordCount} words`);
-
-        if (wordCount > bestWordCount) {
-          bestAttempt = result;
-          bestWordCount = wordCount;
-        }
-
-        if (wordCount >= 8) {
-          puzzle = result;
-          console.log(`[${requestId}] 🎉 Accepted puzzle with ${wordCount} words (quality threshold met)`);
-          break;
-        }
-      } catch (err) {
-        console.warn(`[${requestId}] ⚠️ Attempt ${attempts} failed:`, err);
+      if (puzzle && puzzle.words.length >= 10) {
+        console.log(`[${requestId}] Generated puzzle: ${puzzle.words.length} words`)
+        break
       }
+      puzzle = null
     }
 
-    // Use best attempt if no puzzle met quality threshold
-    if (!puzzle && bestAttempt) {
-      puzzle = bestAttempt;
-      console.log(`[${requestId}] ⚠️ Using best attempt with ${bestWordCount} words (below ideal threshold)`);
-    }
+    if (!puzzle) throw new Error('Failed to generate quality puzzle after 5 attempts')
 
-    if (!puzzle) {
-      console.error(`[${requestId}] ❌ Failed to generate puzzle after ${maxAttempts} attempts`);
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Lisbon' })
+    
+    const { data: existing } = await supabase
+      .from('wordsearches')
+      .select('id')
+      .eq('type', 'daily')
+      .eq('publish_date', today)
+      .maybeSingle()
+
+    if (existing) {
+      console.log(`[${requestId}] Puzzle already exists for ${today}`)
       return new Response(
         JSON.stringify({ 
-          error: 'Failed to generate quality puzzle',
-          request_id: requestId,
-          elapsed_ms: Date.now() - startTime
+          message: 'Word search already exists for today',
+          puzzle_id: existing.id,
+          date: today
         }),
-        { status: 500, headers: { 'Content-Type': 'application/json' } }
-      );
+        { headers: { 'Content-Type': 'application/json' }, status: 200 }
+      )
     }
 
-    const genTime = Date.now() - genStartTime;
-    console.log(`[${requestId}] ⏱️ Generation completed in ${genTime}ms (${attempts} attempts)`);
-
-    // Data atual (Portugal timezone)
-    const today = new Date().toLocaleDateString('en-CA', {
-      timeZone: 'Europe/Lisbon'
-    });
-    console.log(`[${requestId}] 📅 Target date: ${today} (Portugal timezone)`);
-
-    // Inserir puzzle no banco de dados (tabela wordsearch)
-    const insertStartTime = Date.now();
-    const { data: insertedPuzzle, error: insertError } = await supabase
-      .from('wordsearch')
+    const { data: inserted, error: insertError } = await supabase
+      .from('wordsearches')
       .insert({
         type: 'daily',
         grid_data: puzzle.grid,
         words: puzzle.words,
+        solutions: {},
         size: puzzle.size,
         publish_date: today
       })
-      .select()
-      .single();
+      .select('id')
+      .single()
 
-    if (insertError) {
-      console.error(`[${requestId}] ❌ Failed to insert wordsearch:`, insertError);
-      return new Response(
-        JSON.stringify({ 
-          error: 'Failed to insert wordsearch', 
-          details: insertError,
-          request_id: requestId
-        }),
-        { status: 500, headers: { 'Content-Type': 'application/json' } }
-      );
-    }
+    if (insertError) throw new Error(`Failed to insert: ${insertError.message}`)
 
-    const insertTime = Date.now() - insertStartTime;
-    const totalTime = Date.now() - startTime;
-    
-    console.log(`[${requestId}] 💾 Saved to database in ${insertTime}ms`);
-    console.log(`[${requestId}] ✅ SUCCESS - Total time: ${totalTime}ms`);
-    console.log(`[${requestId}] 📊 Stats: ${puzzle.words.length} words, grid size ${puzzle.size}x${puzzle.size}`);
+    const totalTime = Date.now() - startTime
+
+    console.log(`[${requestId}] SUCCESS in ${totalTime}ms: ${puzzle.words.length} words`)
 
     return new Response(
       JSON.stringify({
         success: true,
-        message: 'Daily word search puzzle generated successfully',
-        puzzle: insertedPuzzle,
+        puzzle_id: inserted.id,
+        date: today,
         words_count: puzzle.words.length,
-        generation_time_ms: genTime,
         total_time_ms: totalTime,
-        attempts: attempts
+        attempts
       }),
-      { status: 200, headers: { 'Content-Type': 'application/json' } }
-    );
-  } catch (error) {
-    const totalTime = Date.now() - startTime;
-    console.error(`[${requestId}] ❌ ERROR after ${totalTime}ms:`, error);
-    console.error(`[${requestId}] Stack:`, error.stack);
+      { headers: { 'Content-Type': 'application/json' }, status: 200 }
+    )
+  } catch (err) {
+    const error = err as Error
+    const totalTime = Date.now() - startTime
+    
+    console.error(`[${requestId}] ERROR after ${totalTime}ms:`, error.message)
+    console.error(`[${requestId}] Stack:`, error.stack)
     
     return new Response(
       JSON.stringify({ 
-        error: 'Internal server error', 
-        details: error.message,
+        error: error.message,
         request_id: requestId,
         elapsed_ms: totalTime
       }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } }
-    );
+      { headers: { 'Content-Type': 'application/json' }, status: 500 }
+    )
   }
-});
+})
