@@ -45,7 +45,7 @@ const FRIENDS = [
 ]
 
 export default function TicTacToeGame() {
-  const [viewMode, setViewMode] = useState<ViewMode>('local')
+  const [selectedMode, setSelectedMode] = useState<ViewMode | null>(null)
   const [board, setBoard] = useState<CellValue[]>(Array(9).fill(null))
   const [currentPlayer, setCurrentPlayer] = useState<CellValue>('X')
   const [status, setStatus] = useState<GameStatus>('playing')
@@ -74,19 +74,6 @@ export default function TicTacToeGame() {
 
     return `Vez de ${currentPlayer === 'X' ? 'Jogador X' : 'Jogador O'}`
   }, [status, winningLine, currentPlayer])
-
-  const heroContent = viewMode === 'local'
-    ? {
-        badge: 'Modo Local • 2 Jogadores no mesmo dispositivo',
-        title: 'Jogo do Galo com animações e turnos partilhados',
-        description: 'Passa o dispositivo ao parceiro, acompanha o histórico e desbloqueia combos relâmpago no modo Sereno ou Relâmpago.'
-      }
-    : {
-        badge: 'Matchmaking Supabase • Público & Código privado',
-        title: 'Desafia amigos ou entra na fila global em segundos',
-        description:
-          'O worker de matchmaking confirma rating, região e código privado para abrir uma sala Realtime pronta a sincronizar jogadas.'
-      }
 
   const handleCellClick = (index: number) => {
     if (board[index] || status !== 'playing' || !currentPlayer) return
@@ -186,9 +173,283 @@ export default function TicTacToeGame() {
     await joinQueue({ mode: 'private', matchCode: code, seat: 'host', metadata: { invitee: friendId, variant: mode, room_code: code } })
   }
 
+  const resetLocalState = () => {
+    handleReset()
+    setStats({ X: 0, O: 0, draws: 0 })
+    setTimeline([])
+    setStreak({ player: null, count: 0 })
+  }
+
+  const handleSelectMode = (modeSelection: ViewMode) => {
+    if (modeSelection === 'local') {
+      resetLocalState()
+    }
+    setSelectedMode(modeSelection)
+  }
+
+  const handleBackToSelection = async () => {
+    if (queueEntry) {
+      await leaveQueue()
+    }
+    setSelectedMode(null)
+    setInviteCode('')
+    setGeneratedCode(generateMatchCode())
+    resetLocalState()
+  }
+
+  if (!selectedMode) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-zinc-50 via-white to-zinc-50 px-4 py-12 text-zinc-900 dark:from-zinc-950 dark:via-zinc-900 dark:to-black dark:text-zinc-50">
+        <div className="mx-auto max-w-4xl text-center">
+          <h1 className="text-4xl font-bold text-zinc-900 dark:text-white sm:text-5xl">Jogo do Galo</h1>
+          <p className="mt-3 text-lg text-zinc-600 dark:text-zinc-400">Escolhe como queres jogar: partilha o ecrã ou ativa o matchmaking Supabase.</p>
+          <div className="mt-12 grid gap-6 md:grid-cols-2">
+            <button
+              type="button"
+              onClick={() => handleSelectMode('local')}
+              className="group relative overflow-hidden rounded-3xl border-2 border-amber-100 bg-white p-8 text-left shadow-sm transition hover:-translate-y-1 hover:border-amber-300 hover:shadow-xl dark:border-amber-500/40 dark:bg-zinc-900"
+            >
+              <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-100 text-4xl transition-transform group-hover:scale-110 dark:bg-amber-500/10">
+                🤝
+              </div>
+              <h2 className="text-2xl font-semibold text-zinc-900 dark:text-white">Modo Local</h2>
+              <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">Dois jogadores no mesmo dispositivo com histórico, streak e modos Sereno/Relâmpago.</p>
+              <ul className="mt-4 space-y-1 text-xs text-zinc-500 dark:text-zinc-400">
+                <li>• Alterna automaticamente entre X e O</li>
+                <li>• Estatísticas persistentes na sessão</li>
+                <li>• UI animada com destaque de vitórias</li>
+              </ul>
+              <div className="absolute -right-6 bottom-0 h-24 w-24 rounded-full bg-amber-200/40 blur-3xl dark:bg-amber-500/20" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleSelectMode('matchmaking')}
+              className="group relative overflow-hidden rounded-3xl border-2 border-sky-100 bg-white p-8 text-left shadow-sm transition hover:-translate-y-1 hover:border-sky-300 hover:shadow-xl dark:border-sky-500/40 dark:bg-zinc-900"
+            >
+              <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-sky-100 text-4xl transition-transform group-hover:scale-110 dark:bg-sky-500/10">
+                🌐
+              </div>
+              <h2 className="text-2xl font-semibold text-zinc-900 dark:text-white">Modo Matchmaking</h2>
+              <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">Fila pública automática e códigos privados para desafiar amigos em segundos.</p>
+              <ul className="mt-4 space-y-1 text-xs text-zinc-500 dark:text-zinc-400">
+                <li>• Integração com `matchmaking_queue`</li>
+                <li>• Configurações públicas e privadas</li>
+                <li>• Lista de amigos com convites rápidos</li>
+              </ul>
+              <div className="absolute -left-6 top-0 h-24 w-24 rounded-full bg-sky-200/50 blur-3xl dark:bg-sky-500/20" />
+            </button>
+          </div>
+          <p className="mt-10 text-sm text-zinc-500 dark:text-zinc-400">Todos os modos em PT-PT com suporte total a dark mode.</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (selectedMode === 'matchmaking') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-sky-50 via-white to-amber-50 px-4 py-10 text-zinc-900 dark:from-zinc-950 dark:via-zinc-900 dark:to-black dark:text-zinc-50">
+        <div className="mx-auto max-w-6xl space-y-10">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <button
+              type="button"
+              onClick={() => void handleBackToSelection()}
+              className="text-sm font-semibold text-zinc-600 transition hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white"
+            >
+              ← Mudar Modo
+            </button>
+            <span className="rounded-full bg-zinc-900 px-4 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-white dark:bg-white dark:text-zinc-900">
+              Matchmaking
+            </span>
+          </div>
+
+          <header className="rounded-3xl border border-sky-100 bg-white/80 p-10 shadow-xl dark:border-sky-500/30 dark:bg-zinc-900/80">
+            <div className="relative z-10 flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between">
+              <div className="space-y-4">
+                <p className="inline-flex items-center gap-2 rounded-full bg-sky-100/80 px-4 py-1 text-sm font-medium text-sky-900 dark:bg-sky-500/10 dark:text-sky-200">
+                  Matchmaking Supabase • Público & Código privado
+                </p>
+                <h1 className="text-4xl font-bold leading-tight text-zinc-900 dark:text-white sm:text-5xl">
+                  Desafia amigos ou entra na fila global em segundos
+                </h1>
+                <p className="text-lg text-zinc-600 dark:text-zinc-300">
+                  O worker `matchmaking-worker` valida rating, região e códigos privados para abrir salas sincronizadas via Realtime.
+                </p>
+                <div className="flex flex-wrap gap-3 text-sm">
+                  <span className="rounded-full border border-zinc-200/70 px-4 py-1 font-medium text-zinc-700 dark:border-zinc-800 dark:text-zinc-200">
+                    Fila pública automática
+                  </span>
+                  <span className="rounded-full border border-zinc-200/70 px-4 py-1 font-medium text-zinc-700 dark:border-zinc-800 dark:text-zinc-200">
+                    Códigos privados & invites
+                  </span>
+                  <span className="rounded-full border border-zinc-200/70 px-4 py-1 font-medium text-zinc-700 dark:border-zinc-800 dark:text-zinc-200">
+                    Preparado para Realtime
+                  </span>
+                </div>
+              </div>
+              <div className="rounded-2xl border border-sky-200/60 bg-white/80 px-6 py-5 text-sm text-sky-900 shadow-lg dark:border-sky-500/20 dark:bg-zinc-900/90 dark:text-sky-200">
+                <p className="text-xs uppercase tracking-[0.3em] text-sky-600 dark:text-sky-300">Estado</p>
+                <p className="mt-2 text-3xl font-semibold">{queueStatusLabel}</p>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">Atualizado automaticamente via Supabase Realtime</p>
+              </div>
+            </div>
+          </header>
+
+          <div className="grid gap-8 lg:grid-cols-[1.1fr,0.9fr]">
+            <section className="rounded-3xl border border-zinc-200/60 bg-white/90 p-8 shadow-2xl dark:border-zinc-800 dark:bg-zinc-900/80">
+              <div className="space-y-6">
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-semibold text-zinc-600 dark:text-zinc-400">Fila pública</p>
+                    <p className="text-2xl font-bold text-zinc-900 dark:text-white">Matchmaking automático</p>
+                    <p className="text-sm text-zinc-500 dark:text-zinc-400">Processado a cada minuto pelo cron job `matchmaking-worker`.</p>
+                  </div>
+                  <div className="text-right text-sm text-zinc-500 dark:text-zinc-400">
+                    <p>Estado atual</p>
+                    <p className="text-xl font-semibold text-zinc-900 dark:text-white">{queueStatusLabel}</p>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={handleJoinPublic}
+                    disabled={queueStatus === 'joining' || queueStatus === 'queued'}
+                    className="rounded-2xl bg-gradient-to-r from-sky-400 to-indigo-500 px-5 py-4 text-left text-sm font-semibold text-white shadow-lg transition disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    ⚡ Entrar na fila automática
+                    <span className="mt-1 block text-xs font-normal text-sky-100">Rating e região sincronizados com o teu perfil</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void leaveQueue()}
+                    disabled={!queueEntry}
+                    className="rounded-2xl border border-zinc-200 px-5 py-4 text-left text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                  >
+                    ✋ Cancelar procura
+                    <span className="mt-1 block text-xs font-normal text-zinc-500 dark:text-zinc-400">Liberta a vaga quando quiseres</span>
+                  </button>
+                </div>
+
+                <div className="rounded-2xl border border-zinc-100 bg-zinc-50/70 p-5 dark:border-zinc-800 dark:bg-zinc-900/60">
+                  <p className="text-sm font-semibold text-zinc-700 dark:text-zinc-200">Sala ativa</p>
+                  {room ? (
+                    <div className="mt-3 space-y-1 text-sm text-zinc-600 dark:text-zinc-300">
+                      <p>
+                        ID: <span className="font-mono text-base text-zinc-900 dark:text-white">{room.id}</span>
+                      </p>
+                      <p>
+                        Código: <span className="font-mono text-lg text-amber-500">{derivedRoomCode ?? '—'}</span>
+                      </p>
+                      <p>
+                        Participantes: {roomState?.participants?.length ?? 2} • Fase {roomState?.phase ?? 'preparação'}
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">Sem sala sincronizada. Junta-te à fila ou cria um código.</p>
+                  )}
+                </div>
+
+                <div className="rounded-2xl border border-zinc-200/70 bg-white/80 p-5 dark:border-zinc-800 dark:bg-zinc-900">
+                  <p className="text-sm font-semibold text-zinc-700 dark:text-zinc-200">Código privado</p>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400">Cria ou usa um código para desafiar amigos.</p>
+                  <div className="mt-3 flex flex-col gap-2">
+                    <div className="flex items-center gap-2">
+                      <input
+                        value={generatedCode}
+                        onChange={event => setGeneratedCode(event.target.value.toUpperCase())}
+                        className="flex-1 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-center font-mono text-sm uppercase tracking-[0.4em] text-zinc-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleCreatePrivate}
+                        className="rounded-xl bg-zinc-900 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-zinc-700 dark:bg-white dark:text-zinc-900"
+                      >
+                        Criar
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        value={inviteCode}
+                        onChange={event => setInviteCode(event.target.value.toUpperCase())}
+                        placeholder="Código"
+                        className="flex-1 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-center font-mono text-sm uppercase tracking-[0.4em] text-zinc-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleJoinWithCode}
+                        className="rounded-xl border border-amber-200 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-amber-600 transition hover:bg-amber-50 dark:border-amber-500/50 dark:text-amber-200"
+                      >
+                        Entrar
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <aside className="space-y-6">
+              <div className="rounded-3xl border border-zinc-200/60 bg-white/90 p-6 shadow-xl dark:border-zinc-800 dark:bg-zinc-900/80">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-zinc-600 dark:text-zinc-400">Lista de amigos</p>
+                    <p className="text-xl font-bold text-zinc-900 dark:text-white">Desafios rápidos</p>
+                  </div>
+                  <span className="text-xs uppercase tracking-[0.3em] text-zinc-400">Beta</span>
+                </div>
+                <ul className="mt-4 space-y-3">
+                  {FRIENDS.map(friend => (
+                    <li key={friend.id} className="flex items-center justify-between rounded-2xl border border-zinc-100 bg-zinc-50 px-4 py-3 text-sm dark:border-zinc-800 dark:bg-zinc-900">
+                      <div>
+                        <p className="font-semibold text-zinc-900 dark:text-white">{friend.name}</p>
+                        <p className="text-xs text-zinc-500 dark:text-zinc-400">{friend.status} • {friend.rating} MMR</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleFriendInvite(friend.id)}
+                        className="rounded-full border border-zinc-200 px-3 py-1 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200"
+                      >
+                        Desafiar
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">
+                  O convite cria automaticamente um código privado e envia através das notificações Supabase (roadmap Q1).
+                </p>
+              </div>
+
+              <div className="rounded-3xl border border-zinc-200/60 bg-gradient-to-br from-zinc-50 via-white to-amber-50 p-6 text-sm shadow-xl dark:border-zinc-800 dark:from-zinc-900 dark:via-black dark:to-amber-900/10">
+                <h3 className="text-lg font-semibold text-zinc-900 dark:text-white">Checklist do modo online</h3>
+                <ul className="mt-4 space-y-3 text-zinc-600 dark:text-zinc-300">
+                  <li>• Cron job `matchmaking-worker` ativo (ver em `cron_jobs_status`).</li>
+                  <li>• Sala atualizada via `updateRoomState` assim que ambos marcam “Pronto”.</li>
+                  <li>• Próximo passo: sincronizar jogadas em tempo real quando o puzzle 3x3 estiver em modo duel.</li>
+                </ul>
+              </div>
+            </aside>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-amber-50 via-white to-zinc-50 px-4 py-12 text-zinc-900 dark:from-zinc-950 dark:via-zinc-900 dark:to-black dark:text-zinc-50">
       <div className="mx-auto max-w-6xl space-y-10">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <button
+            type="button"
+            onClick={() => void handleBackToSelection()}
+            className="text-sm font-semibold text-zinc-600 transition hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white"
+          >
+            ← Mudar Modo
+          </button>
+          <span className="rounded-full bg-zinc-900 px-4 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-white dark:bg-white dark:text-zinc-900">
+            Modo Local
+          </span>
+        </div>
+
         <header className="relative overflow-hidden rounded-3xl border border-yellow-100/60 bg-white/80 p-10 shadow-xl dark:border-yellow-500/20 dark:bg-zinc-900/70">
           <div className="pointer-events-none absolute inset-0 opacity-50 blur-3xl">
             <div className="absolute inset-x-0 top-0 h-56 bg-gradient-to-r from-amber-200 via-pink-200 to-emerald-200 dark:from-yellow-500/30 dark:via-pink-500/20 dark:to-emerald-500/30" />
@@ -196,18 +457,20 @@ export default function TicTacToeGame() {
           <div className="relative z-10 flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between">
             <div className="space-y-4">
               <p className="inline-flex items-center gap-2 rounded-full bg-amber-100/80 px-4 py-1 text-sm font-medium text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
-                {heroContent.badge}
+                Modo Local • 2 jogadores no mesmo dispositivo
               </p>
               <h1 className="text-4xl font-bold leading-tight text-zinc-900 dark:text-white sm:text-5xl">
-                {heroContent.title}
+                Partilha o ecrã e domina as diagonais
               </h1>
-              <p className="text-lg text-zinc-600 dark:text-zinc-300">{heroContent.description}</p>
+              <p className="text-lg text-zinc-600 dark:text-zinc-300">
+                Passa o dispositivo ao parceiro, acompanha o histórico e desbloqueia combos relâmpago no modo Sereno ou Relâmpago.
+              </p>
               <div className="flex flex-wrap gap-3 text-sm">
                 <span className="rounded-full border border-zinc-200/70 px-4 py-1 font-medium text-zinc-700 dark:border-zinc-800 dark:text-zinc-200">
                   PT-PT • Tabuleiro 3x3
                 </span>
                 <span className="rounded-full border border-zinc-200/70 px-4 py-1 font-medium text-zinc-700 dark:border-zinc-800 dark:text-zinc-200">
-                  {viewMode === 'local' ? 'Turnos partilhados no mesmo ecrã' : 'Worker de matchmaking ativo'}
+                  Turnos partilhados no mesmo ecrã
                 </span>
                 <span className="rounded-full border border-zinc-200/70 px-4 py-1 font-medium text-zinc-700 dark:border-zinc-800 dark:text-zinc-200">
                   UI animada com Tailwind v4
@@ -215,9 +478,7 @@ export default function TicTacToeGame() {
               </div>
             </div>
             <div className="rounded-2xl border border-amber-200/60 bg-white/80 px-6 py-5 text-sm text-amber-900 shadow-lg dark:border-amber-500/20 dark:bg-zinc-900/90 dark:text-amber-200">
-              <p className="text-xs uppercase tracking-[0.3em] text-amber-600 dark:text-amber-300">
-                Série atual
-              </p>
+              <p className="text-xs uppercase tracking-[0.3em] text-amber-600 dark:text-amber-300">Série atual</p>
               <p className="mt-2 text-4xl font-semibold">
                 {streak.count} <span className="text-base font-medium">vitórias</span>
               </p>
@@ -225,10 +486,7 @@ export default function TicTacToeGame() {
                 {streak.player ? `Jogador ${streak.player}` : 'À espera do próximo campeão'}
               </p>
               <div className="mt-4 h-1 rounded-full bg-amber-100 dark:bg-amber-900/30">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-amber-400 to-orange-500"
-                  style={{ width: `${Math.min((streak.count / 5) * 100, 100)}%` }}
-                />
+                <div className="h-full rounded-full bg-gradient-to-r from-amber-400 to-orange-500" style={{ width: `${Math.min((streak.count / 5) * 100, 100)}%` }} />
               </div>
             </div>
           </div>
@@ -236,41 +494,13 @@ export default function TicTacToeGame() {
             <span
               key={burst.id}
               className="pointer-events-none absolute -top-4 h-3 w-3 rounded-full opacity-80 animate-ping"
-              style={{
-                left: `${burst.left}%`,
-                animationDelay: `${burst.delay}s`,
-                animationDuration: '1.6s',
-                backgroundColor: burst.color
-              }}
+              style={{ left: `${burst.left}%`, animationDelay: `${burst.delay}s`, animationDuration: '1.6s', backgroundColor: burst.color }}
             />
           ))}
         </header>
 
-        <div className="flex flex-wrap gap-3 rounded-2xl border border-zinc-200 bg-white/70 p-2 text-sm dark:border-zinc-800 dark:bg-zinc-900/70">
-          {(
-            [
-              { key: 'local', label: 'Modo Local' },
-              { key: 'matchmaking', label: 'Modo Matchmaking' }
-            ] satisfies Array<{ key: ViewMode; label: string }>
-          ).map(option => (
-            <button
-              key={option.key}
-              type="button"
-              onClick={() => setViewMode(option.key)}
-              className={`rounded-2xl px-5 py-2 font-semibold transition ${
-                viewMode === option.key
-                  ? 'bg-zinc-900 text-white dark:bg-white dark:text-zinc-900'
-                  : 'text-zinc-500 hover:text-zinc-800 dark:text-zinc-400'
-              }`}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
-
-        {viewMode === 'local' ? (
-          <div className="grid gap-8 lg:grid-cols-[1.15fr,0.85fr]">
-            <section className="relative overflow-hidden rounded-3xl border border-zinc-200/60 bg-white/90 p-8 shadow-2xl dark:border-zinc-800 dark:bg-zinc-900/80">
+        <div className="grid gap-8 lg:grid-cols-[1.15fr,0.85fr]">
+          <section className="relative overflow-hidden rounded-3xl border border-zinc-200/60 bg-white/90 p-8 shadow-2xl dark:border-zinc-800 dark:bg-zinc-900/80">
             <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-gradient-to-br from-amber-100 to-pink-100 opacity-30 blur-3xl dark:from-amber-500/20 dark:to-pink-500/20" />
             <div className="absolute bottom-12 left-0 h-24 w-24 rounded-full bg-gradient-to-br from-emerald-100 to-amber-100 opacity-30 blur-3xl dark:from-emerald-500/20 dark:to-amber-500/20" />
             <div className="relative z-10 space-y-8">
@@ -387,16 +617,13 @@ export default function TicTacToeGame() {
               </div>
             </div>
           </section>
-            <aside className="space-y-6">
+          <aside className="space-y-6">
               <div className="rounded-3xl border border-zinc-200/60 bg-white/85 p-6 shadow-xl dark:border-zinc-800 dark:bg-zinc-900/80">
                 <p className="text-sm font-semibold text-zinc-600 dark:text-zinc-400">Linha temporal</p>
                 <ul className="mt-4 space-y-2 text-sm text-zinc-600 dark:text-zinc-300">
                   {timeline.length === 0 && <li>Faz a primeira jogada para ver os eventos aqui.</li>}
                   {timeline.map((entry, index) => (
-                    <li
-                      key={`${entry}-${index}`}
-                      className="rounded-2xl border border-zinc-100/60 bg-zinc-50/70 px-4 py-2 dark:border-zinc-800 dark:bg-zinc-900/70"
-                    >
+                    <li key={`${entry}-${index}`} className="rounded-2xl border border-zinc-100/60 bg-zinc-50/70 px-4 py-2 dark:border-zinc-800 dark:bg-zinc-900/70">
                       {entry}
                     </li>
                   ))}
@@ -419,151 +646,7 @@ export default function TicTacToeGame() {
               </div>
             </aside>
           </div>
-        ) : (
-          <div className="grid gap-8 lg:grid-cols-[1.1fr,0.9fr]">
-            <section className="rounded-3xl border border-zinc-200/60 bg-white/90 p-8 shadow-2xl dark:border-zinc-800 dark:bg-zinc-900/80">
-              <div className="space-y-6">
-                <div className="flex flex-wrap items-center justify-between gap-4">
-                  <div>
-                    <p className="text-sm font-semibold text-zinc-600 dark:text-zinc-400">Fila pública</p>
-                    <p className="text-2xl font-bold text-zinc-900 dark:text-white">Matchmaking automático</p>
-                    <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                      O worker `matchmaking-worker` verifica rating, região e disponibilidade a cada minuto via pg_cron.
-                    </p>
-                  </div>
-                  <div className="text-right text-sm text-zinc-500 dark:text-zinc-400">
-                    <p>Estado atual</p>
-                    <p className="text-xl font-semibold text-zinc-900 dark:text-white">{queueStatusLabel}</p>
-                  </div>
-                </div>
-
-                <div className="grid gap-4 md:grid-cols-2">
-                  <button
-                    type="button"
-                    onClick={handleJoinPublic}
-                    disabled={queueStatus === 'joining' || queueStatus === 'queued'}
-                    className="rounded-2xl bg-gradient-to-r from-amber-400 to-pink-500 px-5 py-4 text-left text-sm font-semibold text-white shadow-lg transition disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    ⚡ Entrar na fila automática
-                    <span className="mt-1 block text-xs font-normal text-amber-100">
-                      Rating e região sincronizados com o teu perfil Supabase
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={leaveQueue}
-                    disabled={!queueEntry}
-                    className="rounded-2xl border border-zinc-200 px-5 py-4 text-left text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
-                  >
-                    ✋ Cancelar procura
-                    <span className="mt-1 block text-xs font-normal text-zinc-500 dark:text-zinc-400">
-                      Liberta a vaga e volta quando quiseres
-                    </span>
-                  </button>
-                </div>
-
-                <div className="rounded-2xl border border-zinc-100 bg-zinc-50/70 p-5 dark:border-zinc-800 dark:bg-zinc-900/60">
-                  <p className="text-sm font-semibold text-zinc-700 dark:text-zinc-200">Sala ativa</p>
-                  {room ? (
-                    <div className="mt-3 space-y-1 text-sm text-zinc-600 dark:text-zinc-300">
-                      <p>
-                        ID: <span className="font-mono text-base text-zinc-900 dark:text-white">{room.id}</span>
-                      </p>
-                      <p>
-                        Código: <span className="font-mono text-lg text-amber-500">{derivedRoomCode ?? '—'}</span>
-                      </p>
-                      <p>
-                        Participantes: {roomState?.participants?.length ?? 2} • Fase {roomState?.phase ?? 'preparação'}
-                      </p>
-                    </div>
-                  ) : (
-                    <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">Sem sala sincronizada. Junta-te à fila ou cria um código.</p>
-                  )}
-                </div>
-
-                <div className="rounded-2xl border border-zinc-200/70 bg-white/80 p-5 dark:border-zinc-800 dark:bg-zinc-900">
-                  <p className="text-sm font-semibold text-zinc-700 dark:text-zinc-200">Código privado</p>
-                  <p className="text-xs text-zinc-500 dark:text-zinc-400">Cria ou usa um código para desafiar amigos.</p>
-                  <div className="mt-3 flex flex-col gap-2">
-                    <div className="flex items-center gap-2">
-                      <input
-                        value={generatedCode}
-                        onChange={event => setGeneratedCode(event.target.value.toUpperCase())}
-                        className="flex-1 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-center font-mono text-sm uppercase tracking-[0.4em] text-zinc-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white"
-                      />
-                      <button
-                        type="button"
-                        onClick={handleCreatePrivate}
-                        className="rounded-xl bg-zinc-900 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-zinc-700 dark:bg-white dark:text-zinc-900"
-                      >
-                        Criar
-                      </button>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <input
-                        value={inviteCode}
-                        onChange={event => setInviteCode(event.target.value.toUpperCase())}
-                        placeholder="Código"
-                        className="flex-1 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-center font-mono text-sm uppercase tracking-[0.4em] text-zinc-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white"
-                      />
-                      <button
-                        type="button"
-                        onClick={handleJoinWithCode}
-                        className="rounded-xl border border-amber-200 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-amber-600 transition hover:bg-amber-50 dark:border-amber-500/50 dark:text-amber-200"
-                      >
-                        Entrar
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </section>
-
-            <aside className="space-y-6">
-              <div className="rounded-3xl border border-zinc-200/60 bg-white/90 p-6 shadow-xl dark:border-zinc-800 dark:bg-zinc-900/80">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-semibold text-zinc-600 dark:text-zinc-400">Lista de amigos</p>
-                    <p className="text-xl font-bold text-zinc-900 dark:text-white">Desafios rápidos</p>
-                  </div>
-                  <span className="text-xs uppercase tracking-[0.3em] text-zinc-400">Beta</span>
-                </div>
-                <ul className="mt-4 space-y-3">
-                  {FRIENDS.map(friend => (
-                    <li key={friend.id} className="flex items-center justify-between rounded-2xl border border-zinc-100 bg-zinc-50 px-4 py-3 text-sm dark:border-zinc-800 dark:bg-zinc-900">
-                      <div>
-                        <p className="font-semibold text-zinc-900 dark:text-white">{friend.name}</p>
-                        <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                          {friend.status} • {friend.rating} MMR
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleFriendInvite(friend.id)}
-                        className="rounded-full border border-zinc-200 px-3 py-1 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200"
-                      >
-                        Desafiar
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-                <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">
-                  O convite cria automaticamente um código privado e envia através das notificações Supabase (roadmap Q1).
-                </p>
-              </div>
-
-              <div className="rounded-3xl border border-zinc-200/60 bg-gradient-to-br from-zinc-50 via-white to-amber-50 p-6 text-sm shadow-xl dark:border-zinc-800 dark:from-zinc-900 dark:via-black dark:to-amber-900/10">
-                <h3 className="text-lg font-semibold text-zinc-900 dark:text-white">Checklist do modo online</h3>
-                <ul className="mt-4 space-y-3 text-zinc-600 dark:text-zinc-300">
-                  <li>• Cron job `matchmaking-worker` ativo (ver em `cron_jobs_status`).</li>
-                  <li>• Sala atualizada via `updateRoomState` assim que ambos marcam “Pronto”.</li>
-                  <li>• Próximo passo: sincronizar jogadas em tempo real quando o puzzle 3x3 estiver em modo duel.</li>
-                </ul>
-              </div>
-            </aside>
-          </div>
-        )}
+        </div>
       </div>
-    </div>
   )
 }
