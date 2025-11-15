@@ -10,25 +10,11 @@
  * - Accessible color coding for different cell states
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import type { CrosswordCell, CrosswordClue } from '@/lib/types/crossword';
 
-export interface Cell {
-  value: string;
-  correct: string;
-  number?: number;
-  isBlack: boolean;
-  row: number;
-  col: number;
-}
-
-export interface Clue {
-  number: number;
-  text: string;
-  answer: string;
-  startRow: number;
-  startCol: number;
-  direction: 'across' | 'down';
-}
+export type Cell = CrosswordCell;
+export type Clue = CrosswordClue;
 
 interface CrosswordGridProps {
   grid: Cell[][];
@@ -49,10 +35,57 @@ export default function CrosswordGrid({
   const [grid, setGrid] = useState<Cell[][]>(initialGrid);
   const [selectedCell, setSelectedCell] = useState<{ row: number; col: number } | null>(null);
   const [direction, setDirection] = useState<'across' | 'down'>('across');
-  const [selectedClue, setSelectedClue] = useState<Clue | null>(null);
-  const [errorCount, setErrorCount] = useState(0);
   const [showOnlyErrors, setShowOnlyErrors] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const errorCount = useMemo(() => {
+    let errors = 0;
+    for (let row = 0; row < grid.length; row++) {
+      for (let col = 0; col < grid[row].length; col++) {
+        const cell = grid[row][col];
+        if (cell.isBlack || !cell.correct || cell.correct.trim() === '') continue;
+
+        const cellValue = (cell.value || '').trim().toUpperCase();
+        const correctValue = cell.correct.trim().toUpperCase();
+
+        if (cellValue && cellValue !== correctValue) {
+          errors++;
+        }
+      }
+    }
+    return errors;
+  }, [grid]);
+
+  const selectedClue = useMemo(() => {
+    if (!selectedCell) return null;
+
+    const findClueForCell = (row: number, col: number, dir: 'across' | 'down') => {
+      const clueList = dir === 'across' ? clues.across : clues.down;
+
+      for (const clue of clueList) {
+        if (dir === 'across') {
+          if (
+            row === clue.startRow &&
+            col >= clue.startCol &&
+            col < clue.startCol + clue.answer.length
+          ) {
+            return clue;
+          }
+        } else {
+          if (
+            col === clue.startCol &&
+            row >= clue.startRow &&
+            row < clue.startRow + clue.answer.length
+          ) {
+            return clue;
+          }
+        }
+      }
+      return null;
+    };
+
+    return findClueForCell(selectedCell.row, selectedCell.col, direction);
+  }, [selectedCell, direction, clues]);
 
   // Focus hidden input when cell is selected (mobile support)
   useEffect(() => {
@@ -60,25 +93,6 @@ export default function CrosswordGrid({
       inputRef.current.focus();
     }
   }, [selectedCell]);
-
-  // Calculate error count
-  useEffect(() => {
-    let errors = 0;
-    for (let row = 0; row < grid.length; row++) {
-      for (let col = 0; col < grid[row].length; col++) {
-        const cell = grid[row][col];
-        if (cell.isBlack || !cell.correct || cell.correct.trim() === '') continue;
-        
-        const cellValue = (cell.value || '').trim().toUpperCase();
-        const correctValue = cell.correct.trim().toUpperCase();
-        
-        if (cellValue && cellValue !== correctValue) {
-          errors++;
-        }
-      }
-    }
-    setErrorCount(errors);
-  }, [grid]);
 
   // Helper function to check if puzzle is complete (accepts grid as parameter)
   const checkIsComplete = (gridToCheck: Cell[][]): boolean => {
@@ -108,44 +122,6 @@ export default function CrosswordGrid({
     const isComplete = correctCells === totalCells && totalCells > 0;
     return isComplete;
   };
-
-  // Verifica se o puzzle está completo (uses current state)
-  const checkComplete = useCallback(() => {
-    return checkIsComplete(grid);
-  }, [grid]);
-
-  // Encontra a pista associada à célula selecionada
-  useEffect(() => {
-    if (!selectedCell) return;
-
-    const findClueForCell = (row: number, col: number, dir: 'across' | 'down') => {
-      const clueList = dir === 'across' ? clues.across : clues.down;
-      
-      for (const clue of clueList) {
-        if (dir === 'across') {
-          if (
-            row === clue.startRow &&
-            col >= clue.startCol &&
-            col < clue.startCol + clue.answer.length
-          ) {
-            return clue;
-          }
-        } else {
-          if (
-            col === clue.startCol &&
-            row >= clue.startRow &&
-            row < clue.startRow + clue.answer.length
-          ) {
-            return clue;
-          }
-        }
-      }
-      return null;
-    };
-
-    const clue = findClueForCell(selectedCell.row, selectedCell.col, direction);
-    setSelectedClue(clue);
-  }, [selectedCell, direction, clues]);
 
   const handleCellClick = (row: number, col: number) => {
     const cell = grid[row][col];

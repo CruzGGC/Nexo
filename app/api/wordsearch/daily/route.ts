@@ -1,6 +1,16 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 
+export const dynamic = 'force-dynamic'
+
+type WordsearchRow = {
+  id: string
+  type: string
+  grid_data: unknown
+  words: unknown
+  publish_date: string
+}
+
 /**
  * GET /api/wordsearch/daily
  * 
@@ -56,16 +66,8 @@ export async function GET() {
       )
     }
 
-    // Parse JSONB columns if they come as strings from Supabase
-    const puzzleData = finalPuzzle as any
-    
-    console.log('🔍 DEBUG - Raw puzzle data types:', {
-      grid_data_type: typeof puzzleData.grid_data,
-      words_type: typeof puzzleData.words,
-      grid_data_sample: puzzleData.grid_data ? JSON.stringify(puzzleData.grid_data).substring(0, 100) : 'null',
-      words_sample: puzzleData.words ? JSON.stringify(puzzleData.words).substring(0, 100) : 'null'
-    })
-    
+  const puzzleData = finalPuzzle as WordsearchRow
+
     const gridData = typeof puzzleData.grid_data === 'string'
       ? JSON.parse(puzzleData.grid_data)
       : puzzleData.grid_data
@@ -73,14 +75,6 @@ export async function GET() {
     const words = typeof puzzleData.words === 'string'
       ? JSON.parse(puzzleData.words)
       : puzzleData.words
-
-    console.log('✅ DEBUG - Parsed data:', {
-      gridData_isArray: Array.isArray(gridData),
-      gridData_length: gridData?.length,
-      words_isArray: Array.isArray(words),
-      words_length: words?.length,
-      first_cell_sample: gridData?.[0]?.[0]
-    })
 
     return NextResponse.json({
       id: puzzleData.id,

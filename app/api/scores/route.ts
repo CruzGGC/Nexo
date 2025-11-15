@@ -1,82 +1,94 @@
-import { supabase } from '@/lib/supabase';
-import { NextResponse } from 'next/server';
+import { supabase } from '@/lib/supabase'
+import { NextResponse } from 'next/server'
+
+export const dynamic = 'force-dynamic'
+
+const gameTypes = ['crossword', 'wordsearch'] as const
+type GameType = (typeof gameTypes)[number]
+
+const isValidGameType = (value: unknown): value is GameType =>
+  typeof value === 'string' && (gameTypes as readonly string[]).includes(value)
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const { user_id, puzzle_id, time_ms, game_type } = body;
+    const body = await request.json()
+    const { user_id, puzzle_id, time_ms, game_type } = body
 
     // Validação básica
     if (!user_id || !puzzle_id || !time_ms || !game_type) {
       return NextResponse.json(
         { error: 'Dados incompletos. Required: user_id, puzzle_id, time_ms, game_type' },
         { status: 400 }
-      );
+      )
     }
 
-    if (time_ms <= 0) {
+    const parsedTime = Number.parseInt(time_ms, 10)
+
+    if (!Number.isFinite(parsedTime) || parsedTime <= 0) {
       return NextResponse.json(
         { error: 'Tempo inválido' },
         { status: 400 }
-      );
+      )
     }
 
-    if (!['crossword', 'wordsearch'].includes(game_type)) {
+    if (!isValidGameType(game_type)) {
       return NextResponse.json(
         { error: 'game_type deve ser "crossword" ou "wordsearch"' },
         { status: 400 }
-      );
+      )
     }
 
+    const normalizedGameType: GameType = game_type
+
     // Insere a pontuação
-    const { data, error } = await (supabase as any)
+    const { data, error } = await supabase
       .from('scores')
       .insert({
         user_id,
-        game_type,
+        game_type: normalizedGameType,
         puzzle_id, // Agora é UUID
-        time_ms: parseInt(time_ms),
+        time_ms: parsedTime,
       })
       .select()
-      .single();
+      .single()
 
     if (error) {
-      console.error('Erro ao guardar pontuação:', error);
+      console.error('Erro ao guardar pontuação:', error)
       return NextResponse.json(
         { error: 'Erro ao guardar pontuação' },
         { status: 500 }
-      );
+      )
     }
 
-    return NextResponse.json(data, { status: 201 });
+    return NextResponse.json(data, { status: 201 })
   } catch (error) {
-    console.error('Erro no servidor:', error);
+    console.error('Erro no servidor:', error)
     return NextResponse.json(
       { error: 'Erro interno do servidor' },
       { status: 500 }
-    );
+    )
   }
 }
 
 // Buscar as melhores pontuações para um puzzle
 export async function GET(request: Request) {
   try {
-    const { searchParams } = new URL(request.url);
-    const puzzle_id = searchParams.get('puzzle_id');
-    const game_type = searchParams.get('game_type'); // Novo parâmetro
+    const { searchParams } = new URL(request.url)
+    const puzzle_id = searchParams.get('puzzle_id')
+    const game_type = searchParams.get('game_type')
 
     if (!puzzle_id) {
       return NextResponse.json(
         { error: 'ID do puzzle é obrigatório' },
         { status: 400 }
-      );
+      )
     }
 
-    if (!game_type || !['crossword', 'wordsearch'].includes(game_type)) {
+    if (!isValidGameType(game_type)) {
       return NextResponse.json(
         { error: 'game_type deve ser "crossword" ou "wordsearch"' },
         { status: 400 }
-      );
+      )
     }
 
     const { data: scores, error } = await supabase
@@ -91,22 +103,22 @@ export async function GET(request: Request) {
       .eq('puzzle_id', puzzle_id)
       .eq('game_type', game_type)
       .order('time_ms', { ascending: true })
-      .limit(10);
+      .limit(10)
 
     if (error) {
-      console.error('Erro ao buscar pontuações:', error);
+      console.error('Erro ao buscar pontuações:', error)
       return NextResponse.json(
         { error: 'Erro ao buscar pontuações' },
         { status: 500 }
-      );
+      )
     }
 
-    return NextResponse.json(scores);
+    return NextResponse.json(scores)
   } catch (error) {
-    console.error('Erro no servidor:', error);
+    console.error('Erro no servidor:', error)
     return NextResponse.json(
       { error: 'Erro interno do servidor' },
       { status: 500 }
-    );
+    )
   }
 }

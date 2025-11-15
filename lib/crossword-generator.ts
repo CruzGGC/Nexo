@@ -9,7 +9,10 @@
  * 5. Generate clues from word definitions
  */
 
-import type { Cell, Clue } from '@/components/CrosswordGrid';
+import type { CrosswordCell, CrosswordClue } from '@/lib/types/crossword';
+
+type Cell = CrosswordCell;
+type Clue = CrosswordClue;
 
 export interface WordEntry {
   word: string;
@@ -404,7 +407,6 @@ export class CrosswordGenerator {
       const key = `${word.row},${word.col},${word.direction}`;
       if (!numbered.has(key)) {
         // Check if this position already has a number (from another direction)
-        const positionKey = `${word.row},${word.col}`;
         const existingNumber = this.grid[word.row][word.col].number;
         
         if (existingNumber) {

@@ -2,6 +2,16 @@ import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { WordSearchGenerator } from '@/lib/wordsearch-generator'
 
+type DictionaryEntry = { word: string; definition: string }
+type CategorizedDictionaryRow = {
+  dictionary_pt: {
+    word: string
+    definition: string
+  }
+}
+
+export const dynamic = 'force-dynamic'
+
 /**
  * Helper function to generate puzzle from words array
  */
@@ -100,7 +110,7 @@ export async function GET(request: Request) {
       }
 
       // Transform joined data to flat structure
-      const words = (allWords as any[]).map(item => ({
+      const words = (allWords as CategorizedDictionaryRow[]).map(item => ({
         word: item.dictionary_pt.word,
         definition: item.dictionary_pt.definition
       }))
@@ -121,7 +131,7 @@ export async function GET(request: Request) {
       )
     }
 
-    return await generatePuzzleFromWords(allWords as Array<{ word: string; definition: string }>, null)
+  return await generatePuzzleFromWords(allWords as DictionaryEntry[], null)
   } catch (error) {
     console.error('Erro ao gerar puzzle aleatório:', error)
     return NextResponse.json(

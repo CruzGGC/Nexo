@@ -1,4 +1,6 @@
 // Supabase Edge Function: Generate Daily Crossword
+/* eslint-disable @typescript-eslint/ban-ts-comment, @typescript-eslint/no-unused-vars */
+// @ts-nocheck
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -274,7 +276,7 @@ class CrosswordGenerator {
   }
 }
 
-serve(async (req) => {
+serve(async (_req) => {
   const requestId = crypto.randomUUID()
   const startTime = Date.now()
   

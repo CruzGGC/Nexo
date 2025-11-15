@@ -4,45 +4,23 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import WordSearchGrid from '@/components/WordSearchGrid'
 import Timer from '@/components/Timer'
-import type { WordPlacement } from '@/lib/wordsearch-generator'
+import { apiFetch } from '@/lib/api-client'
+import { formatChronometer } from '@/lib/utils/time'
+import type { Category, GameMode, WordSearchGridCell, WordSearchPuzzle } from '@/lib/types/games'
 
 // ============================================================================
 // Types
 // ============================================================================
 
-type GameMode = 'daily' | 'random' | null
-
-interface GridCell {
-  letter: string
-  row: number
-  col: number
-}
-
-interface Puzzle {
-  id: string
-  type: string
-  category?: string | null
-  grid_data: GridCell[][] | string[][]
-  words: WordPlacement[]
-  publish_date: string
-  isFromPreviousDay?: boolean
-}
-
-interface Category {
-  id: string
-  slug: string
-  name: string
-  description: string
-  icon: string
-  color: string
-  word_count: number
-}
+type GameModeState = GameMode | null
 
 // ============================================================================
 // Utility Functions
 // ============================================================================
 
-const normalizeGridData = (gridData: GridCell[][] | string[][]): string[][] => {
+const CONFETTI_EMOJIS = ['🎉', '✨', '🌟', '⭐', '💫'] as const
+
+const normalizeGridData = (gridData: WordSearchGridCell[][] | string[][]): string[][] => {
   if (!gridData?.length) return []
   
   // Check if already normalized
@@ -51,17 +29,7 @@ const normalizeGridData = (gridData: GridCell[][] | string[][]): string[][] => {
   }
   
   // Transform object format to string format
-  return (gridData as GridCell[][]).map(row => row.map(cell => cell.letter))
-}
-
-const formatTime = (ms: number): string => {
-  const minutes = Math.floor(ms / 60000)
-  const seconds = Math.floor((ms % 60000) / 1000)
-  const centiseconds = Math.floor((ms % 1000) / 10)
-  
-  return `${minutes.toString().padStart(2, '0')}:${seconds
-    .toString()
-    .padStart(2, '0')}:${centiseconds.toString().padStart(2, '0')}`
+  return (gridData as WordSearchGridCell[][]).map(row => row.map(cell => cell.letter))
 }
 
 // ============================================================================
@@ -72,8 +40,8 @@ export default function WordSearchPage() {
   const router = useRouter()
   
   // Game state
-  const [gameMode, setGameMode] = useState<GameMode>(null)
-  const [puzzle, setPuzzle] = useState<Puzzle | null>(null)
+  const [gameMode, setGameMode] = useState<GameModeState>(null)
+  const [puzzle, setPuzzle] = useState<WordSearchPuzzle | null>(null)
   const [categories, setCategories] = useState<Category[]>([])
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   
@@ -124,17 +92,17 @@ export default function WordSearchPage() {
 
   const fetchCategories = async () => {
     try {
-      const response = await fetch('/api/categories')
-      if (response.ok) {
-        const data = await response.json()
-        setCategories(data)
-      }
+      const data = await apiFetch<Category[]>('/api/categories', {
+        method: 'GET',
+        cache: 'no-store',
+      })
+      setCategories(data)
     } catch (err) {
       console.error('Failed to load categories:', err)
     }
   }
 
-  const fetchPuzzle = async (mode: 'daily' | 'random', category?: string | null) => {
+  const fetchPuzzle = async (mode: GameMode, category?: string | null) => {
     setLoading(true)
     setError(null)
 
@@ -142,13 +110,10 @@ export default function WordSearchPage() {
       const endpoint = mode === 'daily' 
         ? '/api/wordsearch/daily' 
         : `/api/wordsearch/random${category ? `?category=${category}` : ''}`
-      
-      const response = await fetch(endpoint)
-      const data = await response.json()
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to load puzzle')
-      }
+      const data = await apiFetch<WordSearchPuzzle>(endpoint, {
+        cache: 'no-store',
+      })
 
       setPuzzle(data)
       setIsTimerRunning(true)
@@ -164,7 +129,7 @@ export default function WordSearchPage() {
   // Event Handlers
   // ============================================================================
 
-  const handleSelectMode = useCallback((mode: 'daily' | 'random') => {
+  const handleSelectMode = useCallback((mode: GameMode) => {
     setGameMode(mode)
     
     if (mode === 'daily') {
@@ -620,7 +585,7 @@ function CompletionModal({
             Encontraste todas as palavras!
           </p>
           <p className="text-4xl font-bold text-emerald-600 dark:text-emerald-400 mb-6">
-            {formatTime(timeMs)}
+            {formatChronometer(timeMs)}
           </p>
 
           <div className="flex flex-col gap-3">
@@ -652,23 +617,41 @@ function CompletionModal({
 }
 
 function ConfettiEffect() {
-  const emojis = ['🎉', '✨', '🌟', '⭐', '💫']
-  
+  const pieces = useMemo(() => {
+    const pseudoRandom = (seed: number) => {
+      const value = Math.sin(seed) * 10000
+      return value - Math.floor(value)
+    }
+
+    return Array.from({ length: 50 }).map((_, index) => {
+      const seed = index + 1
+      return {
+        left: `${pseudoRandom(seed) * 100}%`,
+        delay: `${pseudoRandom(seed * 1.3) * 2}s`,
+        duration: `${2 + pseudoRandom(seed * 1.7) * 2}s`,
+        fontSize: `${20 + pseudoRandom(seed * 2.1) * 20}px`,
+        emoji: CONFETTI_EMOJIS[
+          Math.floor(pseudoRandom(seed * 2.7) * CONFETTI_EMOJIS.length)
+        ],
+      }
+    })
+  }, [])
+
   return (
     <div className="fixed inset-0 pointer-events-none z-50 overflow-hidden">
-      {Array.from({ length: 50 }).map((_, i) => (
+      {pieces.map((piece, i) => (
         <div
           key={i}
           className="absolute animate-bounce"
           style={{
-            left: `${Math.random() * 100}%`,
+            left: piece.left,
             top: '-10%',
-            animationDelay: `${Math.random() * 2}s`,
-            animationDuration: `${2 + Math.random() * 2}s`,
-            fontSize: `${20 + Math.random() * 20}px`,
+            animationDelay: piece.delay,
+            animationDuration: piece.duration,
+            fontSize: piece.fontSize,
           }}
         >
-          {emojis[Math.floor(Math.random() * emojis.length)]}
+          {piece.emoji}
         </div>
       ))}
     </div>

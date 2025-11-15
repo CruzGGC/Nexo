@@ -4,12 +4,6 @@ import { useState, useRef, useEffect } from 'react'
 import type { WordPlacement } from '@/lib/wordsearch-generator'
 import { validateSelection } from '@/lib/wordsearch-generator'
 
-interface Cell {
-  letter: string
-  row: number
-  col: number
-}
-
 interface Selection {
   startRow: number
   startCol: number

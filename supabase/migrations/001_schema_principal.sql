@@ -157,18 +157,18 @@ COMMENT ON COLUMN wordsearches.size IS 'Dimensão do grid (NxN)';
 CREATE TABLE IF NOT EXISTS scores (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  puzzle_type TEXT NOT NULL CHECK (puzzle_type IN ('crossword', 'wordsearch')),
+  game_type TEXT NOT NULL CHECK (game_type IN ('crossword', 'wordsearch')),
   puzzle_id UUID NOT NULL,
   time_ms INTEGER NOT NULL CHECK (time_ms > 0),
   completed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   
   -- Evitar duplicados: 1 score por user por puzzle
-  CONSTRAINT unique_user_puzzle UNIQUE (user_id, puzzle_type, puzzle_id)
+  CONSTRAINT unique_user_puzzle UNIQUE (user_id, game_type, puzzle_id)
 );
 
 COMMENT ON TABLE scores IS 'Pontuações dos jogadores nos puzzles';
 COMMENT ON COLUMN scores.time_ms IS 'Tempo de conclusão em milissegundos';
-COMMENT ON COLUMN scores.puzzle_type IS 'Tipo de puzzle (crossword ou wordsearch)';
+COMMENT ON COLUMN scores.game_type IS 'Tipo de puzzle (crossword ou wordsearch)';
 
 -- ----------------------------------------------------------------------------
 -- 3.5 GAME_ROOMS - Salas de jogo multiplayer (futuro)
@@ -176,7 +176,7 @@ COMMENT ON COLUMN scores.puzzle_type IS 'Tipo de puzzle (crossword ou wordsearch
 CREATE TABLE IF NOT EXISTS game_rooms (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   host_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  puzzle_type TEXT NOT NULL CHECK (puzzle_type IN ('crossword', 'wordsearch')),
+  game_type TEXT NOT NULL CHECK (game_type IN ('crossword', 'wordsearch')),
   puzzle_id UUID NOT NULL,
   game_state JSONB NOT NULL DEFAULT '{}',
   status TEXT NOT NULL DEFAULT 'waiting' CHECK (status IN ('waiting', 'playing', 'finished')),
@@ -220,7 +220,7 @@ CREATE INDEX IF NOT EXISTS idx_wordsearches_publish_date ON wordsearches(publish
 CREATE INDEX IF NOT EXISTS idx_wordsearches_category ON wordsearches(category_id);
 
 -- Scores (leaderboards)
-CREATE INDEX IF NOT EXISTS idx_scores_puzzle ON scores(puzzle_type, puzzle_id, time_ms);
+CREATE INDEX IF NOT EXISTS idx_scores_puzzle ON scores(game_type, puzzle_id, time_ms);
 CREATE INDEX IF NOT EXISTS idx_scores_user ON scores(user_id, completed_at DESC);
 CREATE INDEX IF NOT EXISTS idx_scores_completed_at ON scores(completed_at DESC);
 
@@ -384,7 +384,7 @@ SELECT
   ROW_NUMBER() OVER (PARTITION BY s.puzzle_id ORDER BY s.time_ms ASC) as rank
 FROM scores s
 INNER JOIN profiles p ON s.user_id = p.user_id
-WHERE s.puzzle_type = 'crossword'
+WHERE s.game_type = 'crossword'
 ORDER BY s.puzzle_id, s.time_ms ASC;
 
 COMMENT ON VIEW leaderboard_crosswords IS 'Ranking de palavras cruzadas ordenado por tempo';
@@ -403,7 +403,7 @@ SELECT
   ROW_NUMBER() OVER (PARTITION BY s.puzzle_id ORDER BY s.time_ms ASC) as rank
 FROM scores s
 INNER JOIN profiles p ON s.user_id = p.user_id
-WHERE s.puzzle_type = 'wordsearch'
+WHERE s.game_type = 'wordsearch'
 ORDER BY s.puzzle_id, s.time_ms ASC;
 
 COMMENT ON VIEW leaderboard_wordsearches IS 'Ranking de sopa de letras ordenado por tempo';
