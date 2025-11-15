@@ -1,12 +1,15 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { useMatchmaking } from '@/hooks/useMatchmaking'
+import { generateMatchCode } from '@/lib/matchmaking'
 
 type CellValue = 'X' | 'O' | null
 
 type GameStatus = 'playing' | 'win' | 'draw'
 
 type Mode = 'casual' | 'relampago'
+type ViewMode = 'local' | 'matchmaking'
 
 const WIN_PATTERNS = [
   [0, 1, 2],
@@ -28,7 +31,21 @@ interface ConfettiBurst {
   color: string
 }
 
+type RoomGameState = {
+  room_code?: string
+  variant?: string
+  phase?: string
+  participants?: Array<{ id: string; ready?: boolean; marker?: CellValue }>
+}
+
+const FRIENDS = [
+  { id: 'ines', name: 'Inês Duarte', status: 'disponível', rating: 1240 },
+  { id: 'nuno', name: 'Nuno Gouveia', status: 'a jogar', rating: 1310 },
+  { id: 'vera', name: 'Vera Monteiro', status: 'offline', rating: 1185 }
+]
+
 export default function TicTacToeGame() {
+  const [viewMode, setViewMode] = useState<ViewMode>('local')
   const [board, setBoard] = useState<CellValue[]>(Array(9).fill(null))
   const [currentPlayer, setCurrentPlayer] = useState<CellValue>('X')
   const [status, setStatus] = useState<GameStatus>('playing')
@@ -37,8 +54,12 @@ export default function TicTacToeGame() {
   const [timeline, setTimeline] = useState<string[]>([])
   const [mode, setMode] = useState<Mode>('casual')
   const [streak, setStreak] = useState<{ player: CellValue; count: number }>({ player: null, count: 0 })
-  const [queueStatus, setQueueStatus] = useState<'idle' | 'joining' | 'waiting' | 'matched'>('idle')
   const [bursts, setBursts] = useState<ConfettiBurst[]>([])
+  const [generatedCode, setGeneratedCode] = useState(() => generateMatchCode())
+  const [inviteCode, setInviteCode] = useState('')
+
+  const matchmaking = useMatchmaking('tic_tac_toe')
+  const { status: queueStatus, queueEntry, room, joinQueue, leaveQueue } = matchmaking
 
   const occupiedCells = board.filter(Boolean).length
 
@@ -53,6 +74,19 @@ export default function TicTacToeGame() {
 
     return `Vez de ${currentPlayer === 'X' ? 'Jogador X' : 'Jogador O'}`
   }, [status, winningLine, currentPlayer])
+
+  const heroContent = viewMode === 'local'
+    ? {
+        badge: 'Modo Local • 2 Jogadores no mesmo dispositivo',
+        title: 'Jogo do Galo com animações e turnos partilhados',
+        description: 'Passa o dispositivo ao parceiro, acompanha o histórico e desbloqueia combos relâmpago no modo Sereno ou Relâmpago.'
+      }
+    : {
+        badge: 'Matchmaking Supabase • Público & Código privado',
+        title: 'Desafia amigos ou entra na fila global em segundos',
+        description:
+          'O worker de matchmaking confirma rating, região e código privado para abrir uma sala Realtime pronta a sincronizar jogadas.'
+      }
 
   const handleCellClick = (index: number) => {
     if (board[index] || status !== 'playing' || !currentPlayer) return
@@ -115,27 +149,42 @@ export default function TicTacToeGame() {
     handleReset()
   }
 
-  const handleJoinQueue = async () => {
-    if (queueStatus === 'joining' || queueStatus === 'waiting') return
-    setQueueStatus('joining')
-    setTimeline(prev => ['Ligando ao serviço de matchmaking seguro…', ...prev].slice(0, 8))
+  const queueStatusLabel = {
+    idle: 'Entrar na fila pública',
+    joining: 'A iniciar sessão segura…',
+    queued: 'A procurar adversário…',
+    matched: 'Sala encontrada!',
+    error: 'Falha — tenta novamente'
+  }[queueStatus]
 
-    await new Promise(resolve => setTimeout(resolve, 800))
-    setQueueStatus('waiting')
-    setTimeline(prev => ['🎯 Fila global: à espera do melhor par', ...prev].slice(0, 8))
+  const queueMetadata = queueEntry?.metadata && typeof queueEntry.metadata === 'object' ? (queueEntry.metadata as Record<string, unknown>) : null
+  const roomState = room?.game_state && typeof room.game_state === 'object' ? (room.game_state as RoomGameState) : null
+  const derivedRoomCode = typeof roomState?.room_code === 'string'
+    ? roomState.room_code
+    : typeof queueMetadata?.room_code === 'string'
+      ? (queueMetadata.room_code as string)
+      : null
 
-    setTimeout(() => {
-      setQueueStatus('matched')
-      setTimeline(prev => ['🤝 Emparelhamento encontrado! O worker cron executou a junção.', ...prev].slice(0, 8))
-    }, 2000)
+  const handleJoinPublic = async () => {
+    await joinQueue({ mode: 'public', metadata: { variant: mode } })
   }
 
-  const queueStatusLabel = {
-    idle: 'Entrar na fila global',
-    joining: 'A preparar sessão segura…',
-    waiting: 'À procura de adversário…',
-    matched: 'Pronto! Sala reservada'
-  }[queueStatus]
+  const handleCreatePrivate = async () => {
+    const code = generatedCode?.trim() || generateMatchCode()
+    setGeneratedCode(code)
+    await joinQueue({ mode: 'private', matchCode: code, seat: 'host', metadata: { variant: mode, room_code: code } })
+  }
+
+  const handleJoinWithCode = async () => {
+    if (!inviteCode.trim()) return
+    await joinQueue({ mode: 'private', matchCode: inviteCode.trim().toUpperCase(), seat: 'guest', metadata: { variant: mode } })
+  }
+
+  const handleFriendInvite = async (friendId: string) => {
+    const code = generateMatchCode()
+    setGeneratedCode(code)
+    await joinQueue({ mode: 'private', matchCode: code, seat: 'host', metadata: { invitee: friendId, variant: mode, room_code: code } })
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-amber-50 via-white to-zinc-50 px-4 py-12 text-zinc-900 dark:from-zinc-950 dark:via-zinc-900 dark:to-black dark:text-zinc-50">
@@ -147,20 +196,18 @@ export default function TicTacToeGame() {
           <div className="relative z-10 flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between">
             <div className="space-y-4">
               <p className="inline-flex items-center gap-2 rounded-full bg-amber-100/80 px-4 py-1 text-sm font-medium text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
-                <span className="text-lg">⚡</span> Multiplayer em preparação
+                {heroContent.badge}
               </p>
               <h1 className="text-4xl font-bold leading-tight text-zinc-900 dark:text-white sm:text-5xl">
-                Jogo do Galo com animações e modo competitivo
+                {heroContent.title}
               </h1>
-              <p className="text-lg text-zinc-600 dark:text-zinc-300">
-                Treina táticas rápidas, acompanha o histórico de jogadas e prepara-te para o matchmaking automático powered by Supabase.
-              </p>
+              <p className="text-lg text-zinc-600 dark:text-zinc-300">{heroContent.description}</p>
               <div className="flex flex-wrap gap-3 text-sm">
                 <span className="rounded-full border border-zinc-200/70 px-4 py-1 font-medium text-zinc-700 dark:border-zinc-800 dark:text-zinc-200">
                   PT-PT • Tabuleiro 3x3
                 </span>
                 <span className="rounded-full border border-zinc-200/70 px-4 py-1 font-medium text-zinc-700 dark:border-zinc-800 dark:text-zinc-200">
-                  Worker de matchmaking ativo
+                  {viewMode === 'local' ? 'Turnos partilhados no mesmo ecrã' : 'Worker de matchmaking ativo'}
                 </span>
                 <span className="rounded-full border border-zinc-200/70 px-4 py-1 font-medium text-zinc-700 dark:border-zinc-800 dark:text-zinc-200">
                   UI animada com Tailwind v4
@@ -199,8 +246,31 @@ export default function TicTacToeGame() {
           ))}
         </header>
 
-        <div className="grid gap-8 lg:grid-cols-[1.15fr,0.85fr]">
-          <section className="relative overflow-hidden rounded-3xl border border-zinc-200/60 bg-white/90 p-8 shadow-2xl dark:border-zinc-800 dark:bg-zinc-900/80">
+        <div className="flex flex-wrap gap-3 rounded-2xl border border-zinc-200 bg-white/70 p-2 text-sm dark:border-zinc-800 dark:bg-zinc-900/70">
+          {(
+            [
+              { key: 'local', label: 'Modo Local' },
+              { key: 'matchmaking', label: 'Modo Matchmaking' }
+            ] satisfies Array<{ key: ViewMode; label: string }>
+          ).map(option => (
+            <button
+              key={option.key}
+              type="button"
+              onClick={() => setViewMode(option.key)}
+              className={`rounded-2xl px-5 py-2 font-semibold transition ${
+                viewMode === option.key
+                  ? 'bg-zinc-900 text-white dark:bg-white dark:text-zinc-900'
+                  : 'text-zinc-500 hover:text-zinc-800 dark:text-zinc-400'
+              }`}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+
+        {viewMode === 'local' ? (
+          <div className="grid gap-8 lg:grid-cols-[1.15fr,0.85fr]">
+            <section className="relative overflow-hidden rounded-3xl border border-zinc-200/60 bg-white/90 p-8 shadow-2xl dark:border-zinc-800 dark:bg-zinc-900/80">
             <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-gradient-to-br from-amber-100 to-pink-100 opacity-30 blur-3xl dark:from-amber-500/20 dark:to-pink-500/20" />
             <div className="absolute bottom-12 left-0 h-24 w-24 rounded-full bg-gradient-to-br from-emerald-100 to-amber-100 opacity-30 blur-3xl dark:from-emerald-500/20 dark:to-amber-500/20" />
             <div className="relative z-10 space-y-8">
@@ -317,68 +387,182 @@ export default function TicTacToeGame() {
               </div>
             </div>
           </section>
-
-          <aside className="space-y-6">
-            <div className="rounded-3xl border border-zinc-200/60 bg-white/85 p-6 shadow-xl dark:border-zinc-800 dark:bg-zinc-900/80">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-semibold text-zinc-600 dark:text-zinc-400">Fila global</p>
-                  <p className="text-xl font-bold text-zinc-900 dark:text-white">Matchmaking Supabase</p>
-                </div>
-                <span className="rounded-full bg-zinc-900 px-3 py-1 text-xs font-semibold text-white dark:bg-white dark:text-zinc-900">
-                  Beta
-                </span>
+            <aside className="space-y-6">
+              <div className="rounded-3xl border border-zinc-200/60 bg-white/85 p-6 shadow-xl dark:border-zinc-800 dark:bg-zinc-900/80">
+                <p className="text-sm font-semibold text-zinc-600 dark:text-zinc-400">Linha temporal</p>
+                <ul className="mt-4 space-y-2 text-sm text-zinc-600 dark:text-zinc-300">
+                  {timeline.length === 0 && <li>Faz a primeira jogada para ver os eventos aqui.</li>}
+                  {timeline.map((entry, index) => (
+                    <li
+                      key={`${entry}-${index}`}
+                      className="rounded-2xl border border-zinc-100/60 bg-zinc-50/70 px-4 py-2 dark:border-zinc-800 dark:bg-zinc-900/70"
+                    >
+                      {entry}
+                    </li>
+                  ))}
+                </ul>
               </div>
-              <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-300">
-                O worker `matchmaking-worker` corre via pg_cron e procura pares compatíveis de acordo com rating e região. Junta-te à fila e vê o fluxo em ação.
-              </p>
-              <button
-                type="button"
-                onClick={handleJoinQueue}
-                className={`mt-4 w-full rounded-2xl px-4 py-3 text-center text-sm font-semibold transition-all ${
-                  queueStatus === 'idle'
-                    ? 'bg-gradient-to-r from-amber-400 to-pink-500 text-white shadow-lg'
-                    : 'bg-zinc-900 text-white shadow-inner dark:bg-zinc-800'
-                }`}
-              >
-                {queueStatusLabel}
-              </button>
-              <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">
-                Próximo passo: sincronizar automaticamente com `matchmaking_queue` e abrir a sala via Realtime.
-              </p>
-            </div>
 
-            <div className="rounded-3xl border border-zinc-200/60 bg-white/85 p-6 shadow-xl dark:border-zinc-800 dark:bg-zinc-900/80">
-              <p className="text-sm font-semibold text-zinc-600 dark:text-zinc-400">Linha temporal</p>
-              <ul className="mt-4 space-y-2 text-sm text-zinc-600 dark:text-zinc-300">
-                {timeline.length === 0 && <li>Faz a primeira jogada para ver os eventos aqui.</li>}
-                {timeline.map((entry, index) => (
-                  <li
-                    key={`${entry}-${index}`}
-                    className="rounded-2xl border border-zinc-100/60 bg-zinc-50/70 px-4 py-2 dark:border-zinc-800 dark:bg-zinc-900/70"
-                  >
-                    {entry}
+              <div className="rounded-3xl border border-zinc-200/60 bg-gradient-to-br from-emerald-50 via-white to-amber-50 p-6 text-zinc-800 shadow-xl dark:border-emerald-500/20 dark:from-emerald-900/30 dark:via-zinc-900 dark:to-amber-900/20 dark:text-zinc-100">
+                <h3 className="text-lg font-semibold">Guias rápidos</h3>
+                <ul className="mt-4 space-y-3 text-sm">
+                  <li>
+                    <strong>Centro primeiro:</strong> mantém controlo de ângulos e força o adversário a defender cedo.
                   </li>
-                ))}
-              </ul>
-            </div>
+                  <li>
+                    <strong>Modo Relâmpago:</strong> perfeito para partidas best-of-3 com animações mais rápidas.
+                  </li>
+                  <li>
+                    <strong>Partilha:</strong> guarda GIFs da grelha e envia aos amigos diretamente do Nexo (roadmap Q1).
+                  </li>
+                </ul>
+              </div>
+            </aside>
+          </div>
+        ) : (
+          <div className="grid gap-8 lg:grid-cols-[1.1fr,0.9fr]">
+            <section className="rounded-3xl border border-zinc-200/60 bg-white/90 p-8 shadow-2xl dark:border-zinc-800 dark:bg-zinc-900/80">
+              <div className="space-y-6">
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-semibold text-zinc-600 dark:text-zinc-400">Fila pública</p>
+                    <p className="text-2xl font-bold text-zinc-900 dark:text-white">Matchmaking automático</p>
+                    <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                      O worker `matchmaking-worker` verifica rating, região e disponibilidade a cada minuto via pg_cron.
+                    </p>
+                  </div>
+                  <div className="text-right text-sm text-zinc-500 dark:text-zinc-400">
+                    <p>Estado atual</p>
+                    <p className="text-xl font-semibold text-zinc-900 dark:text-white">{queueStatusLabel}</p>
+                  </div>
+                </div>
 
-            <div className="rounded-3xl border border-zinc-200/60 bg-gradient-to-br from-emerald-50 via-white to-amber-50 p-6 text-zinc-800 shadow-xl dark:border-emerald-500/20 dark:from-emerald-900/30 dark:via-zinc-900 dark:to-amber-900/20 dark:text-zinc-100">
-              <h3 className="text-lg font-semibold">Guias rápidos</h3>
-              <ul className="mt-4 space-y-3 text-sm">
-                <li>
-                  <strong>Centro primeiro:</strong> o algoritmo de matchmaking dá prioridade a quem inicia no centro, tal como as estratégias clássicas.
-                </li>
-                <li>
-                  <strong>Modo Relâmpago:</strong> pensado para partidas best-of-3 com cronómetro de 90s (em breve).
-                </li>
-                <li>
-                  <strong>Partilha:</strong> grava GIFs do tabuleiro e envia aos amigos diretamente do Nexo (roadmap Q1).
-                </li>
-              </ul>
-            </div>
-          </aside>
-        </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={handleJoinPublic}
+                    disabled={queueStatus === 'joining' || queueStatus === 'queued'}
+                    className="rounded-2xl bg-gradient-to-r from-amber-400 to-pink-500 px-5 py-4 text-left text-sm font-semibold text-white shadow-lg transition disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    ⚡ Entrar na fila automática
+                    <span className="mt-1 block text-xs font-normal text-amber-100">
+                      Rating e região sincronizados com o teu perfil Supabase
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={leaveQueue}
+                    disabled={!queueEntry}
+                    className="rounded-2xl border border-zinc-200 px-5 py-4 text-left text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                  >
+                    ✋ Cancelar procura
+                    <span className="mt-1 block text-xs font-normal text-zinc-500 dark:text-zinc-400">
+                      Liberta a vaga e volta quando quiseres
+                    </span>
+                  </button>
+                </div>
+
+                <div className="rounded-2xl border border-zinc-100 bg-zinc-50/70 p-5 dark:border-zinc-800 dark:bg-zinc-900/60">
+                  <p className="text-sm font-semibold text-zinc-700 dark:text-zinc-200">Sala ativa</p>
+                  {room ? (
+                    <div className="mt-3 space-y-1 text-sm text-zinc-600 dark:text-zinc-300">
+                      <p>
+                        ID: <span className="font-mono text-base text-zinc-900 dark:text-white">{room.id}</span>
+                      </p>
+                      <p>
+                        Código: <span className="font-mono text-lg text-amber-500">{derivedRoomCode ?? '—'}</span>
+                      </p>
+                      <p>
+                        Participantes: {roomState?.participants?.length ?? 2} • Fase {roomState?.phase ?? 'preparação'}
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">Sem sala sincronizada. Junta-te à fila ou cria um código.</p>
+                  )}
+                </div>
+
+                <div className="rounded-2xl border border-zinc-200/70 bg-white/80 p-5 dark:border-zinc-800 dark:bg-zinc-900">
+                  <p className="text-sm font-semibold text-zinc-700 dark:text-zinc-200">Código privado</p>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400">Cria ou usa um código para desafiar amigos.</p>
+                  <div className="mt-3 flex flex-col gap-2">
+                    <div className="flex items-center gap-2">
+                      <input
+                        value={generatedCode}
+                        onChange={event => setGeneratedCode(event.target.value.toUpperCase())}
+                        className="flex-1 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-center font-mono text-sm uppercase tracking-[0.4em] text-zinc-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleCreatePrivate}
+                        className="rounded-xl bg-zinc-900 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-zinc-700 dark:bg-white dark:text-zinc-900"
+                      >
+                        Criar
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        value={inviteCode}
+                        onChange={event => setInviteCode(event.target.value.toUpperCase())}
+                        placeholder="Código"
+                        className="flex-1 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-center font-mono text-sm uppercase tracking-[0.4em] text-zinc-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleJoinWithCode}
+                        className="rounded-xl border border-amber-200 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-amber-600 transition hover:bg-amber-50 dark:border-amber-500/50 dark:text-amber-200"
+                      >
+                        Entrar
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <aside className="space-y-6">
+              <div className="rounded-3xl border border-zinc-200/60 bg-white/90 p-6 shadow-xl dark:border-zinc-800 dark:bg-zinc-900/80">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-zinc-600 dark:text-zinc-400">Lista de amigos</p>
+                    <p className="text-xl font-bold text-zinc-900 dark:text-white">Desafios rápidos</p>
+                  </div>
+                  <span className="text-xs uppercase tracking-[0.3em] text-zinc-400">Beta</span>
+                </div>
+                <ul className="mt-4 space-y-3">
+                  {FRIENDS.map(friend => (
+                    <li key={friend.id} className="flex items-center justify-between rounded-2xl border border-zinc-100 bg-zinc-50 px-4 py-3 text-sm dark:border-zinc-800 dark:bg-zinc-900">
+                      <div>
+                        <p className="font-semibold text-zinc-900 dark:text-white">{friend.name}</p>
+                        <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                          {friend.status} • {friend.rating} MMR
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleFriendInvite(friend.id)}
+                        className="rounded-full border border-zinc-200 px-3 py-1 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200"
+                      >
+                        Desafiar
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">
+                  O convite cria automaticamente um código privado e envia através das notificações Supabase (roadmap Q1).
+                </p>
+              </div>
+
+              <div className="rounded-3xl border border-zinc-200/60 bg-gradient-to-br from-zinc-50 via-white to-amber-50 p-6 text-sm shadow-xl dark:border-zinc-800 dark:from-zinc-900 dark:via-black dark:to-amber-900/10">
+                <h3 className="text-lg font-semibold text-zinc-900 dark:text-white">Checklist do modo online</h3>
+                <ul className="mt-4 space-y-3 text-zinc-600 dark:text-zinc-300">
+                  <li>• Cron job `matchmaking-worker` ativo (ver em `cron_jobs_status`).</li>
+                  <li>• Sala atualizada via `updateRoomState` assim que ambos marcam “Pronto”.</li>
+                  <li>• Próximo passo: sincronizar jogadas em tempo real quando o puzzle 3x3 estiver em modo duel.</li>
+                </ul>
+              </div>
+            </aside>
+          </div>
+        )}
       </div>
     </div>
   )

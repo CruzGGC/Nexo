@@ -346,6 +346,6 @@ BEGIN
   RAISE NOTICE '⚠️  IMPORTANTE:';
   RAISE NOTICE '  1. Deploy Edge Functions: supabase functions deploy';
   RAISE NOTICE '  2. Configurar Vault secrets:';
-  RAISE NOTICE '     - project_url: https://xxx.supabase.co';
+  RAISE NOTICE '     - \: https://xxx.supabase.co';
   RAISE NOTICE '     - service_role_key: eyJhbGc...';
 END $$;

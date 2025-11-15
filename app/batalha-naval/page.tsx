@@ -1,6 +1,4 @@
-import dynamic from 'next/dynamic'
-
-const BattleshipGame = dynamic(() => import('@/components/BattleshipGame'), { ssr: false })
+import BattleshipGame from '@/components/BattleshipGame'
 
 export const metadata = {
   title: 'Batalha Naval | Nexo',
