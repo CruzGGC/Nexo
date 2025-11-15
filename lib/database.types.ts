@@ -106,7 +106,7 @@ export type Database = {
           created_at: string
           finished_at: string | null
           game_state: Json
-          game_type: 'crossword' | 'wordsearch'
+          game_type: 'crossword' | 'wordsearch' | 'tic_tac_toe' | 'battleship'
           host_id: string
           id: string
           max_players: number
@@ -118,7 +118,7 @@ export type Database = {
           created_at?: string
           finished_at?: string | null
           game_state?: Json
-          game_type: 'crossword' | 'wordsearch'
+          game_type: 'crossword' | 'wordsearch' | 'tic_tac_toe' | 'battleship'
           host_id: string
           id?: string
           max_players?: number
@@ -130,7 +130,7 @@ export type Database = {
           created_at?: string
           finished_at?: string | null
           game_state?: Json
-          game_type?: 'crossword' | 'wordsearch'
+          game_type?: 'crossword' | 'wordsearch' | 'tic_tac_toe' | 'battleship'
           host_id?: string
           id?: string
           max_players?: number
@@ -147,27 +147,140 @@ export type Database = {
           }
         ]
       }
+      matchmaking_queue: {
+        Row: {
+          game_type: 'tic_tac_toe' | 'battleship'
+          id: string
+          joined_at: string
+          matched_at: string | null
+          metadata: Json
+          rating_snapshot: number
+          region: string | null
+          skill_bracket: string
+          status: 'queued' | 'matched' | 'cancelled'
+          user_id: string
+        }
+        Insert: {
+          game_type: 'tic_tac_toe' | 'battleship'
+          id?: string
+          joined_at?: string
+          matched_at?: string | null
+          metadata?: Json
+          rating_snapshot: number
+          region?: string | null
+          skill_bracket: string
+          status?: 'queued' | 'matched' | 'cancelled'
+          user_id: string
+        }
+        Update: {
+          game_type?: 'tic_tac_toe' | 'battleship'
+          id?: string
+          joined_at?: string
+          matched_at?: string | null
+          metadata?: Json
+          rating_snapshot?: number
+          region?: string | null
+          skill_bracket?: string
+          status?: 'queued' | 'matched' | 'cancelled'
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'matchmaking_queue_user_id_fkey'
+            columns: ['user_id']
+            referencedRelation: 'users'
+            referencedColumns: ['id']
+          }
+        ]
+      }
+      player_ratings: {
+        Row: {
+          created_at: string
+          deviation: number
+          game_type: 'crossword' | 'wordsearch' | 'tic_tac_toe' | 'battleship'
+          last_match_at: string | null
+          matches_played: number
+          rating: number
+          updated_at: string
+          user_id: string
+          volatility: number
+          win_rate: number
+        }
+        Insert: {
+          created_at?: string
+          deviation?: number
+          game_type: 'crossword' | 'wordsearch' | 'tic_tac_toe' | 'battleship'
+          last_match_at?: string | null
+          matches_played?: number
+          rating?: number
+          updated_at?: string
+          user_id: string
+          volatility?: number
+          win_rate?: number
+        }
+        Update: {
+          created_at?: string
+          deviation?: number
+          game_type?: 'crossword' | 'wordsearch' | 'tic_tac_toe' | 'battleship'
+          last_match_at?: string | null
+          matches_played?: number
+          rating?: number
+          updated_at?: string
+          user_id?: string
+          volatility?: number
+          win_rate?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'player_ratings_user_id_fkey'
+            columns: ['user_id']
+            referencedRelation: 'users'
+            referencedColumns: ['id']
+          }
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
+          country_code: string | null
           created_at: string
+          display_name: string
+          experience_points: number
+          guest_tag: string
           id: string
+          is_anonymous: boolean
+          last_seen: string
+          preferences: Json
           updated_at: string
           user_id: string
           username: string
         }
         Insert: {
           avatar_url?: string | null
+          country_code?: string | null
           created_at?: string
+          display_name?: string
+          experience_points?: number
+          guest_tag?: string
           id?: string
+          is_anonymous?: boolean
+          last_seen?: string
+          preferences?: Json
           updated_at?: string
           user_id: string
           username: string
         }
         Update: {
           avatar_url?: string | null
+          country_code?: string | null
           created_at?: string
+          display_name?: string
+          experience_points?: number
+          guest_tag?: string
           id?: string
+          is_anonymous?: boolean
+          last_seen?: string
+          preferences?: Json
           updated_at?: string
           user_id?: string
           username?: string
@@ -291,6 +404,7 @@ export type Database = {
         Row: {
           avatar_url: string | null
           completed_at: string | null
+          display_name: string | null
           puzzle_id: string | null
           rank: number | null
           time_ms: number | null
@@ -302,10 +416,25 @@ export type Database = {
         Row: {
           avatar_url: string | null
           completed_at: string | null
+          display_name: string | null
           puzzle_id: string | null
           rank: number | null
           time_ms: number | null
           username: string | null
+        }
+        Relationships: []
+      }
+      leaderboard_player_ratings: {
+        Row: {
+          avatar_url: string | null
+          deviation: number | null
+          display_name: string | null
+          game_type: string | null
+          matches_played: number | null
+          rank: number | null
+          rating: number | null
+          username: string | null
+          win_rate: number | null
         }
         Relationships: []
       }

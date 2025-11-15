@@ -34,6 +34,9 @@
 -- UUID generation
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
+-- Crypto helpers (guest tags, secure defaults)
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 -- Cron jobs (para geração diária de puzzles)
 CREATE EXTENSION IF NOT EXISTS pg_cron SCHEMA extensions;
 
@@ -51,7 +54,14 @@ CREATE TABLE IF NOT EXISTS profiles (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id UUID UNIQUE NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   username TEXT UNIQUE NOT NULL CHECK (char_length(username) >= 3 AND char_length(username) <= 20),
+  display_name TEXT NOT NULL DEFAULT 'Convidado' CHECK (char_length(display_name) >= 3 AND char_length(display_name) <= 32),
   avatar_url TEXT,
+  country_code TEXT CHECK (char_length(country_code) = 2),
+  experience_points INTEGER NOT NULL DEFAULT 0 CHECK (experience_points >= 0),
+  is_anonymous BOOLEAN NOT NULL DEFAULT true,
+  guest_tag TEXT UNIQUE NOT NULL DEFAULT encode(gen_random_bytes(3), 'hex'),
+  preferences JSONB NOT NULL DEFAULT '{}'::jsonb,
+  last_seen TIMESTAMPTZ NOT NULL DEFAULT now(),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -59,6 +69,12 @@ CREATE TABLE IF NOT EXISTS profiles (
 COMMENT ON TABLE profiles IS 'Perfis públicos dos utilizadores';
 COMMENT ON COLUMN profiles.username IS 'Nome único visível (3-20 caracteres)';
 COMMENT ON COLUMN profiles.user_id IS 'Referência ao auth.users da Supabase';
+COMMENT ON COLUMN profiles.display_name IS 'Nome apresentado publicamente (pode repetir)';
+COMMENT ON COLUMN profiles.country_code IS 'Código de país ISO 3166-1 alpha-2';
+COMMENT ON COLUMN profiles.experience_points IS 'XP obtido em jogos singleplayer/multiplayer';
+COMMENT ON COLUMN profiles.is_anonymous IS 'Flag sincronizada com auth.users.is_anonymous';
+COMMENT ON COLUMN profiles.guest_tag IS 'Identificador curto para partilha em lobbies';
+COMMENT ON COLUMN profiles.preferences IS 'Configurações e preferências em JSON';
 
 -- ----------------------------------------------------------------------------
 -- 2.2 DICTIONARY_PT - Dicionário de palavras portuguesas
@@ -176,7 +192,7 @@ COMMENT ON COLUMN scores.game_type IS 'Tipo de puzzle (crossword ou wordsearch)'
 CREATE TABLE IF NOT EXISTS game_rooms (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   host_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  game_type TEXT NOT NULL CHECK (game_type IN ('crossword', 'wordsearch')),
+  game_type TEXT NOT NULL CHECK (game_type IN ('crossword', 'wordsearch', 'tic_tac_toe', 'battleship')),
   puzzle_id UUID NOT NULL,
   game_state JSONB NOT NULL DEFAULT '{}',
   status TEXT NOT NULL DEFAULT 'waiting' CHECK (status IN ('waiting', 'playing', 'finished')),
@@ -194,6 +210,47 @@ CREATE TABLE IF NOT EXISTS game_rooms (
 
 COMMENT ON TABLE game_rooms IS 'Salas de jogo multiplayer (implementação futura)';
 
+-- ----------------------------------------------------------------------------
+-- 3.6 PLAYER_RATINGS - Elo/Glicko por tipo de jogo
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS player_ratings (
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  game_type TEXT NOT NULL CHECK (game_type IN ('crossword', 'wordsearch', 'tic_tac_toe', 'battleship')),
+  rating NUMERIC NOT NULL DEFAULT 1500 CHECK (rating >= 0),
+  deviation NUMERIC NOT NULL DEFAULT 350 CHECK (deviation >= 30 AND deviation <= 350),
+  volatility NUMERIC NOT NULL DEFAULT 0.06 CHECK (volatility > 0 AND volatility < 1),
+  matches_played INTEGER NOT NULL DEFAULT 0 CHECK (matches_played >= 0),
+  win_rate NUMERIC NOT NULL DEFAULT 0 CHECK (win_rate >= 0 AND win_rate <= 1),
+  last_match_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, game_type)
+);
+
+COMMENT ON TABLE player_ratings IS 'Ratings ELO/Glicko por utilizador e tipo de jogo';
+COMMENT ON COLUMN player_ratings.deviation IS 'Incerteza do rating (Glicko RD)';
+
+-- ----------------------------------------------------------------------------
+-- 3.7 MATCHMAKING_QUEUE - Fila de emparelhamento tempo real
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS matchmaking_queue (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  game_type TEXT NOT NULL CHECK (game_type IN ('tic_tac_toe', 'battleship')),
+  rating_snapshot INTEGER NOT NULL CHECK (rating_snapshot >= 0),
+  skill_bracket TEXT NOT NULL,
+  region TEXT,
+  status TEXT NOT NULL DEFAULT 'queued' CHECK (status IN ('queued', 'matched', 'cancelled')),
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  joined_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  matched_at TIMESTAMPTZ,
+  CONSTRAINT matchmaking_queue_owner_unique UNIQUE (user_id, game_type, status)
+    DEFERRABLE INITIALLY IMMEDIATE
+);
+
+COMMENT ON TABLE matchmaking_queue IS 'Entradas ativas/recente da fila de matchmaking';
+COMMENT ON COLUMN matchmaking_queue.skill_bracket IS 'Bucket simplificado para procura rápida';
+
 -- ============================================================================
 -- 4. ÍNDICES PARA PERFORMANCE
 -- ============================================================================
@@ -201,6 +258,8 @@ COMMENT ON TABLE game_rooms IS 'Salas de jogo multiplayer (implementação futur
 -- Profiles
 CREATE INDEX IF NOT EXISTS idx_profiles_user_id ON profiles(user_id);
 CREATE INDEX IF NOT EXISTS idx_profiles_username ON profiles(username);
+CREATE INDEX IF NOT EXISTS idx_profiles_is_anonymous ON profiles(is_anonymous);
+CREATE INDEX IF NOT EXISTS idx_profiles_last_seen ON profiles(last_seen DESC);
 
 -- Dictionary
 CREATE INDEX IF NOT EXISTS idx_dictionary_word_length ON dictionary_pt(char_length(word));
@@ -227,6 +286,14 @@ CREATE INDEX IF NOT EXISTS idx_scores_completed_at ON scores(completed_at DESC);
 -- Game Rooms
 CREATE INDEX IF NOT EXISTS idx_game_rooms_status ON game_rooms(status) WHERE status != 'finished';
 CREATE INDEX IF NOT EXISTS idx_game_rooms_host ON game_rooms(host_id);
+
+-- Player Ratings
+CREATE INDEX IF NOT EXISTS idx_player_ratings_game ON player_ratings(game_type, rating DESC);
+CREATE INDEX IF NOT EXISTS idx_player_ratings_updated ON player_ratings(updated_at DESC);
+
+-- Matchmaking Queue
+CREATE INDEX IF NOT EXISTS idx_queue_status_game ON matchmaking_queue(status, game_type, joined_at);
+CREATE INDEX IF NOT EXISTS idx_queue_user ON matchmaking_queue(user_id);
 
 -- ============================================================================
 -- 5. ROW LEVEL SECURITY (RLS) POLICIES
@@ -338,6 +405,50 @@ CREATE POLICY "Hosts podem deletar próprias salas"
   ON game_rooms FOR DELETE
   USING (auth.uid() = host_id);
 
+-- ----------------------------------------------------------------------------
+-- 5.9 PLAYER_RATINGS - Leitura pública, escrita pelo próprio
+-- ----------------------------------------------------------------------------
+ALTER TABLE player_ratings ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Ratings públicos para leitura"
+  ON player_ratings FOR SELECT
+  USING (true);
+
+CREATE POLICY "Utilizadores criam rating inicial"
+  ON player_ratings FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Utilizadores atualizam próprio rating"
+  ON player_ratings FOR UPDATE
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Utilizadores removem próprio rating"
+  ON player_ratings FOR DELETE
+  USING (auth.uid() = user_id);
+
+-- ----------------------------------------------------------------------------
+-- 5.10 MATCHMAKING_QUEUE - Gestão pelo próprio utilizador
+-- ----------------------------------------------------------------------------
+ALTER TABLE matchmaking_queue ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Fila pública para leitura"
+  ON matchmaking_queue FOR SELECT
+  USING (true);
+
+CREATE POLICY "Jogadores entram na fila"
+  ON matchmaking_queue FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Jogadores atualizam entrada"
+  ON matchmaking_queue FOR UPDATE
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Jogadores removem entrada"
+  ON matchmaking_queue FOR DELETE
+  USING (auth.uid() = user_id);
+
 -- ============================================================================
 -- 6. VIEWS OTIMIZADAS
 -- ============================================================================
@@ -380,6 +491,7 @@ SELECT
   s.time_ms,
   s.completed_at,
   p.username,
+  p.display_name,
   p.avatar_url,
   ROW_NUMBER() OVER (PARTITION BY s.puzzle_id ORDER BY s.time_ms ASC) as rank
 FROM scores s
@@ -399,6 +511,7 @@ SELECT
   s.time_ms,
   s.completed_at,
   p.username,
+  p.display_name,
   p.avatar_url,
   ROW_NUMBER() OVER (PARTITION BY s.puzzle_id ORDER BY s.time_ms ASC) as rank
 FROM scores s
@@ -407,6 +520,27 @@ WHERE s.game_type = 'wordsearch'
 ORDER BY s.puzzle_id, s.time_ms ASC;
 
 COMMENT ON VIEW leaderboard_wordsearches IS 'Ranking de sopa de letras ordenado por tempo';
+
+-- ----------------------------------------------------------------------------
+-- 6.4 VIEW: leaderboard_player_ratings
+-- Ranking global por jogo usando player_ratings
+-- ----------------------------------------------------------------------------
+CREATE OR REPLACE VIEW leaderboard_player_ratings AS
+SELECT 
+  r.game_type,
+  r.rating,
+  r.deviation,
+  r.matches_played,
+  r.win_rate,
+  p.username,
+  p.display_name,
+  p.avatar_url,
+  ROW_NUMBER() OVER (PARTITION BY r.game_type ORDER BY r.rating DESC) as rank
+FROM player_ratings r
+INNER JOIN profiles p ON r.user_id = p.user_id
+ORDER BY r.game_type, r.rating DESC;
+
+COMMENT ON VIEW leaderboard_player_ratings IS 'Ranking Elo/Glicko por tipo de jogo';
 
 -- ============================================================================
 -- 7. TRIGGERS
@@ -433,14 +567,41 @@ CREATE TRIGGER set_updated_at
 -- ----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION create_profile_for_new_user()
 RETURNS TRIGGER AS $$
+DECLARE
+  v_username TEXT;
+  v_display_name TEXT;
+  v_preferences JSONB;
 BEGIN
-  INSERT INTO profiles (user_id, username)
+  v_username := COALESCE(
+    NEW.raw_user_meta_data->>'username',
+    'user_' || substring(NEW.id::text, 1, 8)
+  );
+
+  v_display_name := COALESCE(
+    NEW.raw_user_meta_data->>'full_name',
+    NEW.raw_user_meta_data->>'display_name',
+    v_username
+  );
+
+  v_preferences := COALESCE(NEW.raw_user_meta_data->'preferences', '{}'::jsonb);
+
+  INSERT INTO profiles (
+    user_id,
+    username,
+    display_name,
+    avatar_url,
+    country_code,
+    is_anonymous,
+    preferences
+  )
   VALUES (
     NEW.id,
-    COALESCE(
-      NEW.raw_user_meta_data->>'username',
-      'user_' || substring(NEW.id::text, 1, 8)
-    )
+    v_username,
+    v_display_name,
+    NEW.raw_user_meta_data->>'avatar_url',
+    NEW.raw_user_meta_data->>'country',
+    COALESCE(NEW.is_anonymous, true),
+    v_preferences
   );
   RETURN NEW;
 END;
@@ -552,7 +713,7 @@ COMMENT ON FUNCTION get_daily_wordsearch IS 'Busca puzzle diário com fallback p
 DO $$
 BEGIN
   RAISE NOTICE '✅ Schema do Nexo criado com sucesso!';
-  RAISE NOTICE '📊 Tabelas: profiles, dictionary_pt, word_categories, dictionary_categories, crosswords, wordsearches, scores, game_rooms';
+  RAISE NOTICE '📊 Tabelas: profiles, dictionary_pt, word_categories, dictionary_categories, crosswords, wordsearches, scores, game_rooms, player_ratings, matchmaking_queue';
   RAISE NOTICE '🔐 RLS ativado em todas as tabelas';
   RAISE NOTICE '📈 Índices otimizados criados';
   RAISE NOTICE '👁️ Views: words_with_categories, leaderboard_crosswords, leaderboard_wordsearches';

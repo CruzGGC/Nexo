@@ -112,7 +112,40 @@ SELECT cron.schedule(
 COMMENT ON EXTENSION pg_cron IS 'Cron job para gerar puzzle diário de sopa de letras às 00:05';
 
 -- ============================================================================
--- 4. FUNÇÃO DE LIMPEZA: REMOVER PUZZLES ANTIGOS
+-- 4. CRON JOB: MATCHMAKING WORKER
+-- ============================================================================
+
+DO $$
+BEGIN
+  PERFORM cron.unschedule('matchmaking-worker');
+EXCEPTION
+  WHEN OTHERS THEN
+    RAISE NOTICE 'Job matchmaking-worker não existe (primeira execução)';
+END $$;
+
+SELECT cron.schedule(
+  'matchmaking-worker',                      -- job_name
+  '* * * * *',                               -- corre a cada minuto
+  $$
+    SELECT net.http_post(
+      url := vault.get_secret('project_url') || '/functions/v1/matchmaking-worker',
+      headers := jsonb_build_object(
+        'Content-Type', 'application/json',
+        'Authorization', 'Bearer ' || vault.get_secret('service_role_key')
+      ),
+      body := jsonb_build_object(
+        'triggered_by', 'cron',
+        'gameType', 'tic_tac_toe'
+      ),
+      timeout_milliseconds := 20000
+    ) AS request_id;
+  $$
+);
+
+COMMENT ON EXTENSION pg_cron IS 'Cron job que mantém a fila de matchmaking atualizada a cada minuto';
+
+-- ============================================================================
+-- 5. FUNÇÃO DE LIMPEZA: REMOVER PUZZLES ANTIGOS
 -- ============================================================================
 
 -- Função para deletar puzzles diários com mais de 90 dias
@@ -145,7 +178,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 COMMENT ON FUNCTION cleanup_old_daily_puzzles IS 'Remove puzzles diários com mais de 90 dias';
 
 -- ============================================================================
--- 5. CRON JOB: LIMPEZA SEMANAL
+-- 6. CRON JOB: LIMPEZA SEMANAL
 -- ============================================================================
 
 -- Remove job antigo se existir (ignora erro se não existir)
@@ -165,7 +198,7 @@ SELECT cron.schedule(
 );
 
 -- ============================================================================
--- 6. VIEWS PARA MONITORIZAÇÃO
+-- 7. VIEWS PARA MONITORIZAÇÃO
 -- ============================================================================
 
 -- View para ver status dos cron jobs
@@ -206,7 +239,7 @@ LIMIT 100;
 COMMENT ON VIEW cron_jobs_history IS 'Histórico de execuções dos cron jobs (últimas 100)';
 
 -- ============================================================================
--- 7. FUNÇÃO DE DIAGNÓSTICO
+-- 8. FUNÇÃO DE DIAGNÓSTICO
 -- ============================================================================
 
 CREATE OR REPLACE FUNCTION diagnose_cron_setup()
@@ -236,10 +269,10 @@ BEGIN
   RETURN QUERY
   SELECT 
     'Cron jobs'::TEXT,
-    CASE WHEN (SELECT COUNT(*) FROM cron.job) >= 3
+    CASE WHEN (SELECT COUNT(*) FROM cron.job) >= 4
       THEN '✅ OK (' || (SELECT COUNT(*)::TEXT FROM cron.job) || ' jobs)'
       ELSE '⚠️  Apenas ' || (SELECT COUNT(*)::TEXT FROM cron.job) || ' jobs' END,
-    'Esperados: 3 jobs (crossword, wordsearch, cleanup)'::TEXT;
+    'Esperados: 4 jobs (crossword, wordsearch, matchmaking, cleanup)'::TEXT;
   
   -- Check 4: Secrets no Vault
   RETURN QUERY
@@ -288,7 +321,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 COMMENT ON FUNCTION diagnose_cron_setup IS 'Diagnostica configuração dos cron jobs';
 
 -- ============================================================================
--- 8. VERIFICAÇÃO FINAL
+-- 9. VERIFICAÇÃO FINAL
 -- ============================================================================
 
 DO $$
@@ -303,7 +336,8 @@ BEGIN
   RAISE NOTICE '📋 Jobs configurados:';
   RAISE NOTICE '  1. generate-daily-crossword (00:00 diariamente)';
   RAISE NOTICE '  2. generate-daily-wordsearch (00:05 diariamente)';
-  RAISE NOTICE '  3. cleanup-old-puzzles (03:00 aos Domingos)';
+  RAISE NOTICE '  3. matchmaking-worker (a cada minuto)';
+  RAISE NOTICE '  4. cleanup-old-puzzles (03:00 aos Domingos)';
   RAISE NOTICE '';
   RAISE NOTICE '🔍 Para diagnóstico: SELECT * FROM diagnose_cron_setup();';
   RAISE NOTICE '📊 Ver jobs: SELECT * FROM cron_jobs_status;';
