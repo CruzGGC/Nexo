@@ -76,6 +76,27 @@ export default function Home() {
             </span>
           </Link>
 
+          {/* Battleship Card */}
+          <Link
+            href="/batalha-naval"
+            className="group flex flex-col gap-4 rounded-2xl border border-sky-200 bg-gradient-to-br from-sky-50 via-white to-indigo-50 p-8 shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg dark:border-sky-800 dark:from-sky-950 dark:via-zinc-950 dark:to-indigo-950"
+          >
+            <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-sky-100 text-3xl transition-transform group-hover:scale-110 dark:bg-sky-900">
+              🚢
+            </div>
+            <div>
+              <h2 className="mb-2 text-2xl font-semibold text-zinc-900 dark:text-zinc-50">
+                Batalha Naval
+              </h2>
+              <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                Matchmaking público • Código privado • Tabuleiro 1v1
+              </p>
+            </div>
+            <span className="text-xs font-bold uppercase tracking-[0.25em] text-sky-500">
+              NEW 💥
+            </span>
+          </Link>
+
           {/* Card Games Card - Coming Soon */}
           <div className="group flex flex-col gap-4 rounded-2xl border border-zinc-200 bg-white p-8 opacity-60 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
             <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-zinc-100 text-3xl dark:bg-zinc-800">

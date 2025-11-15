@@ -76,6 +76,19 @@
 
 - **Falhas**: caso algum `UPDATE`/`INSERT` falhe, o worker regista `warnings` e reverta o par para `status = 'queued'` para que um próximo ciclo tente novamente. Está desenhado para correr a cada minuto via `pg_cron` + `net.http_post` (`job: matchmaking-worker`).
 
+### Multiplayer Battleship
+- **Game type**: `battleship` (10x10). `game_state` guarda duas grelhas por jogador (`ocean` e `tracking`) e um objeto `ships` com vida atual.
+- **Fases**: `placement` (host dispõe frota ou aceita disposição automática) → `attack` (turnos alternados) → `finished`.
+- **Match codes**: `metadata.matchCode` permite criar partidas privadas; o worker só cruza entradas cujo `matchCode` coincide.
+- **Realtime payload**: `game_state.moves` é um array com `{ shooter_id, target, result }` para sincronizar tiros em tempo real. `metadata.room_code` (6 chars) é devolvido ao cliente para partilha.
+
+### Duelos 1v1 (Palavras Cruzadas & Sopa de Letras)
+- Novos `game_type`: `crossword_duel` e `wordsearch_duel` (mantemos puzzles regulares, mas com contagem cooperativa).
+- **Seleção de puzzle**: o Edge Function escolhe a puzzle diária mais recente (`type='daily'`) ou gera uma aleatória e coloca `game_state.puzzle` com `puzzle_id` + `mode`.
+- **Critério de vitória**: `game_state.progress[player_id]` acompanha percentagem preenchida; quando alguém atinge `100`, o worker marca `status='finished'` e preenche `winner_id`.
+- **Private codes**: mesmos campos `metadata.matchCode` + `metadata.room_code`. Clientes conseguem criar/entrar numa partida privada e partilhar via UI.
+- **Eventos Realtime (roadmap)**: canal `duel:<room_id>` transmite `UPDATE game_rooms SET game_state = ...` com throttling de 1 segundo.
+
 ## Integração no Frontend
 - `/app/leaderboards/page.tsx` consome `/api/leaderboards` e mostra:
   - Top 10 diários (Crossword & Sopa).

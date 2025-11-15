@@ -106,7 +106,7 @@ export type Database = {
           created_at: string
           finished_at: string | null
           game_state: Json
-          game_type: 'crossword' | 'wordsearch' | 'tic_tac_toe' | 'battleship'
+          game_type: 'crossword' | 'wordsearch' | 'crossword_duel' | 'wordsearch_duel' | 'tic_tac_toe' | 'battleship'
           host_id: string
           id: string
           max_players: number
@@ -118,7 +118,7 @@ export type Database = {
           created_at?: string
           finished_at?: string | null
           game_state?: Json
-          game_type: 'crossword' | 'wordsearch' | 'tic_tac_toe' | 'battleship'
+          game_type: 'crossword' | 'wordsearch' | 'crossword_duel' | 'wordsearch_duel' | 'tic_tac_toe' | 'battleship'
           host_id: string
           id?: string
           max_players?: number
@@ -130,7 +130,7 @@ export type Database = {
           created_at?: string
           finished_at?: string | null
           game_state?: Json
-          game_type?: 'crossword' | 'wordsearch' | 'tic_tac_toe' | 'battleship'
+          game_type?: 'crossword' | 'wordsearch' | 'crossword_duel' | 'wordsearch_duel' | 'tic_tac_toe' | 'battleship'
           host_id?: string
           id?: string
           max_players?: number
@@ -149,7 +149,7 @@ export type Database = {
       }
       matchmaking_queue: {
         Row: {
-          game_type: 'tic_tac_toe' | 'battleship'
+          game_type: 'tic_tac_toe' | 'battleship' | 'crossword_duel' | 'wordsearch_duel'
           id: string
           joined_at: string
           matched_at: string | null
@@ -161,7 +161,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
-          game_type: 'tic_tac_toe' | 'battleship'
+          game_type: 'tic_tac_toe' | 'battleship' | 'crossword_duel' | 'wordsearch_duel'
           id?: string
           joined_at?: string
           matched_at?: string | null
@@ -173,7 +173,7 @@ export type Database = {
           user_id: string
         }
         Update: {
-          game_type?: 'tic_tac_toe' | 'battleship'
+          game_type?: 'tic_tac_toe' | 'battleship' | 'crossword_duel' | 'wordsearch_duel'
           id?: string
           joined_at?: string
           matched_at?: string | null
@@ -197,7 +197,7 @@ export type Database = {
         Row: {
           created_at: string
           deviation: number
-          game_type: 'crossword' | 'wordsearch' | 'tic_tac_toe' | 'battleship'
+          game_type: 'crossword' | 'wordsearch' | 'crossword_duel' | 'wordsearch_duel' | 'tic_tac_toe' | 'battleship'
           last_match_at: string | null
           matches_played: number
           rating: number
@@ -209,7 +209,7 @@ export type Database = {
         Insert: {
           created_at?: string
           deviation?: number
-          game_type: 'crossword' | 'wordsearch' | 'tic_tac_toe' | 'battleship'
+          game_type: 'crossword' | 'wordsearch' | 'crossword_duel' | 'wordsearch_duel' | 'tic_tac_toe' | 'battleship'
           last_match_at?: string | null
           matches_played?: number
           rating?: number
@@ -221,7 +221,7 @@ export type Database = {
         Update: {
           created_at?: string
           deviation?: number
-          game_type?: 'crossword' | 'wordsearch' | 'tic_tac_toe' | 'battleship'
+          game_type?: 'crossword' | 'wordsearch' | 'crossword_duel' | 'wordsearch_duel' | 'tic_tac_toe' | 'battleship'
           last_match_at?: string | null
           matches_played?: number
           rating?: number

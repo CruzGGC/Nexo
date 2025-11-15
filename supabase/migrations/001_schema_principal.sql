@@ -192,7 +192,7 @@ COMMENT ON COLUMN scores.game_type IS 'Tipo de puzzle (crossword ou wordsearch)'
 CREATE TABLE IF NOT EXISTS game_rooms (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   host_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  game_type TEXT NOT NULL CHECK (game_type IN ('crossword', 'wordsearch', 'tic_tac_toe', 'battleship')),
+  game_type TEXT NOT NULL CHECK (game_type IN ('crossword', 'wordsearch', 'crossword_duel', 'wordsearch_duel', 'tic_tac_toe', 'battleship')),
   puzzle_id UUID NOT NULL,
   game_state JSONB NOT NULL DEFAULT '{}',
   status TEXT NOT NULL DEFAULT 'waiting' CHECK (status IN ('waiting', 'playing', 'finished')),
@@ -215,7 +215,7 @@ COMMENT ON TABLE game_rooms IS 'Salas de jogo multiplayer (implementação futur
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS player_ratings (
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  game_type TEXT NOT NULL CHECK (game_type IN ('crossword', 'wordsearch', 'tic_tac_toe', 'battleship')),
+  game_type TEXT NOT NULL CHECK (game_type IN ('crossword', 'wordsearch', 'crossword_duel', 'wordsearch_duel', 'tic_tac_toe', 'battleship')),
   rating NUMERIC NOT NULL DEFAULT 1500 CHECK (rating >= 0),
   deviation NUMERIC NOT NULL DEFAULT 350 CHECK (deviation >= 30 AND deviation <= 350),
   volatility NUMERIC NOT NULL DEFAULT 0.06 CHECK (volatility > 0 AND volatility < 1),
@@ -236,7 +236,7 @@ COMMENT ON COLUMN player_ratings.deviation IS 'Incerteza do rating (Glicko RD)';
 CREATE TABLE IF NOT EXISTS matchmaking_queue (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  game_type TEXT NOT NULL CHECK (game_type IN ('tic_tac_toe', 'battleship')),
+  game_type TEXT NOT NULL CHECK (game_type IN ('tic_tac_toe', 'battleship', 'crossword_duel', 'wordsearch_duel')),
   rating_snapshot INTEGER NOT NULL CHECK (rating_snapshot >= 0),
   skill_bracket TEXT NOT NULL,
   region TEXT,
