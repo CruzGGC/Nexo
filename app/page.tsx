@@ -15,7 +15,7 @@ export default function Home() {
         </div>
 
         {/* Game Cards */}
-        <div className="grid w-full gap-6 sm:grid-cols-2 lg:grid-cols-3">
+  <div className="grid w-full gap-6 sm:grid-cols-2 lg:grid-cols-4">
           {/* Crosswords Card */}
           <Link
             href="/palavras-cruzadas"
@@ -52,6 +52,27 @@ export default function Home() {
             </div>
             <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
               NOVO! ✨
+            </span>
+          </Link>
+
+          {/* Tic Tac Toe Card */}
+          <Link
+            href="/jogo-do-galo"
+            className="group flex flex-col gap-4 rounded-2xl border border-yellow-200 bg-gradient-to-br from-amber-50 via-white to-rose-50 p-8 shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg dark:border-yellow-800 dark:from-amber-950 dark:via-zinc-950 dark:to-rose-950"
+          >
+            <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-amber-100 text-3xl transition-transform group-hover:scale-110 dark:bg-amber-900">
+              ✖️
+            </div>
+            <div>
+              <h2 className="mb-2 text-2xl font-semibold text-zinc-900 dark:text-zinc-50">
+                Jogo do Galo
+              </h2>
+              <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                UI animada • Modos Casual & Relâmpago • Matchmaking preparado
+              </p>
+            </div>
+            <span className="text-xs font-bold uppercase tracking-[0.25em] text-amber-500">
+              Alpha ⚡
             </span>
           </Link>
 
