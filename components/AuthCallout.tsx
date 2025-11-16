@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { FormEvent, useState } from 'react'
 import { useAuth } from './AuthProvider'
 
 const statusStyles: Record<'info' | 'success' | 'error', string> = {
@@ -10,9 +10,21 @@ const statusStyles: Record<'info' | 'success' | 'error', string> = {
 }
 
 export default function AuthCallout() {
-  const { loading, profile, isGuest, signInAsGuest, continueWithGoogle, signOut, refreshingProfile } = useAuth()
+  const {
+    loading,
+    profile,
+    isGuest,
+    signInAsGuest,
+    continueWithGoogle,
+    linkEmailIdentity,
+    signOut,
+    refreshingProfile
+  } = useAuth()
   const [actionState, setActionState] = useState<'idle' | 'pending'>('idle')
   const [status, setStatus] = useState<{ type: keyof typeof statusStyles; message: string } | null>(null)
+  const [emailValue, setEmailValue] = useState('')
+  const [emailState, setEmailState] = useState<'idle' | 'pending'>('idle')
+  const [emailStatus, setEmailStatus] = useState<{ type: keyof typeof statusStyles; message: string } | null>(null)
 
   const handleAction = async (action: () => Promise<void>, successMessage: string) => {
     try {
@@ -54,6 +66,33 @@ export default function AuthCallout() {
     </button>
   )
 
+  const handleEmailSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (!emailValue) {
+      setEmailStatus({ type: 'error', message: 'Indica um email válido primeiro.' })
+      return
+    }
+
+    try {
+      setEmailStatus(null)
+      setEmailState('pending')
+      await linkEmailIdentity(emailValue)
+      setEmailStatus({
+        type: 'success',
+        message: 'Enviámos um email de confirmação. Verifica a caixa de entrada para concluir a migração.'
+      })
+      setEmailValue('')
+    } catch (error) {
+      console.error(error)
+      setEmailStatus({
+        type: 'error',
+        message: 'Não foi possível enviar o email. Confirma o endereço e tenta novamente.'
+      })
+    } finally {
+      setEmailState('idle')
+    }
+  }
+
   return (
     <div className="rounded-2xl border border-zinc-200 bg-white/80 p-5 shadow-sm backdrop-blur dark:border-zinc-800 dark:bg-zinc-900/70">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -79,6 +118,34 @@ export default function AuthCallout() {
           )}
           {status && <p className={`mt-2 text-sm ${statusStyles[status.type]}`}>{status.message}</p>}
           {!status && refreshingProfile && <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">A sincronizar perfil...</p>}
+          {profile && isGuest && (
+            <form onSubmit={handleEmailSubmit} className="mt-4 space-y-2">
+              <label className="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">
+                Converter para email permanente
+              </label>
+              <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                Enviaremos um email de verificação via Supabase (conforme a documentação oficial de anonimatos). Depois de confirmar,
+                poderás definir uma palavra-passe e manter todo o teu progresso.
+              </p>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <input
+                  type="email"
+                  value={emailValue}
+                  onChange={event => setEmailValue(event.target.value)}
+                  placeholder="exemplo@email.com"
+                  className="flex-1 rounded-full border border-zinc-300 px-4 py-2 text-sm text-zinc-900 outline-none transition focus:border-amber-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                />
+                <button
+                  type="submit"
+                  disabled={emailState === 'pending'}
+                  className="rounded-full bg-amber-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-amber-400 disabled:opacity-60"
+                >
+                  {emailState === 'pending' ? 'A enviar...' : 'Enviar código'}
+                </button>
+              </div>
+              {emailStatus && <p className={`text-sm ${statusStyles[emailStatus.type]}`}>{emailStatus.message}</p>}
+            </form>
+          )}
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           {primaryCta}

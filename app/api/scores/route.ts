@@ -1,12 +1,12 @@
 import { supabase } from '@/lib/supabase'
 import { NextResponse } from 'next/server'
+import type { ScoreGameType } from '@/lib/types/games'
 
 export const dynamic = 'force-dynamic'
 
-const gameTypes = ['crossword', 'wordsearch'] as const
-type GameType = (typeof gameTypes)[number]
+const gameTypes: ScoreGameType[] = ['crossword', 'wordsearch']
 
-const isValidGameType = (value: unknown): value is GameType =>
+const isValidGameType = (value: unknown): value is ScoreGameType =>
   typeof value === 'string' && (gameTypes as readonly string[]).includes(value)
 
 export async function POST(request: Request) {
@@ -38,7 +38,7 @@ export async function POST(request: Request) {
       )
     }
 
-    const normalizedGameType: GameType = game_type
+    const normalizedGameType: ScoreGameType = game_type
 
     // Insere a pontuação
     const { data, error } = await supabase

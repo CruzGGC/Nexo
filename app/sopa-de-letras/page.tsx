@@ -6,6 +6,9 @@ import WordSearchGrid from '@/components/WordSearchGrid'
 import Timer from '@/components/Timer'
 import { apiFetch } from '@/lib/api-client'
 import { formatChronometer } from '@/lib/utils/time'
+import { useAuth } from '@/components/AuthProvider'
+import { useScoreSubmission } from '@/hooks/useScoreSubmission'
+import type { SubmissionStatus } from '@/hooks/useScoreSubmission'
 import type { Category, GameMode, WordSearchGridCell, WordSearchPuzzle } from '@/lib/types/games'
 
 // ============================================================================
@@ -55,6 +58,13 @@ export default function WordSearchPage() {
   const [timeMs, setTimeMs] = useState(0)
   const [isComplete, setIsComplete] = useState(false)
   const [showConfetti, setShowConfetti] = useState(false)
+  const { user, signInAsGuest, continueWithGoogle } = useAuth()
+  const {
+    status: scoreStatus,
+    error: scoreError,
+    submitScore: submitDailyScore,
+    reset: resetScoreSubmission
+  } = useScoreSubmission('wordsearch')
 
   // ============================================================================
   // API Functions
@@ -86,6 +96,8 @@ export default function WordSearchPage() {
       })
 
       setPuzzle(data)
+      setIsComplete(false)
+      resetScoreSubmission()
       setIsTimerRunning(true)
       setShowCategorySelection(false)
     } catch (err) {
@@ -93,7 +105,7 @@ export default function WordSearchPage() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [resetScoreSubmission])
 
   // ============================================================================
   // Memoized Values
@@ -144,20 +156,28 @@ export default function WordSearchPage() {
     fetchPuzzle('random', categorySlug)
   }, [fetchPuzzle])
 
+  const attemptScoreSubmit = useCallback(() => {
+    if (!user?.id || !puzzle || timeMs <= 0) {
+      return
+    }
+
+    void submitDailyScore({
+      userId: user.id,
+      puzzleId: puzzle.id,
+      timeMs,
+    })
+  }, [puzzle, submitDailyScore, timeMs, user?.id])
+
   const handleComplete = useCallback(async (foundWords: string[]) => {
+    void foundWords
     setIsTimerRunning(false)
     setIsComplete(true)
     setShowConfetti(true)
 
-    // TODO: Save score when auth is implemented
-    if (gameMode === 'daily' && puzzle) {
-      console.log('Score to save:', {
-        puzzle_id: puzzle.id,
-        time_ms: timeMs,
-        words_found: foundWords.length
-      })
+    if (gameMode === 'daily') {
+      attemptScoreSubmit()
     }
-  }, [gameMode, puzzle, timeMs])
+  }, [attemptScoreSubmit, gameMode])
 
   const handleRestart = useCallback(() => {
     if (gameMode === 'random') {
@@ -166,19 +186,21 @@ export default function WordSearchPage() {
       setIsTimerRunning(false)
       setTimeMs(0)
       setIsComplete(false)
+      resetScoreSubmission()
       fetchPuzzle('random', selectedCategory)
     } else {
       // Daily mode: restart current puzzle
       setIsTimerRunning(true)
       setTimeMs(0)
       setIsComplete(false)
+      resetScoreSubmission()
       
       // Force grid re-render
       const currentPuzzle = puzzle
       setPuzzle(null)
       setTimeout(() => setPuzzle(currentPuzzle), 10)
     }
-  }, [gameMode, selectedCategory, puzzle, fetchPuzzle])
+  }, [fetchPuzzle, gameMode, puzzle, resetScoreSubmission, selectedCategory])
 
   const handleChangeMode = useCallback(() => {
     setGameMode(null)
@@ -188,7 +210,8 @@ export default function WordSearchPage() {
     setIsComplete(false)
     setShowCategorySelection(false)
     setSelectedCategory(null)
-  }, [])
+    resetScoreSubmission()
+  }, [resetScoreSubmission])
 
   // ============================================================================
   // Render Screens
@@ -386,6 +409,12 @@ export default function WordSearchPage() {
             onRestart={handleRestart}
             onChangeMode={handleChangeMode}
             onViewLeaderboard={() => router.push('/leaderboards')}
+            isAuthenticated={Boolean(user)}
+            scoreStatus={scoreStatus}
+            scoreError={scoreError}
+            onSubmitScore={attemptScoreSubmit}
+            onSignInAsGuest={signInAsGuest}
+            onSignInWithGoogle={continueWithGoogle}
           />
         )}
       </div>
@@ -564,6 +593,12 @@ interface CompletionModalProps {
   onRestart: () => void
   onChangeMode: () => void
   onViewLeaderboard: () => void
+  isAuthenticated: boolean
+  scoreStatus: SubmissionStatus
+  scoreError: string | null
+  onSubmitScore: () => void
+  onSignInAsGuest?: () => Promise<void>
+  onSignInWithGoogle?: () => Promise<void>
 }
 
 function CompletionModal({ 
@@ -571,8 +606,21 @@ function CompletionModal({
   gameMode, 
   onRestart, 
   onChangeMode, 
-  onViewLeaderboard 
+  onViewLeaderboard,
+  isAuthenticated,
+  scoreStatus,
+  scoreError,
+  onSubmitScore,
+  onSignInAsGuest,
+  onSignInWithGoogle
 }: CompletionModalProps) {
+  const statusCopy: Record<SubmissionStatus, string> = {
+    idle: 'Guardamos o teu tempo automaticamente se estiveres autenticado.',
+    saving: 'A guardar o teu tempo na leaderboard diária...',
+    success: 'Tempo registado! Consulta as classificações para ver a tua posição.',
+    error: scoreError ?? 'Não foi possível guardar o teu tempo.'
+  }
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-40">
       <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl p-8 max-w-md w-full animate-bounce">
@@ -587,6 +635,49 @@ function CompletionModal({
           <p className="text-4xl font-bold text-emerald-600 dark:text-emerald-400 mb-6">
             {formatChronometer(timeMs)}
           </p>
+
+          {gameMode === 'daily' && (
+            <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50/80 p-4 text-left text-sm text-amber-900 shadow-sm dark:border-amber-500/30 dark:bg-amber-950/30 dark:text-amber-100">
+              {isAuthenticated ? (
+                <div className="space-y-3">
+                  <p>{statusCopy[scoreStatus]}</p>
+                  {scoreStatus === 'error' && (
+                    <button
+                      onClick={() => onSubmitScore()}
+                      className="w-full rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-amber-400"
+                    >
+                      Tentar novamente
+                    </button>
+                  )}
+                  {scoreStatus === 'success' && (
+                    <p className="text-xs text-amber-800/80 dark:text-amber-100/80">
+                      Se jogares novamente registamos o novo tempo automaticamente.
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <p>
+                    Entra como convidado ou liga a tua conta Google para guardares o tempo no leaderboard diário.
+                  </p>
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <button
+                      onClick={() => onSignInAsGuest && onSignInAsGuest()}
+                      className="flex-1 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-zinc-800 dark:bg-zinc-50 dark:text-zinc-900"
+                    >
+                      Entrar como Convidado
+                    </button>
+                    <button
+                      onClick={() => onSignInWithGoogle && onSignInWithGoogle()}
+                      className="flex-1 rounded-lg border border-zinc-300 px-4 py-2 text-sm font-semibold text-zinc-900 transition hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-50 dark:hover:bg-zinc-800"
+                    >
+                      Google
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="flex flex-col gap-3">
             {gameMode === 'daily' && (

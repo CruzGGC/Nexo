@@ -1,4 +1,5 @@
 import Link from "next/link";
+import AuthCallout from "@/components/AuthCallout";
 
 export default function Home() {
   return (
@@ -14,7 +15,7 @@ export default function Home() {
           </p>
         </div>
 
-        {/* Game Cards */}
+          {/* Game Cards */}
   <div className="grid w-full gap-6 sm:grid-cols-2 lg:grid-cols-4">
           {/* Crosswords Card */}
           <Link
@@ -114,6 +115,11 @@ export default function Home() {
               BREVEMENTE
             </span>
           </div>
+        </div>
+
+        {/* Auth Engagement */}
+        <div className="w-full max-w-4xl">
+          <AuthCallout />
         </div>
 
         {/* Quick Access */}

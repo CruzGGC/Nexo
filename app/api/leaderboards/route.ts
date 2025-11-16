@@ -6,10 +6,22 @@ export const dynamic = 'force-dynamic'
 
 type LeaderboardType = 'crossword' | 'wordsearch' | 'ratings'
 
-const PUZZLE_TABLE = {
-  crossword: 'leaderboard_crosswords',
-  wordsearch: 'leaderboard_wordsearches'
-} as const satisfies Record<'crossword' | 'wordsearch', keyof Database['public']['Views']>
+const LEADERBOARD_CONFIG = {
+  crossword: {
+    view: 'leaderboard_crosswords',
+    puzzleTable: 'crosswords'
+  },
+  wordsearch: {
+    view: 'leaderboard_wordsearches',
+    puzzleTable: 'wordsearches'
+  }
+} as const satisfies Record<
+  'crossword' | 'wordsearch',
+  {
+    view: keyof Database['public']['Views']
+    puzzleTable: keyof Database['public']['Tables']
+  }
+>
 
 const RATING_GAME_TYPES = ['crossword', 'wordsearch', 'tic_tac_toe', 'battleship'] as const
 
@@ -54,10 +66,29 @@ export async function GET(request: Request) {
       return NextResponse.json({ type: typeParam, entries: data ?? [] })
     }
 
-    const table = PUZZLE_TABLE[typeParam]
+    const config = LEADERBOARD_CONFIG[typeParam]
+    const { data: latestPuzzle, error: latestError } = await supabase
+      .from(config.puzzleTable)
+      .select('id, publish_date')
+      .eq('type', 'daily')
+      .order('publish_date', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (latestError) {
+      console.error('Erro ao determinar puzzle diário:', latestError)
+      return NextResponse.json({ error: 'Falha ao carregar puzzle diário' }, { status: 500 })
+    }
+
+    if (!latestPuzzle) {
+      return NextResponse.json({ type: typeParam, entries: [], puzzleId: null, puzzleDate: null })
+    }
+
     const { data, error } = await supabase
-      .from(table)
+      .from(config.view)
       .select('*')
+      .eq('puzzle_id', latestPuzzle.id)
+      .order('time_ms', { ascending: true })
       .limit(10)
 
     if (error) {
@@ -65,7 +96,12 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Falha ao carregar leaderboard' }, { status: 500 })
     }
 
-    return NextResponse.json({ type: typeParam, entries: data ?? [] })
+    return NextResponse.json({
+      type: typeParam,
+      entries: data ?? [],
+      puzzleId: latestPuzzle.id,
+      puzzleDate: latestPuzzle.publish_date
+    })
   } catch (error) {
     console.error('Erro inesperado no endpoint /api/leaderboards:', error)
     return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 })

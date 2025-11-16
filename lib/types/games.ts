@@ -2,6 +2,7 @@ import type { CrosswordCell, CrosswordClue } from '@/lib/types/crossword'
 import type { WordPlacement } from '@/lib/wordsearch-generator'
 
 export type GameMode = 'daily' | 'random'
+export type ScoreGameType = 'crossword' | 'wordsearch'
 
 export interface Category {
   id: string

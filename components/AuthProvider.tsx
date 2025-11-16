@@ -16,6 +16,7 @@ type AuthContextValue = {
   isGuest: boolean
   signInAsGuest: () => Promise<void>
   continueWithGoogle: () => Promise<void>
+  linkEmailIdentity: (email: string) => Promise<void>
   signOut: () => Promise<void>
   refreshProfile: () => Promise<void>
 }
@@ -100,6 +101,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  const linkEmailIdentity = async (email: string) => {
+    if (!session?.user) {
+      throw new Error('É necessária uma sessão ativa para atualizar o email')
+    }
+
+    const { error } = await supabase.auth.updateUser({ email })
+    if (error) throw error
+    await ensureProfile(session.user.id)
+  }
+
   const continueWithGoogle = async () => {
     const redirectTo = typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : undefined
 
@@ -140,6 +151,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isGuest: Boolean(profile?.is_anonymous ?? session?.user?.is_anonymous),
     signInAsGuest,
     continueWithGoogle,
+    linkEmailIdentity,
     signOut: handleSignOut,
     refreshProfile,
   }

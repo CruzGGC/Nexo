@@ -82,6 +82,27 @@ const formatDate = (value: string | null) => {
   }).format(new Date(value))
 }
 
+const formatPuzzleDate = (value: string | null) => {
+  if (!value) return null
+  return new Intl.DateTimeFormat('pt-PT', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  }).format(new Date(value))
+}
+
+type LeaderboardPayload =
+  | {
+      type: 'ratings'
+      entries: RatingEntry[]
+    }
+  | {
+      type: 'crossword' | 'wordsearch'
+      entries: ScoreEntry[]
+      puzzleId: string | null
+      puzzleDate: string | null
+    }
+
 export default function LeaderboardsClient() {
   const [activeTab, setActiveTab] = useState<LeaderboardType>('crossword')
   const [ratingFilter, setRatingFilter] = useState<RatingGameType>(ratingGameTypes[0].id)
@@ -89,6 +110,7 @@ export default function LeaderboardsClient() {
   const [error, setError] = useState<string | null>(null)
   const [scores, setScores] = useState<ScoreEntry[]>([])
   const [ratings, setRatings] = useState<RatingEntry[]>([])
+  const [puzzleMeta, setPuzzleMeta] = useState<{ id: string | null; date: string | null }>({ id: null, date: null })
 
   const query = useMemo(() => {
     const params = new URLSearchParams({ type: activeTab })
@@ -103,16 +125,23 @@ export default function LeaderboardsClient() {
     async function loadData() {
       setLoading(true)
       setError(null)
+      if (activeTab === 'ratings') {
+        setScores([])
+        setPuzzleMeta({ id: null, date: null })
+      } else {
+        setRatings([])
+      }
       try {
         const response = await fetch(query, { cache: 'no-store', signal: controller.signal })
         if (!response.ok) {
           throw new Error('Falha ao carregar leaderboard')
         }
-        const payload = await response.json()
+        const payload = (await response.json()) as LeaderboardPayload
         if (payload.type === 'ratings') {
-          setRatings(payload.entries as RatingEntry[])
+          setRatings(payload.entries)
         } else {
-          setScores(payload.entries as ScoreEntry[])
+          setScores(payload.entries)
+          setPuzzleMeta({ id: payload.puzzleId ?? null, date: payload.puzzleDate ?? null })
         }
       } catch (err) {
         if (err instanceof DOMException && err.name === 'AbortError') return
@@ -123,10 +152,20 @@ export default function LeaderboardsClient() {
     }
     loadData()
     return () => controller.abort()
-  }, [query])
+  }, [activeTab, query])
 
   const renderScores = () => (
-    <div className="overflow-x-auto rounded-2xl border border-zinc-200 bg-white/70 shadow-sm backdrop-blur dark:border-zinc-800 dark:bg-zinc-900/70">
+    <div className="space-y-3">
+      <div className="flex flex-col gap-1 rounded-2xl border border-amber-100 bg-amber-50/60 px-4 py-3 text-xs text-amber-900 shadow-sm dark:border-amber-500/30 dark:bg-amber-900/20 dark:text-amber-100 sm:flex-row sm:items-center sm:justify-between">
+        <p>
+          Puzzle diário:{' '}
+          <span className="font-semibold">
+            {formatPuzzleDate(puzzleMeta.date) ?? 'A aguardar publicação'}
+          </span>
+        </p>
+        {puzzleMeta.id && <p className="font-mono text-[11px] text-amber-800/80 dark:text-amber-100/70">ID: {puzzleMeta.id}</p>}
+      </div>
+      <div className="overflow-x-auto rounded-2xl border border-zinc-200 bg-white/70 shadow-sm backdrop-blur dark:border-zinc-800 dark:bg-zinc-900/70">
       <table className="min-w-full divide-y divide-zinc-100 text-left text-sm dark:divide-zinc-800">
         <thead className="bg-zinc-50 text-xs uppercase tracking-wide text-zinc-500 dark:bg-zinc-900/50 dark:text-zinc-400">
           <tr>
@@ -164,6 +203,7 @@ export default function LeaderboardsClient() {
           )}
         </tbody>
       </table>
+      </div>
     </div>
   )
 

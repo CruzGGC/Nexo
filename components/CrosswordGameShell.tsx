@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, useCallback, useEffect } from 'react'
 import Link from 'next/link'
 import CrosswordGrid from '@/components/CrosswordGrid'
 import Timer from '@/components/Timer'
@@ -10,6 +10,8 @@ import { ModeSelection } from '@/components/crossword/ModeSelection'
 import { CategorySelection } from '@/components/crossword/CategorySelection'
 import { HowToPlay } from '@/components/crossword/HowToPlay'
 import { useCrosswordGame } from '@/hooks/useCrosswordGame'
+import { useAuth } from '@/components/AuthProvider'
+import { useScoreSubmission } from '@/hooks/useScoreSubmission'
 
 const LISBON_DATE_FORMATTER = new Intl.DateTimeFormat('pt-PT', {
   day: 'numeric',
@@ -54,9 +56,47 @@ export default function CrosswordGameShell({ initialCategories }: CrosswordGameS
     showCategorySelection,
     showModeSelection,
   } = useCrosswordGame({ initialCategories })
+  const { user, signInAsGuest, continueWithGoogle } = useAuth()
+  const {
+    submitScore: submitCrosswordScore,
+    status: crosswordScoreStatus,
+    error: crosswordScoreError,
+    reset: resetCrosswordScore
+  } = useScoreSubmission('crossword')
+  const isAuthenticated = Boolean(user)
 
   const fallbackDateLabel = useMemo(() => formatLisbonDate(puzzle?.publish_date), [puzzle?.publish_date])
   const servedDateLabel = useMemo(() => formatLisbonDate(puzzle?.servedForDate), [puzzle?.servedForDate])
+
+  useEffect(() => {
+    resetCrosswordScore()
+  }, [puzzle?.id, resetCrosswordScore])
+
+  const handleDailyScoreSubmit = useCallback(() => {
+    if (!user?.id || !puzzle || finalTime <= 0) {
+      return
+    }
+
+    void submitCrosswordScore({
+      userId: user.id,
+      puzzleId: puzzle.id,
+      timeMs: finalTime
+    })
+  }, [finalTime, puzzle, submitCrosswordScore, user])
+
+  const handleGridComplete = useCallback(() => {
+    handleComplete()
+    if (gameMode === 'daily') {
+      handleDailyScoreSubmit()
+    }
+  }, [gameMode, handleComplete, handleDailyScoreSubmit])
+
+  const crosswordStatusCopy = {
+    idle: 'Guardamos automaticamente o teu tempo diário assim que completas o puzzle.',
+    saving: 'A guardar o teu tempo na leaderboard diária...',
+    success: 'Tempo registado! Consulta as classificações para ver a tua posição.',
+    error: crosswordScoreError ?? 'Não foi possível guardar o teu tempo.'
+  }
 
   if (showCategorySelection) {
     return (
@@ -138,7 +178,7 @@ export default function CrosswordGameShell({ initialCategories }: CrosswordGameS
             <CrosswordGrid
               grid={puzzle.grid_data}
               clues={puzzle.clues}
-              onComplete={handleComplete}
+              onComplete={handleGridComplete}
               onCellChange={() => {}}
             />
           </div>
@@ -159,6 +199,49 @@ export default function CrosswordGameShell({ initialCategories }: CrosswordGameS
               <p className="mb-6 text-sm text-zinc-600 dark:text-zinc-400">
                 Modo aleatório não conta para a leaderboard global
               </p>
+            )}
+
+            {gameMode === 'daily' && (
+              <div className="mb-6 text-left text-sm">
+                {isAuthenticated ? (
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 text-emerald-900 shadow-sm dark:border-emerald-500/30 dark:bg-emerald-950/30 dark:text-emerald-100">
+                    <p>{crosswordStatusCopy[crosswordScoreStatus]}</p>
+                    {crosswordScoreStatus === 'error' && (
+                      <button
+                        onClick={handleDailyScoreSubmit}
+                        className="mt-3 w-full rounded-full bg-emerald-600 px-4 py-2 font-semibold text-white transition hover:bg-emerald-500"
+                      >
+                        Tentar novamente
+                      </button>
+                    )}
+                    {crosswordScoreStatus === 'success' && (
+                      <p className="mt-2 text-xs text-emerald-800/80 dark:text-emerald-100/80">
+                        Se melhorares o tempo voltamos a atualizar automaticamente.
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="rounded-2xl border border-zinc-200 bg-zinc-50/80 p-4 text-zinc-700 shadow-sm dark:border-zinc-700 dark:bg-zinc-900/80 dark:text-zinc-300">
+                    <p>
+                      Entra como convidado ou liga a tua conta Google para registar o tempo nas classificações diárias.
+                    </p>
+                    <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                      <button
+                        onClick={() => { void signInAsGuest() }}
+                        className="flex-1 rounded-full bg-zinc-900 px-4 py-2 font-semibold text-white transition hover:bg-zinc-800 dark:bg-zinc-50 dark:text-zinc-900"
+                      >
+                        Entrar como Convidado
+                      </button>
+                      <button
+                        onClick={() => { void continueWithGoogle() }}
+                        className="flex-1 rounded-full border border-zinc-300 px-4 py-2 font-semibold text-zinc-900 transition hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-50 dark:hover:bg-zinc-800"
+                      >
+                        Google
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
 
             <div className="flex flex-col gap-4 sm:flex-row sm:justify-center">
