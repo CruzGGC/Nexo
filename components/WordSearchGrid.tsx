@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import type { WordPlacement } from '@/lib/wordsearch-generator'
 import { validateSelection } from '@/lib/wordsearch-generator'
 
@@ -22,33 +22,57 @@ interface WordSearchGridProps {
   onComplete?: (foundWords: string[]) => void
 }
 
+const getCellKey = (row: number, col: number) => `${row}-${col}`
+
+function getSelectionCells(sel: Selection): { row: number; col: number }[] {
+  const cells: { row: number; col: number }[] = []
+  const rowDiff = sel.currentRow - sel.startRow
+  const colDiff = sel.currentCol - sel.startCol
+  const length = Math.max(Math.abs(rowDiff), Math.abs(colDiff)) + 1
+
+  const dRow = rowDiff === 0 ? 0 : rowDiff / Math.abs(rowDiff)
+  const dCol = colDiff === 0 ? 0 : colDiff / Math.abs(colDiff)
+
+  for (let i = 0; i < length; i++) {
+    cells.push({
+      row: sel.startRow + i * dRow,
+      col: sel.startCol + i * dCol
+    })
+  }
+
+  return cells
+}
+
 export default function WordSearchGrid({ grid, words, onComplete }: WordSearchGridProps) {
   const [selection, setSelection] = useState<Selection | null>(null)
   const [foundWords, setFoundWords] = useState<FoundWord[]>([])
   const [isSelecting, setIsSelecting] = useState(false)
   const [hoveredCell, setHoveredCell] = useState<{ row: number; col: number } | null>(null)
+  const [successCells, setSuccessCells] = useState<Set<string>>(() => new Set())
   const gridRef = useRef<HTMLDivElement>(null)
+  const successTimeouts = useRef<number[]>([])
 
-  // Animação de entrada em cascata
-  const [visibleCells, setVisibleCells] = useState<Set<string>>(new Set())
+  const selectedCells = useMemo(() => (selection ? getSelectionCells(selection) : []), [selection])
+  const selectedCellKeys = useMemo(() => {
+    const keys = new Set<string>()
+    selectedCells.forEach(cell => keys.add(getCellKey(cell.row, cell.col)))
+    return keys
+  }, [selectedCells])
+
+  const foundCellKeys = useMemo(() => {
+    const keys = new Set<string>()
+    foundWords.forEach(fw => {
+      fw.cells.forEach(cell => keys.add(getCellKey(cell.row, cell.col)))
+    })
+    return keys
+  }, [foundWords])
 
   useEffect(() => {
-    // Animar entrada das células em cascata
-    const totalCells = grid.length * grid[0].length
-    let count = 0
-    const interval = setInterval(() => {
-      if (count < totalCells) {
-        const row = Math.floor(count / grid[0].length)
-        const col = count % grid[0].length
-        setVisibleCells(prev => new Set(prev).add(`${row}-${col}`))
-        count++
-      } else {
-        clearInterval(interval)
-      }
-    }, 15) // 15ms entre cada célula para efeito cascata
-
-    return () => clearInterval(interval)
-  }, [grid])
+    const timeoutsRef = successTimeouts.current
+    return () => {
+      timeoutsRef.forEach(timeoutId => window.clearTimeout(timeoutId))
+    }
+  }, [])
 
   // Verificar se puzzle está completo
   useEffect(() => {
@@ -73,12 +97,16 @@ export default function WordSearchGrid({ grid, words, onComplete }: WordSearchGr
 
   const handleMouseEnter = (row: number, col: number) => {
     setHoveredCell({ row, col })
-    if (isSelecting && selection) {
-      setSelection({
-        ...selection,
-        currentRow: row,
-        currentCol: col
-      })
+    if (isSelecting) {
+      setSelection(prev =>
+        prev
+          ? {
+              ...prev,
+              currentRow: row,
+              currentCol: col
+            }
+          : prev
+      )
     }
   }
 
@@ -136,50 +164,22 @@ export default function WordSearchGrid({ grid, words, onComplete }: WordSearchGr
     handleMouseUp()
   }
 
-  const getSelectionCells = (sel: Selection): { row: number; col: number }[] => {
-    const cells: { row: number; col: number }[] = []
-    const rowDiff = sel.currentRow - sel.startRow
-    const colDiff = sel.currentCol - sel.startCol
-    const length = Math.max(Math.abs(rowDiff), Math.abs(colDiff)) + 1
-
-    const dRow = rowDiff === 0 ? 0 : rowDiff / Math.abs(rowDiff)
-    const dCol = colDiff === 0 ? 0 : colDiff / Math.abs(colDiff)
-
-    for (let i = 0; i < length; i++) {
-      cells.push({
-        row: sel.startRow + i * dRow,
-        col: sel.startCol + i * dCol
-      })
-    }
-
-    return cells
-  }
-
-  const isCellInSelection = (row: number, col: number): boolean => {
-    if (!selection) return false
-    const cells = getSelectionCells(selection)
-    return cells.some(c => c.row === row && c.col === col)
-  }
-
-  const isCellInFoundWords = (row: number, col: number): boolean => {
-    return foundWords.some(fw => 
-      fw.cells.some(c => c.row === row && c.col === col)
-    )
-  }
-
   const triggerSuccessAnimation = (cells: { row: number; col: number }[]) => {
+    setSuccessCells(prev => {
+      const next = new Set(prev)
+      cells.forEach(cell => next.add(getCellKey(cell.row, cell.col)))
+      return next
+    })
+
     cells.forEach((cell, index) => {
-      setTimeout(() => {
-        const element = document.querySelector(
-          `[data-row="${cell.row}"][data-col="${cell.col}"]`
-        )
-        if (element) {
-          element.classList.add('animate-bounce')
-          setTimeout(() => {
-            element.classList.remove('animate-bounce')
-          }, 500)
-        }
-      }, index * 50)
+      const timeoutId = window.setTimeout(() => {
+        setSuccessCells(prev => {
+          const next = new Set(prev)
+          next.delete(getCellKey(cell.row, cell.col))
+          return next
+        })
+      }, 450 + index * 50)
+      successTimeouts.current.push(timeoutId)
     })
   }
 
@@ -205,10 +205,11 @@ export default function WordSearchGrid({ grid, words, onComplete }: WordSearchGr
         >
           {grid.map((row, rowIndex) =>
             row.map((letter, colIndex) => {
-              const isVisible = visibleCells.has(`${rowIndex}-${colIndex}`)
-              const inSelection = isCellInSelection(rowIndex, colIndex)
-              const inFoundWords = isCellInFoundWords(rowIndex, colIndex)
+              const cellKey = getCellKey(rowIndex, colIndex)
+              const inSelection = selectedCellKeys.has(cellKey)
+              const inFoundWords = foundCellKeys.has(cellKey)
               const isHovered = hoveredCell?.row === rowIndex && hoveredCell?.col === colIndex
+              const isCelebrating = successCells.has(cellKey)
 
               return (
                 <div
@@ -220,8 +221,7 @@ export default function WordSearchGrid({ grid, words, onComplete }: WordSearchGr
                     aspect-square flex items-center justify-center
                     text-base sm:text-lg lg:text-xl font-bold
                     rounded-lg cursor-pointer select-none
-                    transition-all duration-200
-                    ${isVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-75'}
+                    transition-all duration-200 wordsearch-cell
                     ${inFoundWords 
                       ? 'bg-emerald-400 dark:bg-emerald-600 text-white shadow-lg scale-110' 
                       : inSelection
@@ -231,11 +231,12 @@ export default function WordSearchGrid({ grid, words, onComplete }: WordSearchGr
                           : 'bg-zinc-50 dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700'
                     }
                     ${inSelection && isSelecting ? 'animate-pulse' : ''}
+                    ${isCelebrating ? 'wordsearch-cell-success' : ''}
                   `}
                   style={{
                     width: '2.5rem',
                     height: '2.5rem',
-                    transitionDelay: isVisible ? '0ms' : `${(rowIndex * grid[0].length + colIndex) * 15}ms`
+                    animationDelay: `${(rowIndex * grid[0].length + colIndex) * 15}ms`
                   }}
                   onMouseDown={() => handleMouseDown(rowIndex, colIndex)}
                   onMouseEnter={() => handleMouseEnter(rowIndex, colIndex)}

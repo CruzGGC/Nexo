@@ -57,40 +57,10 @@ export default function WordSearchPage() {
   const [showConfetti, setShowConfetti] = useState(false)
 
   // ============================================================================
-  // Memoized Values
-  // ============================================================================
-
-  const normalizedGrid = useMemo(() => 
-    puzzle?.grid_data ? normalizeGridData(puzzle.grid_data) : [],
-    [puzzle?.grid_data]
-  )
-
-  // ============================================================================
-  // Effects
-  // ============================================================================
-
-  useEffect(() => {
-    fetchCategories()
-  }, [])
-
-  useEffect(() => {
-    if (gameMode === 'daily' && !puzzle) {
-      fetchPuzzle('daily')
-    }
-  }, [gameMode, puzzle])
-
-  useEffect(() => {
-    if (showConfetti) {
-      const timeout = setTimeout(() => setShowConfetti(false), 5000)
-      return () => clearTimeout(timeout)
-    }
-  }, [showConfetti])
-
-  // ============================================================================
   // API Functions
   // ============================================================================
 
-  const fetchCategories = async () => {
+  const fetchCategories = useCallback(async () => {
     try {
       const data = await apiFetch<Category[]>('/api/categories', {
         method: 'GET',
@@ -100,9 +70,9 @@ export default function WordSearchPage() {
     } catch (err) {
       console.error('Failed to load categories:', err)
     }
-  }
+  }, [])
 
-  const fetchPuzzle = async (mode: GameMode, category?: string | null) => {
+  const fetchPuzzle = useCallback(async (mode: GameMode, category?: string | null) => {
     setLoading(true)
     setError(null)
 
@@ -123,7 +93,37 @@ export default function WordSearchPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
+
+  // ============================================================================
+  // Memoized Values
+  // ============================================================================
+
+  const normalizedGrid = useMemo(() => 
+    puzzle?.grid_data ? normalizeGridData(puzzle.grid_data) : [],
+    [puzzle?.grid_data]
+  )
+
+  // ============================================================================
+  // Effects
+  // ============================================================================
+
+  useEffect(() => {
+    fetchCategories()
+  }, [fetchCategories])
+
+  useEffect(() => {
+    if (gameMode === 'daily' && !puzzle) {
+      fetchPuzzle('daily')
+    }
+  }, [gameMode, puzzle, fetchPuzzle])
+
+  useEffect(() => {
+    if (showConfetti) {
+      const timeout = setTimeout(() => setShowConfetti(false), 5000)
+      return () => clearTimeout(timeout)
+    }
+  }, [showConfetti])
 
   // ============================================================================
   // Event Handlers
@@ -137,12 +137,12 @@ export default function WordSearchPage() {
     } else {
       setShowCategorySelection(true)
     }
-  }, [])
+  }, [fetchPuzzle])
 
   const handleSelectCategory = useCallback((categorySlug: string | null) => {
     setSelectedCategory(categorySlug)
     fetchPuzzle('random', categorySlug)
-  }, [])
+  }, [fetchPuzzle])
 
   const handleComplete = useCallback(async (foundWords: string[]) => {
     setIsTimerRunning(false)
@@ -178,7 +178,7 @@ export default function WordSearchPage() {
       setPuzzle(null)
       setTimeout(() => setPuzzle(currentPuzzle), 10)
     }
-  }, [gameMode, selectedCategory, puzzle])
+  }, [gameMode, selectedCategory, puzzle, fetchPuzzle])
 
   const handleChangeMode = useCallback(() => {
     setGameMode(null)

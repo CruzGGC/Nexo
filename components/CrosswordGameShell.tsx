@@ -1,323 +1,77 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import CrosswordGrid from '@/components/CrosswordGrid'
 import Timer from '@/components/Timer'
-import { apiFetch } from '@/lib/api-client'
 import { formatChronometer } from '@/lib/utils/time'
-import type { Category, CrosswordPuzzle, GameMode } from '@/lib/types/games'
+import type { Category } from '@/lib/types/games'
+import { ModeSelection } from '@/components/crossword/ModeSelection'
+import { CategorySelection } from '@/components/crossword/CategorySelection'
+import { HowToPlay } from '@/components/crossword/HowToPlay'
+import { useCrosswordGame } from '@/hooks/useCrosswordGame'
+
+const LISBON_DATE_FORMATTER = new Intl.DateTimeFormat('pt-PT', {
+  day: 'numeric',
+  month: 'long',
+  year: 'numeric',
+  timeZone: 'Europe/Lisbon'
+})
+
+function formatLisbonDate(dateString?: string | null) {
+  if (!dateString) return null
+  const date = new Date(`${dateString}T00:00:00Z`)
+  if (Number.isNaN(date.getTime())) {
+    return dateString
+  }
+  return LISBON_DATE_FORMATTER.format(date)
+}
 
 interface CrosswordGameShellProps {
   initialCategories: Category[]
 }
 
 export default function CrosswordGameShell({ initialCategories }: CrosswordGameShellProps) {
-  const router = useRouter()
-  const [categories, setCategories] = useState<Category[]>(initialCategories)
-  const [gameMode, setGameMode] = useState<GameMode>('daily')
-  const [isLoading, setIsLoading] = useState(false)
-  const [puzzle, setPuzzle] = useState<CrosswordPuzzle | null>(null)
-  const [isPlaying, setIsPlaying] = useState(false)
-  const [isComplete, setIsComplete] = useState(false)
-  const [finalTime, setFinalTime] = useState(0)
-  const [showModeSelection, setShowModeSelection] = useState(true)
-  const [showCategorySelection, setShowCategorySelection] = useState(false)
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const {
+    categories,
+    error,
+    finalTime,
+    gameMode,
+    handleBackToModeSelection,
+    handleChangeMode,
+    handleComplete,
+    handleRestart,
+    handleSelectCategory,
+    handleSelectMode,
+    handleStartGame,
+    handleTimeUpdate,
+    isComplete,
+    isLoading,
+    isPlaying,
+    modeLabel,
+    puzzle,
+    selectedCategoryMeta,
+    showCategorySelection,
+    showModeSelection,
+  } = useCrosswordGame({ initialCategories })
 
-  useEffect(() => {
-    setCategories(initialCategories)
-  }, [initialCategories])
-
-  useEffect(() => {
-    if (!initialCategories.length) {
-      refreshCategories()
-    }
-  }, [initialCategories.length])
-
-  const selectedCategoryMeta = useMemo(
-    () => categories.find((category) => category.slug === selectedCategory),
-    [categories, selectedCategory]
-  )
-
-  const refreshCategories = async () => {
-    try {
-      const data = await apiFetch<Category[]>('/api/categories', {
-        method: 'GET',
-        cache: 'no-store',
-      })
-      setCategories(data)
-    } catch (err) {
-      console.error('Erro ao atualizar categorias:', err)
-    }
-  }
-
-  const fetchPuzzle = async (mode: GameMode, category?: string | null) => {
-    setIsLoading(true)
-    setError(null)
-
-    try {
-      let endpoint = mode === 'daily' ? '/api/crossword/daily' : '/api/crossword/random'
-      if (category) {
-        endpoint += `?category=${category}`
-      }
-
-      const data = await apiFetch<CrosswordPuzzle>(endpoint, {
-        cache: 'no-store',
-      })
-
-      setPuzzle(data)
-      setShowModeSelection(false)
-      setShowCategorySelection(false)
-    } catch (err) {
-      console.error('Erro ao buscar puzzle:', err)
-      setError(err instanceof Error ? err.message : 'Erro ao carregar puzzle')
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const handleSelectMode = async (mode: GameMode) => {
-    setGameMode(mode)
-    if (mode === 'daily') {
-      await fetchPuzzle(mode)
-    } else {
-      if (!categories.length) {
-        await refreshCategories()
-      }
-      setShowCategorySelection(true)
-      setShowModeSelection(false)
-    }
-  }
-
-  const handleSelectCategory = async (categorySlug: string | null) => {
-    setSelectedCategory(categorySlug)
-    await fetchPuzzle('random', categorySlug)
-  }
-
-  const handleStartGame = () => {
-    setIsPlaying(true)
-  }
-
-  const handleComplete = () => {
-    setIsPlaying(false)
-    setIsComplete(true)
-  }
-
-  const handleTimeUpdate = (timeMs: number) => {
-    setFinalTime(timeMs)
-  }
-
-  const handleRestart = async () => {
-    if (gameMode === 'random') {
-      setIsLoading(true)
-      setIsComplete(false)
-      setIsPlaying(false)
-      setFinalTime(0)
-      await fetchPuzzle('random', selectedCategory)
-    } else {
-      router.refresh()
-    }
-  }
-
-  const handleChangeMode = () => {
-    setPuzzle(null)
-    setShowModeSelection(true)
-    setShowCategorySelection(false)
-    setIsPlaying(false)
-    setIsComplete(false)
-    setFinalTime(0)
-    setError(null)
-    setSelectedCategory(null)
-  }
+  const fallbackDateLabel = useMemo(() => formatLisbonDate(puzzle?.publish_date), [puzzle?.publish_date])
+  const servedDateLabel = useMemo(() => formatLisbonDate(puzzle?.servedForDate), [puzzle?.servedForDate])
 
   if (showCategorySelection) {
     return (
-      <div className="flex min-h-screen flex-col bg-gradient-to-br from-zinc-50 to-zinc-100 dark:from-zinc-950 dark:to-black">
-        <header className="border-b border-zinc-200 bg-white/80 backdrop-blur-sm dark:border-zinc-800 dark:bg-zinc-900/80">
-          <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
-            <button
-              onClick={() => {
-                setShowCategorySelection(false)
-                setShowModeSelection(true)
-              }}
-              className="text-sm font-medium text-zinc-600 transition-colors hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-50"
-            >
-              ← Voltar
-            </button>
-            <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-50">
-              Escolher Tema
-            </h1>
-            <div className="w-20" />
-          </div>
-        </header>
-
-        <main className="flex flex-1 items-center justify-center px-6 py-16">
-          <div className="w-full max-w-5xl">
-            <div className="mb-8 text-center">
-              <h2 className="mb-2 text-3xl font-bold text-zinc-900 dark:text-zinc-50">
-                Modo Aleatório - Escolha um Tema
-              </h2>
-              <p className="text-zinc-600 dark:text-zinc-400">
-                Selecione uma categoria temática ou jogue com todas as palavras
-              </p>
-            </div>
-
-            {isLoading && (
-              <div className="mb-6 text-center">
-                <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-4 border-zinc-200 border-t-zinc-900 dark:border-zinc-800 dark:border-t-zinc-50" />
-                <p className="text-zinc-600 dark:text-zinc-400">A gerar puzzle...</p>
-              </div>
-            )}
-
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              <button
-                onClick={() => handleSelectCategory(null)}
-                disabled={isLoading}
-                className="group relative overflow-hidden rounded-xl border-2 border-zinc-300 bg-white p-6 text-left transition-all hover:border-zinc-500 hover:shadow-lg disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:border-zinc-500"
-              >
-                <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-zinc-100 text-2xl transition-transform group-hover:scale-110 dark:bg-zinc-800">
-                  🎲
-                </div>
-                <h3 className="mb-1 text-lg font-bold text-zinc-900 dark:text-zinc-50">
-                  Todas as Palavras
-                </h3>
-                <p className="text-xs text-zinc-600 dark:text-zinc-400">
-                  Puzzle com palavras de todos os temas
-                </p>
-              </button>
-
-              {categories.map((category) => (
-                <button
-                  key={category.id}
-                  onClick={() => handleSelectCategory(category.slug)}
-                  disabled={isLoading || category.word_count < 10}
-                  className="group relative overflow-hidden rounded-xl border-2 border-zinc-200 bg-white p-6 text-left transition-all hover:border-zinc-400 hover:shadow-lg disabled:opacity-50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-600"
-                  style={{ borderColor: category.word_count >= 10 ? `${category.color}30` : undefined }}
-                >
-                  <div
-                    className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg text-2xl transition-transform group-hover:scale-110"
-                    style={{ backgroundColor: `${category.color}20` }}
-                  >
-                    {category.icon}
-                  </div>
-                  <h3 className="mb-1 text-lg font-bold text-zinc-900 dark:text-zinc-50">
-                    {category.name}
-                  </h3>
-                  <p className="mb-2 text-xs text-zinc-600 dark:text-zinc-400">
-                    {category.description}
-                  </p>
-                  <span className="text-xs font-medium text-zinc-500 dark:text-zinc-500">
-                    {category.word_count} palavras
-                  </span>
-                  {category.word_count < 10 && (
-                    <div className="mt-2 text-xs text-red-600 dark:text-red-400">
-                      Mínimo 10 palavras necessário
-                    </div>
-                  )}
-                </button>
-              ))}
-            </div>
-          </div>
-        </main>
-      </div>
+      <CategorySelection
+        categories={categories}
+        isLoading={isLoading}
+        onBack={handleBackToModeSelection}
+        onSelectCategory={handleSelectCategory}
+      />
     )
   }
 
   if (showModeSelection) {
     return (
-      <div className="flex min-h-screen flex-col bg-gradient-to-br from-zinc-50 to-zinc-100 dark:from-zinc-950 dark:to-black">
-        <header className="border-b border-zinc-200 bg-white/80 backdrop-blur-sm dark:border-zinc-800 dark:bg-zinc-900/80">
-          <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
-            <Link
-              href="/"
-              className="text-sm font-medium text-zinc-600 transition-colors hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-50"
-            >
-              ← Voltar
-            </Link>
-            <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-50">
-              Palavras Cruzadas
-            </h1>
-            <div className="w-20" />
-          </div>
-        </header>
-
-        <main className="flex flex-1 items-center justify-center px-6 py-16">
-          <div className="w-full max-w-2xl">
-            <div className="mb-8 text-center">
-              <h2 className="mb-2 text-3xl font-bold text-zinc-900 dark:text-zinc-50">
-                Escolha o Modo de Jogo
-              </h2>
-              <p className="text-zinc-600 dark:text-zinc-400">
-                Selecione como quer jogar palavras cruzadas
-              </p>
-            </div>
-
-            {error && (
-              <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-900 dark:bg-red-950">
-                <p className="text-sm text-red-800 dark:text-red-200">{error}</p>
-              </div>
-            )}
-
-            <div className="grid gap-6 sm:grid-cols-2">
-              <button
-                onClick={() => handleSelectMode('daily')}
-                disabled={isLoading}
-                className="group relative overflow-hidden rounded-2xl border-2 border-zinc-200 bg-white p-8 text-left transition-all hover:border-yellow-400 hover:shadow-lg disabled:opacity-50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-yellow-600"
-              >
-                <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-xl bg-yellow-100 text-4xl transition-transform group-hover:scale-110 dark:bg-yellow-900">
-                  📅
-                </div>
-                <h3 className="mb-2 text-2xl font-bold text-zinc-900 dark:text-zinc-50">
-                  Modo Diário
-                </h3>
-                <p className="mb-4 text-sm text-zinc-600 dark:text-zinc-400">
-                  O mesmo puzzle para todos os jogadores. Novo puzzle todos os dias à meia-noite.
-                </p>
-                <ul className="space-y-1 text-xs text-zinc-500 dark:text-zinc-500">
-                  <li>✓ Competição global</li>
-                  <li>✓ Leaderboard partilhada</li>
-                  <li>✓ 1 puzzle por dia</li>
-                </ul>
-                <div className="absolute bottom-0 right-0 h-24 w-24 translate-x-8 translate-y-8 rounded-full bg-yellow-200 opacity-20 transition-transform group-hover:scale-150 dark:bg-yellow-800" />
-              </button>
-
-              <button
-                onClick={() => handleSelectMode('random')}
-                disabled={isLoading}
-                className="group relative overflow-hidden rounded-2xl border-2 border-zinc-200 bg-white p-8 text-left transition-all hover:border-blue-400 hover:shadow-lg disabled:opacity-50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-blue-600"
-              >
-                <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-xl bg-blue-100 text-4xl transition-transform group-hover:scale-110 dark:bg-blue-900">
-                  🎲
-                </div>
-                <h3 className="mb-2 text-2xl font-bold text-zinc-900 dark:text-zinc-50">
-                  Modo Aleatório
-                </h3>
-                <p className="mb-4 text-sm text-zinc-600 dark:text-zinc-400">
-                  Puzzle novo gerado automaticamente a cada jogo. Treino ilimitado!
-                </p>
-                <ul className="space-y-1 text-xs text-zinc-500 dark:text-zinc-500">
-                  <li>✓ Puzzles infinitos</li>
-                  <li>✓ Prática sem pressão</li>
-                  <li>✓ Sem limite de tempo</li>
-                </ul>
-                <div className="absolute bottom-0 right-0 h-24 w-24 translate-x-8 translate-y-8 rounded-full bg-blue-200 opacity-20 transition-transform group-hover:scale-150 dark:bg-blue-800" />
-              </button>
-            </div>
-
-            {isLoading && (
-              <div className="mt-8 text-center">
-                <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-4 border-zinc-200 border-t-zinc-900 dark:border-zinc-800 dark:border-t-zinc-50" />
-                <p className="text-zinc-600 dark:text-zinc-400">
-                  {gameMode === 'daily' ? 'A carregar puzzle diário...' : 'A gerar puzzle aleatório...'}
-                </p>
-              </div>
-            )}
-          </div>
-        </main>
-      </div>
+      <ModeSelection gameMode={gameMode} isLoading={isLoading} error={error} onSelectMode={handleSelectMode} />
     )
   }
 
@@ -335,12 +89,6 @@ export default function CrosswordGameShell({ initialCategories }: CrosswordGameS
   if (!puzzle) {
     return null
   }
-
-  const modeLabel = gameMode === 'daily'
-    ? '📅 Diário'
-    : selectedCategoryMeta
-    ? `${selectedCategoryMeta.icon} ${selectedCategoryMeta.name}`
-    : '🎲 Aleatório'
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-zinc-50 to-zinc-100 dark:from-zinc-950 dark:to-black">
@@ -365,31 +113,24 @@ export default function CrosswordGameShell({ initialCategories }: CrosswordGameS
       </header>
 
       <main className="mx-auto max-w-7xl px-6 py-8">
-        {!isPlaying && !isComplete && (
-          <div className="mb-8 rounded-2xl border border-zinc-200 bg-white p-8 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-            <h2 className="mb-4 text-2xl font-bold text-zinc-900 dark:text-zinc-50">Como Jogar</h2>
-            <ul className="mb-6 space-y-2 text-zinc-700 dark:text-zinc-300">
-              <li>• Clique numa célula para começar a escrever</li>
-              <li>• Use as <strong>setas</strong> do teclado para navegar</li>
-              <li>• Prima <strong>Tab</strong> para alternar entre horizontal/vertical</li>
-              <li>• Prima <strong>Backspace</strong> para apagar</li>
-              <li>• Clique nas pistas para saltar para essa palavra</li>
-              <li>• O temporizador começa quando clicar em &quot;Iniciar Jogo&quot;</li>
-            </ul>
-            {gameMode === 'daily' && puzzle.isFromPreviousDay && (
-              <div className="mb-4 rounded-lg border border-yellow-200 bg-yellow-50 p-4 dark:border-yellow-900 dark:bg-yellow-950">
-                <p className="text-sm text-yellow-800 dark:text-yellow-200">
-                  ⚠️ Este é o puzzle de um dia anterior. O puzzle de hoje será gerado à meia-noite.
-                </p>
-              </div>
-            )}
-            <button
-              onClick={handleStartGame}
-              className="rounded-full bg-zinc-900 px-8 py-3 font-semibold text-white transition-colors hover:bg-zinc-700 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
-            >
-              Iniciar Jogo
-            </button>
+        {gameMode === 'daily' && puzzle.isFromPreviousDay && (
+          <div className="mb-6 flex gap-3 rounded-2xl border border-amber-300 bg-amber-50/80 p-4 text-amber-900 shadow-sm dark:border-amber-400/40 dark:bg-amber-950/40 dark:text-amber-100">
+            <span className="text-2xl" aria-hidden>
+              ⏳
+            </span>
+            <div>
+              <p className="font-semibold">Puzzle do dia anterior</p>
+              <p className="text-sm text-amber-900/90 dark:text-amber-100/90">
+                Ainda estamos a gerar o desafio de {servedDateLabel ?? 'hoje'}. A mostrar a grelha publicada em
+                {' '}
+                <strong>{fallbackDateLabel ?? puzzle.publish_date}</strong> para que possas continuar a jogar.
+              </p>
+            </div>
           </div>
+        )}
+
+        {!isPlaying && !isComplete && (
+          <HowToPlay gameMode={gameMode} puzzle={puzzle} onStart={handleStartGame} />
         )}
 
         {isPlaying && !isComplete && (

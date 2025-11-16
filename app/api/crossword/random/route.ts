@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import { NextResponse } from 'next/server'
-import { CrosswordGenerator } from '@/lib/crossword-generator'
+import { CrosswordGenerator } from '@/lib/crossword/generator'
 
 type DictionaryEntry = { word: string; definition: string }
 type CategorizedDictionaryRow = {

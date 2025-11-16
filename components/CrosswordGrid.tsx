@@ -12,6 +12,7 @@
 
 import { useState, useEffect, useRef, useMemo } from 'react';
 import type { CrosswordCell, CrosswordClue } from '@/lib/types/crossword';
+import { equalsNormalized } from '@/lib/text';
 
 export type Cell = CrosswordCell;
 export type Clue = CrosswordClue;
@@ -45,10 +46,10 @@ export default function CrosswordGrid({
         const cell = grid[row][col];
         if (cell.isBlack || !cell.correct || cell.correct.trim() === '') continue;
 
-        const cellValue = (cell.value || '').trim().toUpperCase();
-        const correctValue = cell.correct.trim().toUpperCase();
+        const cellValue = (cell.value || '').trim();
+        const correctValue = cell.correct.trim();
 
-        if (cellValue && cellValue !== correctValue) {
+        if (cellValue && !equalsNormalized(cellValue, correctValue)) {
           errors++;
         }
       }
@@ -110,10 +111,10 @@ export default function CrosswordGrid({
         
         totalCells++;
         
-        const cellValue = (cell.value || '').trim().toUpperCase();
-        const correctValue = cell.correct.trim().toUpperCase();
+        const cellValue = (cell.value || '').trim();
+        const correctValue = cell.correct.trim();
         
-        if (cellValue === correctValue) {
+        if (cellValue && equalsNormalized(cellValue, correctValue)) {
           correctCells++;
         }
       }
@@ -368,10 +369,11 @@ export default function CrosswordGrid({
                 const isStructural = !cell.correct || cell.correct.trim() === '';
                 
                 // Check if cell has error
-                const cellValue = (cell.value || '').trim().toUpperCase();
-                const correctValue = (cell.correct || '').trim().toUpperCase();
-                const hasError = cellValue && correctValue && cellValue !== correctValue;
-                const isCorrect = cellValue && correctValue && cellValue === correctValue;
+                const cellValue = (cell.value || '').trim();
+                const correctValue = (cell.correct || '').trim();
+                const hasLetters = Boolean(cellValue && correctValue);
+                const isCorrect = hasLetters && equalsNormalized(cellValue, correctValue);
+                const hasError = hasLetters && !isCorrect;
 
                 return (
                   <div

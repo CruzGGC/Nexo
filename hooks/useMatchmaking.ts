@@ -9,7 +9,7 @@ import { deriveRating, deriveSkillBracket, normalizeRegion, type SupportedMatchG
 type MatchmakingQueueRow = Database['public']['Tables']['matchmaking_queue']['Row']
 type GameRoomRow = Database['public']['Tables']['game_rooms']['Row']
 
-type QueueStatus = 'idle' | 'joining' | 'queued' | 'matched' | 'error'
+export type QueueStatus = 'idle' | 'joining' | 'queued' | 'matched' | 'error'
 
 type JoinMode = 'public' | 'private'
 

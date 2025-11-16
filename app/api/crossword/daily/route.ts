@@ -1,7 +1,7 @@
 import { supabase } from '@/lib/supabase'
 import { NextResponse } from 'next/server'
 
-export const dynamic = 'force-dynamic'
+export const revalidate = 3600 // cache daily puzzle for one hour as recommended by Next.js caching docs
 
 /**
  * GET /api/crossword/daily
@@ -10,56 +10,40 @@ export const dynamic = 'force-dynamic'
  */
 export async function GET() {
   try {
-    // Get today's date in Portugal timezone (Europe/Lisbon)
-    const today = new Date().toLocaleDateString('en-CA', {
-      timeZone: 'Europe/Lisbon'
-    }) // Formato: YYYY-MM-DD
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Lisbon' })
 
-    // Fetch today's daily crossword
-    const { data: puzzle, error } = await supabase
+    const { data: latestPuzzle, error } = await supabase
       .from('crosswords')
       .select('*')
       .eq('type', 'daily')
-      .eq('publish_date', today)
-      .single()
+      .order('publish_date', { ascending: false })
+      .limit(1)
+      .maybeSingle()
 
-    if (error || !puzzle) {
-      // If no puzzle for today, try to get the most recent one
-      console.warn('No puzzle for today, fetching most recent:', error)
-      
-      const { data: recentPuzzle, error: recentError } = await supabase
-        .from('crosswords')
-        .select('*')
-        .eq('type', 'daily')
-        .order('publish_date', { ascending: false })
-        .limit(1)
-        .single()
-
-      if (recentError || !recentPuzzle) {
-        console.error('Erro ao buscar puzzle diário:', recentError)
-        return NextResponse.json(
-          { 
-            error: 'Nenhum puzzle diário disponível',
-            message: 'O puzzle diário será gerado à meia-noite. Por favor, tente novamente mais tarde.',
-          },
-          { status: 404 }
-        )
-      }
-
-      // Return most recent puzzle with flag
-      const latestPuzzle = recentPuzzle as Record<string, unknown>
-      return NextResponse.json({
-        ...latestPuzzle,
-        isFromPreviousDay: true
-      })
+    if (error) {
+      console.error('Erro ao buscar puzzle diário:', error)
+      return NextResponse.json({ error: 'Falha ao carregar puzzle diário' }, { status: 500 })
     }
 
-    return NextResponse.json(puzzle)
+    if (!latestPuzzle) {
+      return NextResponse.json(
+        {
+          error: 'Nenhum puzzle diário disponível',
+          message: 'O puzzle diário será gerado à meia-noite. Por favor, tente novamente mais tarde.'
+        },
+        { status: 404 }
+      )
+    }
+
+    const isFromPreviousDay = Boolean(latestPuzzle.publish_date && latestPuzzle.publish_date !== today)
+
+    return NextResponse.json({
+      ...latestPuzzle,
+      isFromPreviousDay,
+      servedForDate: today
+    })
   } catch (error) {
     console.error('Erro ao buscar puzzle diário:', error)
-    return NextResponse.json(
-      { error: 'Erro interno do servidor' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 })
   }
 }

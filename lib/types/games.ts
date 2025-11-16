@@ -31,6 +31,7 @@ export interface CrosswordPuzzle {
   publish_date: string | null
   created_at?: string | null
   isFromPreviousDay?: boolean
+  servedForDate?: string | null
 }
 
 export interface WordSearchGridCell {
@@ -49,6 +50,7 @@ export interface WordSearchPuzzle {
   publish_date: string | null
   created_at?: string | null
   isFromPreviousDay?: boolean
+  servedForDate?: string | null
 }
 
 export interface ApiErrorPayload {
