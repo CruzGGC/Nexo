@@ -122,3 +122,17 @@ Este projeto está pronto para deployment na **Vercel** (plano gratuito). Para i
    ```
 
 Ver **[DEPLOYMENT.md](./DEPLOYMENT.md)** para o guia completo de deployment, incluindo configuração de Edge Functions, cron jobs, e troubleshooting.
+
+### Supabase Vault (Secrets para Cron / Edge Functions)
+
+```sql
+-- Executar no SQL Editor do projeto
+create schema if not exists vault;
+create extension if not exists supabase_vault with schema vault;
+
+-- Guardar os secrets usados pelo `net.http_post`
+select vault.create_secret('project_url', 'https://xxx.supabase.co');
+select vault.create_secret('service_role_key', 'eyJ...');
+```
+
+> Sem estes secrets, os jobs `pg_cron` falham com `vault.get_secret` e as Edge Functions não são chamadas.

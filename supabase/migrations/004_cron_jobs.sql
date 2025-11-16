@@ -39,110 +39,109 @@ BEGIN
   RAISE NOTICE '✅ Extensions necessárias estão instaladas';
 END $$;
 
+-- =========================================================================
+-- 1.1 FALLBACK DE SEGREDOS
+-- =========================================================================
+-- Se o Vault ainda não estiver disponível, utilize a tabela
+-- app_private.runtime_secrets criada em 001_schema_principal.sql:
+--   INSERT INTO app_private.runtime_secrets (name, value)
+--   VALUES ('project_url', 'https://xxxx.supabase.co'),
+--          ('service_role_key', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...')
+-- Depois execute novamente este ficheiro para agendar os cron jobs.
+
 -- ============================================================================
 -- 2. CRON JOB: GERAÇÃO DIÁRIA DE PALAVRAS CRUZADAS
 -- ============================================================================
-
--- Remove job antigo se existir (ignora erro se não existir)
 DO $$
+DECLARE
+  v_project_url TEXT := app_private.get_secret('project_url');
+  v_service_role_key TEXT := app_private.get_secret('service_role_key');
 BEGIN
-  PERFORM cron.unschedule('generate-daily-crossword');
-EXCEPTION
-  WHEN OTHERS THEN
-    RAISE NOTICE 'Job generate-daily-crossword não existe (primeira execução)';
+  IF v_project_url IS NULL OR v_service_role_key IS NULL THEN
+    RAISE NOTICE '⚠️  Segredos project_url/service_role_key em falta. Jobs HTTP não serão agendados. Configure-os via Vault ou app_private.runtime_secrets e volte a executar 004_cron_jobs.sql.';
+    RETURN;
+  END IF;
+
+  BEGIN
+    PERFORM cron.unschedule('generate-daily-crossword');
+  EXCEPTION
+    WHEN OTHERS THEN
+      RAISE NOTICE 'Job generate-daily-crossword não existe (primeira execução)';
+  END;
+
+  PERFORM cron.schedule(
+    'generate-daily-crossword',
+    '0 0 * * *',
+    $$
+      SELECT net.http_post(
+        url := app_private.get_secret('project_url', true) || '/functions/v1/generate-daily-crossword',
+        headers := jsonb_build_object(
+          'Content-Type', 'application/json',
+          'Authorization', 'Bearer ' || app_private.get_secret('service_role_key', true)
+        ),
+        body := jsonb_build_object(
+          'date', CURRENT_DATE::text,
+          'triggered_by', 'cron'
+        ),
+        timeout_milliseconds := 60000
+      ) AS request_id;
+    $$
+  );
+
+  BEGIN
+    PERFORM cron.unschedule('generate-daily-wordsearch');
+  EXCEPTION
+    WHEN OTHERS THEN
+      RAISE NOTICE 'Job generate-daily-wordsearch não existe (primeira execução)';
+  END;
+
+  PERFORM cron.schedule(
+    'generate-daily-wordsearch',
+    '5 0 * * *',
+    $$
+      SELECT net.http_post(
+        url := app_private.get_secret('project_url', true) || '/functions/v1/generate-daily-wordsearch',
+        headers := jsonb_build_object(
+          'Content-Type', 'application/json',
+          'Authorization', 'Bearer ' || app_private.get_secret('service_role_key', true)
+        ),
+        body := jsonb_build_object(
+          'date', CURRENT_DATE::text,
+          'triggered_by', 'cron'
+        ),
+        timeout_milliseconds := 60000
+      ) AS request_id;
+    $$
+  );
+
+  BEGIN
+    PERFORM cron.unschedule('matchmaking-worker');
+  EXCEPTION
+    WHEN OTHERS THEN
+      RAISE NOTICE 'Job matchmaking-worker não existe (primeira execução)';
+  END;
+
+  PERFORM cron.schedule(
+    'matchmaking-worker',
+    '* * * * *',
+    $$
+      SELECT net.http_post(
+        url := app_private.get_secret('project_url', true) || '/functions/v1/matchmaking-worker',
+        headers := jsonb_build_object(
+          'Content-Type', 'application/json',
+          'Authorization', 'Bearer ' || app_private.get_secret('service_role_key', true)
+        ),
+        body := jsonb_build_object(
+          'triggered_by', 'cron',
+          'gameType', 'tic_tac_toe'
+        ),
+        timeout_milliseconds := 20000
+      ) AS request_id;
+    $$
+  );
+
+  RAISE NOTICE '✅ Jobs HTTP agendados com sucesso usando app_private.get_secret().';
 END $$;
-
--- Agenda job para 00:00 (meia-noite) em timezone Portugal (Europe/Lisbon)
--- Cron format: minuto hora dia mês dia-da-semana
-SELECT cron.schedule(
-  'generate-daily-crossword',                    -- job_name
-  '0 0 * * *',                                   -- schedule (00:00 todos os dias)
-  $$
-    SELECT net.http_post(
-      url := vault.get_secret('project_url') || '/functions/v1/generate-daily-crossword',
-      headers := jsonb_build_object(
-        'Content-Type', 'application/json',
-        'Authorization', 'Bearer ' || vault.get_secret('service_role_key')
-      ),
-      body := jsonb_build_object(
-        'date', CURRENT_DATE::text,
-        'triggered_by', 'cron'
-      ),
-      timeout_milliseconds := 60000              -- 60 segundos timeout
-    ) AS request_id;
-  $$
-);
-
-COMMENT ON EXTENSION pg_cron IS 'Cron job para gerar puzzle diário de palavras cruzadas às 00:00';
-
--- ============================================================================
--- 3. CRON JOB: GERAÇÃO DIÁRIA DE SOPA DE LETRAS
--- ============================================================================
-
--- Remove job antigo se existir (ignora erro se não existir)
-DO $$
-BEGIN
-  PERFORM cron.unschedule('generate-daily-wordsearch');
-EXCEPTION
-  WHEN OTHERS THEN
-    RAISE NOTICE 'Job generate-daily-wordsearch não existe (primeira execução)';
-END $$;
-
--- Agenda job para 00:05 (5 minutos após meia-noite)
--- Delay de 5 min evita sobrecarga simultânea
-SELECT cron.schedule(
-  'generate-daily-wordsearch',                   -- job_name
-  '5 0 * * *',                                   -- schedule (00:05 todos os dias)
-  $$
-    SELECT net.http_post(
-      url := vault.get_secret('project_url') || '/functions/v1/generate-daily-wordsearch',
-      headers := jsonb_build_object(
-        'Content-Type', 'application/json',
-        'Authorization', 'Bearer ' || vault.get_secret('service_role_key')
-      ),
-      body := jsonb_build_object(
-        'date', CURRENT_DATE::text,
-        'triggered_by', 'cron'
-      ),
-      timeout_milliseconds := 60000              -- 60 segundos timeout
-    ) AS request_id;
-  $$
-);
-
-COMMENT ON EXTENSION pg_cron IS 'Cron job para gerar puzzle diário de sopa de letras às 00:05';
-
--- ============================================================================
--- 4. CRON JOB: MATCHMAKING WORKER
--- ============================================================================
-
-DO $$
-BEGIN
-  PERFORM cron.unschedule('matchmaking-worker');
-EXCEPTION
-  WHEN OTHERS THEN
-    RAISE NOTICE 'Job matchmaking-worker não existe (primeira execução)';
-END $$;
-
-SELECT cron.schedule(
-  'matchmaking-worker',                      -- job_name
-  '* * * * *',                               -- corre a cada minuto
-  $$
-    SELECT net.http_post(
-      url := vault.get_secret('project_url') || '/functions/v1/matchmaking-worker',
-      headers := jsonb_build_object(
-        'Content-Type', 'application/json',
-        'Authorization', 'Bearer ' || vault.get_secret('service_role_key')
-      ),
-      body := jsonb_build_object(
-        'triggered_by', 'cron',
-        'gameType', 'tic_tac_toe'
-      ),
-      timeout_milliseconds := 20000
-    ) AS request_id;
-  $$
-);
-
-COMMENT ON EXTENSION pg_cron IS 'Cron job que mantém a fila de matchmaking atualizada a cada minuto';
 
 -- ============================================================================
 -- 5. FUNÇÃO DE LIMPEZA: REMOVER PUZZLES ANTIGOS
@@ -279,12 +278,12 @@ BEGIN
   SELECT 
     'Vault secrets'::TEXT,
     CASE 
-      WHEN vault.get_secret('project_url') IS NOT NULL 
-        AND vault.get_secret('service_role_key') IS NOT NULL
+      WHEN app_private.get_secret('project_url') IS NOT NULL 
+        AND app_private.get_secret('service_role_key') IS NOT NULL
       THEN '✅ OK'
       ELSE '❌ FALTA'
     END,
-    'project_url e service_role_key'::TEXT;
+    'project_url e service_role_key (Vault ou app_private.runtime_secrets)'::TEXT;
   
   -- Check 5: Edge Functions (verifica se já houve execução bem sucedida)
   RETURN QUERY
@@ -346,6 +345,6 @@ BEGIN
   RAISE NOTICE '⚠️  IMPORTANTE:';
   RAISE NOTICE '  1. Deploy Edge Functions: supabase functions deploy';
   RAISE NOTICE '  2. Configurar Vault secrets:';
-  RAISE NOTICE '     - \: https://xxx.supabase.co';
+  RAISE NOTICE '     - project_url: https://xxx.supabase.co';
   RAISE NOTICE '     - service_role_key: eyJhbGc...';
 END $$;

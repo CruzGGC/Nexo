@@ -31,17 +31,88 @@
 -- 1. EXTENSIONS
 -- ============================================================================
 
--- UUID generation
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA extensions;
 
 -- Crypto helpers (guest tags, secure defaults)
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
+CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;
 
 -- Cron jobs (para geração diária de puzzles)
 CREATE EXTENSION IF NOT EXISTS pg_cron SCHEMA extensions;
 
 -- HTTP requests (para chamar Edge Functions)
 CREATE EXTENSION IF NOT EXISTS pg_net SCHEMA extensions;
+
+-- Criar schema do Vault (necessário para instalar a extensão)
+CREATE SCHEMA IF NOT EXISTS vault;
+
+-- Secrets Vault (para pg_cron + Edge Functions)
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_available_extensions WHERE name = 'supabase_vault'
+  ) THEN
+    EXECUTE 'CREATE EXTENSION IF NOT EXISTS supabase_vault WITH SCHEMA vault';
+  ELSE
+    RAISE NOTICE 'Extensão supabase_vault indisponível nesta instância. Use app_private.runtime_secrets como fallback até configurar o Vault.';
+  END IF;
+END $$;
+
+-- =========================================================================
+-- 1.1 SECRET STORAGE DE FALLBACK (app_private)
+-- =========================================================================
+
+CREATE SCHEMA IF NOT EXISTS app_private;
+REVOKE ALL ON SCHEMA app_private FROM PUBLIC;
+GRANT USAGE ON SCHEMA app_private TO postgres;
+GRANT USAGE ON SCHEMA app_private TO supabase_admin;
+
+CREATE TABLE IF NOT EXISTS app_private.runtime_secrets (
+  name TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+COMMENT ON TABLE app_private.runtime_secrets IS 'Fallback local para segredos enquanto o Vault não está disponível';
+COMMENT ON COLUMN app_private.runtime_secrets.name IS 'Identificador único do segredo (ex: project_url)';
+COMMENT ON COLUMN app_private.runtime_secrets.value IS 'Valor armazenado temporariamente (mantido apenas lado servidor)';
+
+REVOKE ALL ON TABLE app_private.runtime_secrets FROM PUBLIC;
+GRANT SELECT, INSERT, UPDATE, DELETE ON app_private.runtime_secrets TO supabase_admin;
+
+CREATE OR REPLACE FUNCTION app_private.get_secret(p_name TEXT, p_required BOOLEAN DEFAULT false)
+RETURNS TEXT
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_value TEXT;
+BEGIN
+  IF to_regprocedure('vault.get_secret(text)') IS NOT NULL THEN
+    BEGIN
+      SELECT vault.get_secret(p_name) INTO v_value;
+    EXCEPTION
+      WHEN OTHERS THEN
+        v_value := NULL;
+    END;
+  END IF;
+
+  IF v_value IS NULL THEN
+    SELECT value
+    INTO v_value
+    FROM app_private.runtime_secrets
+    WHERE name = p_name;
+  END IF;
+
+  IF p_required AND v_value IS NULL THEN
+    RAISE EXCEPTION 'Secret "%" não configurado. Use o Vault (supabase_vault) ou a tabela app_private.runtime_secrets.', p_name;
+  END IF;
+
+  RETURN v_value;
+END;
+$$;
+
+COMMENT ON FUNCTION app_private.get_secret IS 'Obtém segredo do Vault (quando disponível) ou do fallback app_private.runtime_secrets';
 
 -- ============================================================================
 -- 2. TABELAS BASE (sem Foreign Keys)
@@ -51,7 +122,7 @@ CREATE EXTENSION IF NOT EXISTS pg_net SCHEMA extensions;
 -- 2.1 PROFILES - Perfis de utilizadores
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS profiles (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT extensions.uuid_generate_v4(),
   user_id UUID UNIQUE NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   username TEXT UNIQUE NOT NULL CHECK (char_length(username) >= 3 AND char_length(username) <= 20),
   display_name TEXT NOT NULL DEFAULT 'Convidado' CHECK (char_length(display_name) >= 3 AND char_length(display_name) <= 32),
@@ -59,7 +130,7 @@ CREATE TABLE IF NOT EXISTS profiles (
   country_code TEXT CHECK (char_length(country_code) = 2),
   experience_points INTEGER NOT NULL DEFAULT 0 CHECK (experience_points >= 0),
   is_anonymous BOOLEAN NOT NULL DEFAULT true,
-  guest_tag TEXT UNIQUE NOT NULL DEFAULT encode(gen_random_bytes(3), 'hex'),
+  guest_tag TEXT UNIQUE NOT NULL DEFAULT encode(extensions.gen_random_bytes(3), 'hex'),
   preferences JSONB NOT NULL DEFAULT '{}'::jsonb,
   last_seen TIMESTAMPTZ NOT NULL DEFAULT now(),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -93,7 +164,7 @@ COMMENT ON COLUMN dictionary_pt.definition IS 'Definição usada como pista nos 
 -- 2.3 WORD_CATEGORIES - Categorias temáticas de palavras
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS word_categories (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT extensions.uuid_generate_v4(),
   slug TEXT UNIQUE NOT NULL CHECK (slug ~ '^[a-z0-9-]+$'),
   name TEXT NOT NULL CHECK (char_length(name) >= 2),
   description TEXT,
@@ -126,7 +197,7 @@ COMMENT ON TABLE dictionary_categories IS 'Relação N:N entre palavras e catego
 -- 3.2 CROSSWORDS - Puzzles de palavras cruzadas
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS crosswords (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT extensions.uuid_generate_v4(),
   type TEXT NOT NULL CHECK (type IN ('daily', 'random', 'custom')),
   category_id UUID REFERENCES word_categories(id) ON DELETE SET NULL,
   grid_data JSONB NOT NULL,
@@ -150,7 +221,7 @@ COMMENT ON COLUMN crosswords.publish_date IS 'Data de publicação (apenas para 
 -- 3.3 WORDSEARCHES - Puzzles de sopa de letras
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS wordsearches (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT extensions.uuid_generate_v4(),
   type TEXT NOT NULL CHECK (type IN ('daily', 'random', 'custom')),
   category_id UUID REFERENCES word_categories(id) ON DELETE SET NULL,
   grid_data JSONB NOT NULL,
@@ -171,7 +242,7 @@ COMMENT ON COLUMN wordsearches.size IS 'Dimensão do grid (NxN)';
 -- 3.4 SCORES - Pontuações dos jogadores
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS scores (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT extensions.uuid_generate_v4(),
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   game_type TEXT NOT NULL CHECK (game_type IN ('crossword', 'wordsearch')),
   puzzle_id UUID NOT NULL,
@@ -190,7 +261,7 @@ COMMENT ON COLUMN scores.game_type IS 'Tipo de puzzle (crossword ou wordsearch)'
 -- 3.5 GAME_ROOMS - Salas de jogo multiplayer (futuro)
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS game_rooms (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT extensions.uuid_generate_v4(),
   host_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   game_type TEXT NOT NULL CHECK (game_type IN ('crossword', 'wordsearch', 'crossword_duel', 'wordsearch_duel', 'tic_tac_toe', 'battleship')),
   puzzle_id UUID NOT NULL,
@@ -234,7 +305,7 @@ COMMENT ON COLUMN player_ratings.deviation IS 'Incerteza do rating (Glicko RD)';
 -- 3.7 MATCHMAKING_QUEUE - Fila de emparelhamento tempo real
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS matchmaking_queue (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT extensions.uuid_generate_v4(),
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   game_type TEXT NOT NULL CHECK (game_type IN ('tic_tac_toe', 'battleship', 'crossword_duel', 'wordsearch_duel')),
   rating_snapshot INTEGER NOT NULL CHECK (rating_snapshot >= 0),
