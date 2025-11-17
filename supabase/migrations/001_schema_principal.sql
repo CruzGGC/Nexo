@@ -320,7 +320,6 @@ CREATE TABLE IF NOT EXISTS matchmaking_queue (
   joined_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   matched_at TIMESTAMPTZ,
   CONSTRAINT matchmaking_queue_owner_unique UNIQUE (user_id, game_type, status)
-    DEFERRABLE INITIALLY IMMEDIATE
 );
 
 COMMENT ON TABLE matchmaking_queue IS 'Entradas ativas/recente da fila de matchmaking';
