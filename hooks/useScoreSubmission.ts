@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react'
 import { apiFetch } from '@/lib/api-client'
+import { getSupabaseBrowserClient } from '@/lib/supabase-browser'
 import type { ScoreGameType } from '@/lib/types/games'
 
 type SubmissionStatus = 'idle' | 'saving' | 'success' | 'error'
@@ -25,8 +26,22 @@ export function useScoreSubmission(gameType: ScoreGameType) {
     setError(null)
 
     try {
+      const supabase = getSupabaseBrowserClient()
+      const { data: sessionData } = await supabase.auth.getSession()
+
+      const accessToken = sessionData.session?.access_token
+
+      if (!accessToken) {
+        setStatus('error')
+        setError('Sessão expirada. Por favor, inicia sessão novamente.')
+        return
+      }
+
       await apiFetch('/api/scores', {
         method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
         body: JSON.stringify({
           user_id: userId,
           puzzle_id: puzzleId,

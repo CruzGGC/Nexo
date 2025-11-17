@@ -83,18 +83,22 @@ CREATE OR REPLACE FUNCTION app_private.get_secret(p_name TEXT, p_required BOOLEA
 RETURNS TEXT
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, vault, app_private
 AS $$
 DECLARE
   v_value TEXT;
 BEGIN
-  IF to_regprocedure('vault.get_secret(text)') IS NOT NULL THEN
-    BEGIN
-      SELECT vault.get_secret(p_name) INTO v_value;
-    EXCEPTION
-      WHEN OTHERS THEN
-        v_value := NULL;
-    END;
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.views
+    WHERE table_schema = 'vault'
+      AND table_name = 'decrypted_secrets'
+  ) THEN
+    SELECT decrypted_secret
+    INTO v_value
+    FROM vault.decrypted_secrets
+    WHERE name = p_name
+    LIMIT 1;
   END IF;
 
   IF v_value IS NULL THEN
@@ -656,7 +660,7 @@ BEGIN
 
   v_preferences := COALESCE(NEW.raw_user_meta_data->'preferences', '{}'::jsonb);
 
-  INSERT INTO profiles (
+  INSERT INTO public.profiles (
     user_id,
     username,
     display_name,
@@ -676,7 +680,8 @@ BEGIN
   );
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public, auth, extensions;
 
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users

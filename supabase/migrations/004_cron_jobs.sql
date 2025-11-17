@@ -72,7 +72,7 @@ BEGIN
   PERFORM cron.schedule(
     'generate-daily-crossword',
     '0 0 * * *',
-    $$
+    $cron$
       SELECT net.http_post(
         url := app_private.get_secret('project_url', true) || '/functions/v1/generate-daily-crossword',
         headers := jsonb_build_object(
@@ -85,7 +85,7 @@ BEGIN
         ),
         timeout_milliseconds := 60000
       ) AS request_id;
-    $$
+    $cron$
   );
 
   BEGIN
@@ -98,7 +98,7 @@ BEGIN
   PERFORM cron.schedule(
     'generate-daily-wordsearch',
     '5 0 * * *',
-    $$
+    $cron$
       SELECT net.http_post(
         url := app_private.get_secret('project_url', true) || '/functions/v1/generate-daily-wordsearch',
         headers := jsonb_build_object(
@@ -111,7 +111,7 @@ BEGIN
         ),
         timeout_milliseconds := 60000
       ) AS request_id;
-    $$
+    $cron$
   );
 
   BEGIN
@@ -124,7 +124,7 @@ BEGIN
   PERFORM cron.schedule(
     'matchmaking-worker',
     '* * * * *',
-    $$
+    $cron$
       SELECT net.http_post(
         url := app_private.get_secret('project_url', true) || '/functions/v1/matchmaking-worker',
         headers := jsonb_build_object(
@@ -137,7 +137,7 @@ BEGIN
         ),
         timeout_milliseconds := 20000
       ) AS request_id;
-    $$
+    $cron$
   );
 
   RAISE NOTICE '✅ Jobs HTTP agendados com sucesso usando app_private.get_secret().';
@@ -193,7 +193,7 @@ END $$;
 SELECT cron.schedule(
   'cleanup-old-puzzles',                         -- job_name
   '0 3 * * 0',                                   -- schedule (03:00 aos Domingos)
-  $$SELECT cleanup_old_daily_puzzles();$$
+  $cron$SELECT cleanup_old_daily_puzzles();$cron$
 );
 
 -- ============================================================================

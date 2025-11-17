@@ -1,5 +1,7 @@
-import { supabase } from '@/lib/supabase'
 import { NextResponse } from 'next/server'
+import { supabase } from '@/lib/supabase'
+import { createServiceSupabaseClient } from '@/lib/supabase-server'
+import type { Database } from '@/lib/database.types'
 import type { ScoreGameType } from '@/lib/types/games'
 
 export const dynamic = 'force-dynamic'
@@ -11,8 +13,35 @@ const isValidGameType = (value: unknown): value is ScoreGameType =>
 
 export async function POST(request: Request) {
   try {
+    const accessToken = extractBearerToken(request)
+
+    if (!accessToken) {
+      return NextResponse.json(
+        { error: 'Não autenticado. Faça login para guardar pontuações.' },
+        { status: 401 }
+      )
+    }
+
+    const serviceClient = createServiceSupabaseClient()
+    const { data: authData, error: authError } = await serviceClient.auth.getUser(accessToken)
+
+    if (authError || !authData?.user) {
+      console.error('Erro ao validar sessão do utilizador:', authError)
+      return NextResponse.json(
+        { error: 'Sessão inválida. Por favor, autentique-se novamente.' },
+        { status: 401 }
+      )
+    }
+
     const body = await request.json()
     const { user_id, puzzle_id, time_ms, game_type } = body
+
+    if (user_id && user_id !== authData.user.id) {
+      return NextResponse.json(
+        { error: 'Não é permitido registar pontuações para outro utilizador.' },
+        { status: 403 }
+      )
+    }
 
     // Validação básica
     if (!user_id || !puzzle_id || !time_ms || !game_type) {
@@ -41,14 +70,18 @@ export async function POST(request: Request) {
     const normalizedGameType: ScoreGameType = game_type
 
     // Insere a pontuação
-    const { data, error } = await supabase
+    const payload: Database['public']['Tables']['scores']['Insert'] = {
+      user_id: authData.user.id,
+      game_type: normalizedGameType,
+      puzzle_id: String(puzzle_id),
+      time_ms: parsedTime,
+    }
+
+    const adminDb = serviceClient as unknown as typeof supabase
+
+    const { data, error } = await adminDb
       .from('scores')
-      .insert({
-        user_id,
-        game_type: normalizedGameType,
-        puzzle_id, // Agora é UUID
-        time_ms: parsedTime,
-      })
+      .insert(payload)
       .select()
       .single()
 
@@ -68,6 +101,20 @@ export async function POST(request: Request) {
       { status: 500 }
     )
   }
+}
+
+function extractBearerToken(request: Request) {
+  const header = request.headers.get('authorization')
+  if (!header) {
+    return null
+  }
+
+  const [scheme, token] = header.split(' ')
+  if (!token || scheme?.toLowerCase() !== 'bearer') {
+    return null
+  }
+
+  return token
 }
 
 // Buscar as melhores pontuações para um puzzle
