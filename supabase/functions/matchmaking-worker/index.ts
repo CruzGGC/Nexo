@@ -146,7 +146,7 @@ serve(async (req) => {
       const nowIso = new Date().toISOString()
       const updates = match.players.map((player, idx) => {
         const opponent = match.players[idx === 0 ? 1 : 0]
-  const baseMeta = { ...player.parsedMeta }
+        const baseMeta = { ...player.parsedMeta }
         const symbol = player.game_type === 'tic_tac_toe' ? (idx === 0 ? 'X' : 'O') : undefined
         const payload: Record<string, unknown> = {
           ...baseMeta,
@@ -164,6 +164,11 @@ serve(async (req) => {
 
         return {
           id: player.id,
+          user_id: player.user_id,
+          game_type: player.game_type,
+          rating_snapshot: player.rating_snapshot,
+          skill_bracket: player.skill_bracket,
+          region: player.region,
           status: 'matched',
           matched_at: nowIso,
           metadata: payload
