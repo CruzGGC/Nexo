@@ -74,7 +74,7 @@
 | `1600-1899` | `platina`     |
 | `>= 1900` | `diamante`     |
 
-- **Falhas**: caso algum `UPDATE`/`INSERT` falhe, o worker regista `warnings` e reverta o par para `status = 'queued'` para que um próximo ciclo tente novamente. Está desenhado para correr a cada minuto via `pg_cron` + `net.http_post` (`job: matchmaking-worker`).
+- **Falhas**: caso algum `UPDATE`/`INSERT` falhe, o RPC devolve `status='queued'` e o cliente mantém a presença ativa até tentar novamente. Qualquer limpeza adicional ocorre via cron de manutenção (remoção de filas antigas) e não depende mais de um worker dedicado.
 
 ### Multiplayer Battleship
 - **Game type**: `battleship` (10x10). `game_state` guarda duas grelhas por jogador (`ocean` e `tracking`) e um objeto `ships` com vida atual.

@@ -59,7 +59,15 @@ export default function TicTacToeGame() {
   const [inviteCode, setInviteCode] = useState('')
 
   const matchmaking = useMatchmaking('tic_tac_toe')
-  const { status: queueStatus, queueEntry, room, joinQueue, leaveQueue } = matchmaking
+  const { status: queueStatus, queueEntry, room, joinQueue, leaveQueue, lobbyStats } = matchmaking
+  const topRegions = useMemo(
+    () => Object.entries(lobbyStats.regions).sort((a, b) => b[1] - a[1]).slice(0, 3),
+    [lobbyStats.regions]
+  )
+  const topBrackets = useMemo(
+    () => Object.entries(lobbyStats.brackets).sort((a, b) => b[1] - a[1]).slice(0, 3),
+    [lobbyStats.brackets]
+  )
 
   const occupiedCells = board.filter(Boolean).length
 
@@ -273,7 +281,7 @@ export default function TicTacToeGame() {
                   Desafia amigos ou entra na fila global em segundos
                 </h1>
                 <p className="text-lg text-zinc-600 dark:text-zinc-300">
-                  O worker `matchmaking-worker` valida rating, região e códigos privados para abrir salas sincronizadas via Realtime.
+                  O novo RPC `matchmaking_join_and_create_room` valida rating, região e códigos privados em tempo real e abre salas instantâneas com presença Supabase.
                 </p>
                 <div className="flex flex-wrap gap-3 text-sm">
                   <span className="rounded-full border border-zinc-200/70 px-4 py-1 font-medium text-zinc-700 dark:border-zinc-800 dark:text-zinc-200">
@@ -291,6 +299,21 @@ export default function TicTacToeGame() {
                 <p className="text-xs uppercase tracking-[0.3em] text-sky-600 dark:text-sky-300">Estado</p>
                 <p className="mt-2 text-3xl font-semibold">{queueStatusLabel}</p>
                 <p className="text-xs text-zinc-500 dark:text-zinc-400">Atualizado automaticamente via Supabase Realtime</p>
+                <div className="mt-4 space-y-1 text-xs text-zinc-600 dark:text-zinc-400">
+                  <p>
+                    Jogadores ligados: <span className="font-semibold text-zinc-900 dark:text-white">{lobbyStats.total}</span>
+                  </p>
+                  {topRegions.length > 0 && (
+                    <p>
+                      Regiões em destaque: {topRegions.map(([region, count]) => `${region === 'global' ? 'Global' : region.toUpperCase()} (${count})`).join(' · ')}
+                    </p>
+                  )}
+                  {topBrackets.length > 0 && (
+                    <p>
+                      Escalões ativos: {topBrackets.map(([bracket, count]) => `${bracket.charAt(0).toUpperCase()}${bracket.slice(1)} (${count})`).join(' · ')}
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
           </header>
@@ -302,7 +325,7 @@ export default function TicTacToeGame() {
                   <div>
                     <p className="text-sm font-semibold text-zinc-600 dark:text-zinc-400">Fila pública</p>
                     <p className="text-2xl font-bold text-zinc-900 dark:text-white">Matchmaking automático</p>
-                    <p className="text-sm text-zinc-500 dark:text-zinc-400">Processado a cada minuto pelo cron job `matchmaking-worker`.</p>
+                    <p className="text-sm text-zinc-500 dark:text-zinc-400">Emparelhamento instantâneo via RPC transacional e presença Realtime.</p>
                   </div>
                   <div className="text-right text-sm text-zinc-500 dark:text-zinc-400">
                     <p>Estado atual</p>
@@ -348,6 +371,20 @@ export default function TicTacToeGame() {
                   ) : (
                     <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">Sem sala sincronizada. Junta-te à fila ou cria um código.</p>
                   )}
+                </div>
+
+                <div className="rounded-2xl border border-sky-100 bg-sky-50/60 p-5 dark:border-sky-500/30 dark:bg-sky-500/10">
+                  <p className="text-sm font-semibold text-sky-900 dark:text-sky-100">Monitor do lobby</p>
+                  <p className="mt-1 text-3xl font-bold text-sky-900 dark:text-white">{lobbyStats.total}</p>
+                  <p className="text-xs text-sky-700 dark:text-sky-200">Jogadores preparados neste modo</p>
+                  <div className="mt-4 space-y-2 text-xs text-sky-900 dark:text-sky-100">
+                    <p>
+                      Regiões: {topRegions.length > 0 ? topRegions.map(([region, count]) => `${region === 'global' ? 'Global' : region.toUpperCase()} (${count})`).join(' · ') : 'A aguardar ligações'}
+                    </p>
+                    <p>
+                      Escalões: {topBrackets.length > 0 ? topBrackets.map(([bracket, count]) => `${bracket.charAt(0).toUpperCase()}${bracket.slice(1)} (${count})`).join(' · ') : 'Sem dados suficientes'}
+                    </p>
+                  </div>
                 </div>
 
                 <div className="rounded-2xl border border-zinc-200/70 bg-white/80 p-5 dark:border-zinc-800 dark:bg-zinc-900">
@@ -422,7 +459,7 @@ export default function TicTacToeGame() {
               <div className="rounded-3xl border border-zinc-200/60 bg-gradient-to-br from-zinc-50 via-white to-amber-50 p-6 text-sm shadow-xl dark:border-zinc-800 dark:from-zinc-900 dark:via-black dark:to-amber-900/10">
                 <h3 className="text-lg font-semibold text-zinc-900 dark:text-white">Checklist do modo online</h3>
                 <ul className="mt-4 space-y-3 text-zinc-600 dark:text-zinc-300">
-                  <li>• Cron job `matchmaking-worker` ativo (ver em `cron_jobs_status`).</li>
+                  <li>• RPC `matchmaking_join_and_create_room` funcional (ver em `pg_proc`).</li>
                   <li>• Sala atualizada via `updateRoomState` assim que ambos marcam “Pronto”.</li>
                   <li>• Próximo passo: sincronizar jogadas em tempo real quando o puzzle 3x3 estiver em modo duel.</li>
                 </ul>

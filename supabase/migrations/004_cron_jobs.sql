@@ -114,32 +114,6 @@ BEGIN
     $cron$
   );
 
-  BEGIN
-    PERFORM cron.unschedule('matchmaking-worker');
-  EXCEPTION
-    WHEN OTHERS THEN
-      RAISE NOTICE 'Job matchmaking-worker não existe (primeira execução)';
-  END;
-
-  PERFORM cron.schedule(
-    'matchmaking-worker',
-    '* * * * *',
-    $cron$
-      SELECT net.http_post(
-        url := app_private.get_secret('project_url', true) || '/functions/v1/matchmaking-worker',
-        headers := jsonb_build_object(
-          'Content-Type', 'application/json',
-          'Authorization', 'Bearer ' || app_private.get_secret('service_role_key', true)
-        ),
-        body := jsonb_build_object(
-          'triggered_by', 'cron',
-          'gameType', 'tic_tac_toe'
-        ),
-        timeout_milliseconds := 20000
-      ) AS request_id;
-    $cron$
-  );
-
   RAISE NOTICE '✅ Jobs HTTP agendados com sucesso usando app_private.get_secret().';
 END $$;
 
@@ -335,8 +309,7 @@ BEGIN
   RAISE NOTICE '📋 Jobs configurados:';
   RAISE NOTICE '  1. generate-daily-crossword (00:00 diariamente)';
   RAISE NOTICE '  2. generate-daily-wordsearch (00:05 diariamente)';
-  RAISE NOTICE '  3. matchmaking-worker (a cada minuto)';
-  RAISE NOTICE '  4. cleanup-old-puzzles (03:00 aos Domingos)';
+  RAISE NOTICE '  3. cleanup-old-puzzles (03:00 aos Domingos)';
   RAISE NOTICE '';
   RAISE NOTICE '🔍 Para diagnóstico: SELECT * FROM diagnose_cron_setup();';
   RAISE NOTICE '📊 Ver jobs: SELECT * FROM cron_jobs_status;';

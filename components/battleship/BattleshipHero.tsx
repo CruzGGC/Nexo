@@ -19,7 +19,7 @@ export function BattleshipHero({ statusMessage, roomCode, phase }: BattleshipHer
             Domina o Atlântico digital com animações e matchmaking Supabase
           </h1>
           <p className="text-lg text-slate-600 dark:text-slate-300">
-            Coloca a frota, partilha um código privado ou entra na fila global. O worker `matchmaking-worker` trata do emparelhamento e abre uma sala segura em segundos.
+            Coloca a frota, partilha um código privado ou entra na fila global. O emparelhamento agora vive no RPC `matchmaking_join_and_create_room` com presença Realtime, abrindo salas seguras em segundos.
           </p>
           <div className="flex flex-wrap gap-3 text-sm">
             <span className="rounded-full border border-slate-200/80 px-3 py-1 text-slate-700 dark:border-slate-700 dark:text-slate-200">
