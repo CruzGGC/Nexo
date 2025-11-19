@@ -12,6 +12,7 @@ type GameStatus = 'playing' | 'win' | 'draw'
 
 type Mode = 'casual' | 'relampago'
 type ViewMode = 'local' | 'matchmaking'
+type SeriesLengthOption = 3 | 5
 
 const WIN_PATTERNS = [
   [0, 1, 2],
@@ -40,6 +41,25 @@ type RoomParticipant = {
   display_name?: string
 }
 
+type RoundRecord = {
+  id: string
+  round: number
+  winner: CellValue | null
+  draw: boolean
+  moves: number
+  finishedAt: string
+}
+
+type SeriesState = {
+  length: SeriesLengthOption
+  wins: Record<'X' | 'O', number>
+  draws: number
+  rounds: RoundRecord[]
+  winner?: CellValue | null
+  awaitingReset?: boolean
+  eloDelta?: Record<'X' | 'O', number>
+}
+
 type RoomGameState = {
   room_code?: string
   variant?: string
@@ -51,6 +71,8 @@ type RoomGameState = {
   winningLine?: number[] | null
   winner?: CellValue | null
   lastMoveAt?: string
+  seriesState?: SeriesState
+  roundMoves?: number
 }
 
 type NormalizedRoomState = RoomGameState & {
@@ -60,6 +82,8 @@ type NormalizedRoomState = RoomGameState & {
   phase: NonNullable<RoomGameState['phase']>
   winningLine: number[] | null
   winner: CellValue | null
+  seriesState: SeriesState
+  roundMoves: number
 }
 
 const FRIENDS = [
@@ -81,6 +105,7 @@ export default function TicTacToeGame() {
   const [bursts, setBursts] = useState<ConfettiBurst[]>([])
   const [generatedCode, setGeneratedCode] = useState(() => generateMatchCode())
   const [inviteCode, setInviteCode] = useState('')
+  const [seriesChoice, setSeriesChoice] = useState<SeriesLengthOption>(3)
   const { user } = useAuth()
 
   const matchmaking = useMatchmaking('tic_tac_toe')
@@ -191,7 +216,14 @@ export default function TicTacToeGame() {
       return queueEntry.metadata as Record<string, unknown>
     }
     return null
-  }, [queueEntry?.metadata])
+  }, [queueEntry])
+
+  const preferredSeriesLength = useMemo<SeriesLengthOption>(() => {
+    const incoming = queueMetadata?.series_length
+    if (incoming === 5 || incoming === '5') return 5
+    if (incoming === 3 || incoming === '3') return 3
+    return seriesChoice
+  }, [queueMetadata?.series_length, seriesChoice])
 
   const roomState = room?.game_state && typeof room.game_state === 'object' ? (room.game_state as RoomGameState) : null
   const playerSymbol: CellValue = queueMetadata?.symbol === 'O' ? 'O' : 'X'
@@ -202,6 +234,7 @@ export default function TicTacToeGame() {
   const remoteWinningLine = Array.isArray(roomState?.winningLine) ? (roomState.winningLine as number[]) : null
   const remoteWinner = roomState?.winner === 'X' || roomState?.winner === 'O' ? roomState.winner : null
   const remoteCurrentPlayer: CellValue = roomState?.currentPlayer === 'O' ? 'O' : 'X'
+  const remoteSeriesState = useMemo(() => hydrateSeriesState(roomState?.seriesState, preferredSeriesLength), [roomState?.seriesState, preferredSeriesLength])
   const remoteParticipants: RoomParticipant[] = Array.isArray(roomState?.participants)
     ? (roomState.participants as RoomParticipant[])
     : []
@@ -214,28 +247,82 @@ export default function TicTacToeGame() {
     remotePhase === 'playing' &&
     remoteStatus === 'playing' &&
     remoteBoard !== null &&
-    remoteCurrentPlayer === playerSymbol
+    remoteCurrentPlayer === playerSymbol &&
+    !remoteSeriesState.awaitingReset &&
+    !remoteSeriesState.winner
   const remotePhaseNotPlayable = remotePhase !== undefined && remotePhase !== 'playing'
   const remoteStatusLabel = useMemo(() => {
     if (!room) return 'Sem sala sincronizada'
     if (!remoteBoard) return 'A preparar tabuleiro online…'
+    if (remoteSeriesState.winner) {
+      return remoteSeriesState.winner === playerSymbol ? 'Série vencida' : 'Série perdida'
+    }
+    if (remoteSeriesState.awaitingReset) {
+      return 'Ronda concluída — prepara o reset'
+    }
     if (remotePhase === 'finished' || remoteStatus === 'win' || remoteStatus === 'draw') {
       if (remoteStatus === 'draw') return 'Empate confirmado'
       return remoteWinner ? `Vitória de ${remoteWinner}` : 'Partida concluída'
     }
     if (remotePhase === 'waiting') return 'A aguardar ligação do adversário'
     return isPlayerTurn ? 'É a tua vez de jogar' : 'Aguardando jogada do adversário'
-  }, [room, remoteBoard, remotePhase, remoteStatus, remoteWinner, isPlayerTurn])
+  }, [room, remoteBoard, remotePhase, remoteStatus, remoteWinner, isPlayerTurn, remoteSeriesState, playerSymbol])
+
+  const roundsToWin = Math.ceil(remoteSeriesState.length / 2)
+  const playerWins = remoteSeriesState.wins[playerSymbol]
+  const opponentWins = remoteSeriesState.wins[opponentSymbol]
+  const seriesSlots = useMemo(() => Array.from({ length: remoteSeriesState.length }, (_, index) => remoteSeriesState.rounds[index] ?? null), [remoteSeriesState])
+  const totalRoundsPlayed = remoteSeriesState.rounds.length
+  const totalMovesPlayed = useMemo(() => remoteSeriesState.rounds.reduce((sum, round) => sum + (round.moves ?? 0), 0), [remoteSeriesState])
+  const fastestPlayerRound = useMemo(() => {
+    const wins = remoteSeriesState.rounds.filter(round => round.winner === playerSymbol)
+    if (wins.length === 0) return null
+    return wins.reduce((best, round) => (best === null || round.moves < best ? round.moves : best), null as number | null)
+  }, [remoteSeriesState, playerSymbol])
+  const playerMaxStreak = useMemo(() => {
+    let best = 0
+    let currentCount = 0
+    remoteSeriesState.rounds.forEach(round => {
+      if (round.winner === playerSymbol) {
+        currentCount += 1
+        best = Math.max(best, currentCount)
+      } else if (!round.draw) {
+        currentCount = 0
+      }
+    })
+    return best
+  }, [remoteSeriesState, playerSymbol])
+  const playerEloDelta = remoteSeriesState.eloDelta?.[playerSymbol] ?? 0
+  const opponentEloDelta = remoteSeriesState.eloDelta?.[opponentSymbol] ?? 0
+  const seriesComplete = Boolean(remoteSeriesState.winner)
+  const playerSeriesVictory = remoteSeriesState.winner === playerSymbol
+  const playerName = playerParticipant?.display_name ?? 'Tu'
+  const opponentName = opponentParticipant?.display_name ?? 'Adversário'
+  const boardMessage = useMemo(() => {
+    if (seriesComplete) {
+      return playerSeriesVictory
+        ? 'Série encerrada — o teu Elo já foi atualizado.'
+        : 'Derrota confirmada. Volta ao lobby para tentares novamente.'
+    }
+    if (remoteSeriesState.awaitingReset) {
+      return 'Ronda fechada. Inicia a próxima para limpar o tabuleiro.'
+    }
+    if (!remoteBoard) {
+      return 'A sincronizar tabuleiro remoto…'
+    }
+    return isPlayerTurn ? 'É a tua vez — joga com precisão.' : 'Aguardando a jogada do adversário.'
+  }, [seriesComplete, playerSeriesVictory, remoteSeriesState.awaitingReset, remoteBoard, isPlayerTurn])
 
   const ensureRoomReady = useCallback(async () => {
     if (!room || !queueEntry || remoteBoard) return
     try {
       await updateRoomState(current => {
         const existing = (current ?? {}) as RoomGameState
-        if (Array.isArray(existing.board) && existing.board.length === 9) {
+        if (Array.isArray(existing.board) && existing.board.length === 9 && existing.seriesState) {
           return (current ?? ({} as Json)) as Json
         }
         const participants = mergeParticipants(existing.participants, localPlayerId, opponentId, playerSymbol)
+        const seriesState = hydrateSeriesState(existing.seriesState, preferredSeriesLength)
         const nextState: RoomGameState = {
           ...existing,
           board: buildEmptyBoard(),
@@ -245,14 +332,16 @@ export default function TicTacToeGame() {
           participants,
           winningLine: null,
           winner: null,
-          lastMoveAt: new Date().toISOString()
+          lastMoveAt: new Date().toISOString(),
+          seriesState,
+          roundMoves: 0
         }
         return nextState as unknown as Json
       })
     } catch (err) {
       console.error('Falha ao preparar estado remoto', err)
     }
-  }, [room, queueEntry, remoteBoard, updateRoomState, localPlayerId, opponentId, playerSymbol])
+  }, [room, queueEntry, remoteBoard, updateRoomState, localPlayerId, opponentId, playerSymbol, preferredSeriesLength])
 
   useEffect(() => {
     if (queueStatus !== 'matched') return
@@ -267,10 +356,11 @@ export default function TicTacToeGame() {
     if (queueStatus !== 'matched') return
     if (remotePhase !== 'playing' || remoteStatus !== 'playing') return
     if (remoteCurrentPlayer !== playerSymbol) return
+    if (remoteSeriesState.awaitingReset || remoteSeriesState.winner) return
 
     try {
       await updateRoomState(current => {
-        const state = normalizeStateForUpdate(current, localPlayerId, opponentId, playerSymbol)
+        const state = normalizeStateForUpdate(current, localPlayerId, opponentId, playerSymbol, preferredSeriesLength)
         if (state.phase !== 'playing' || state.status !== 'playing') {
           return state as unknown as Json
         }
@@ -282,23 +372,70 @@ export default function TicTacToeGame() {
         nextBoard[index] = playerSymbol
         const winningLine = findWinningLine(nextBoard, playerSymbol)
         const draw = !winningLine && nextBoard.every(Boolean)
+        const moves = state.roundMoves + 1
+
+        let nextSeriesState = state.seriesState
+        let nextPhase: RoomGameState['phase'] = state.phase
+        let nextStatus: GameStatus = 'playing'
+        let nextWinner: CellValue | null = state.winner ?? null
+
+        if (winningLine || draw) {
+          nextSeriesState = concludeSeriesRound(state.seriesState, {
+            winner: winningLine ? playerSymbol : null,
+            draw,
+            moves
+          })
+          nextPhase = nextSeriesState.winner ? 'finished' : 'ready'
+          nextStatus = winningLine ? 'win' : 'draw'
+          nextWinner = winningLine ? playerSymbol : null
+        }
 
         const nextState: RoomGameState = {
           ...state,
           board: nextBoard,
           currentPlayer: playerSymbol === 'X' ? 'O' : 'X',
-          status: winningLine ? 'win' : draw ? 'draw' : 'playing',
-          phase: winningLine || draw ? 'finished' : state.phase,
+          status: nextStatus,
+          phase: nextPhase,
           winningLine: winningLine ?? null,
-          winner: winningLine ? playerSymbol : draw ? null : state.winner ?? null,
-          lastMoveAt: new Date().toISOString()
+          winner: nextWinner,
+          lastMoveAt: new Date().toISOString(),
+          seriesState: nextSeriesState,
+          roundMoves: moves
         }
         return nextState as unknown as Json
       })
     } catch (err) {
       console.error('Falha ao enviar jogada remota', err)
     }
-  }, [room, queueEntry, remoteBoard, queueStatus, remotePhase, remoteStatus, remoteCurrentPlayer, playerSymbol, updateRoomState, localPlayerId, opponentId])
+  }, [room, queueEntry, remoteBoard, queueStatus, remotePhase, remoteStatus, remoteCurrentPlayer, playerSymbol, updateRoomState, localPlayerId, opponentId, preferredSeriesLength, remoteSeriesState.awaitingReset, remoteSeriesState.winner])
+
+  const handleStartNextRound = useCallback(async () => {
+    if (!room || !queueEntry) return
+    if (!remoteSeriesState.awaitingReset || remoteSeriesState.winner) return
+    try {
+      await updateRoomState(current => {
+        const state = normalizeStateForUpdate(current, localPlayerId, opponentId, playerSymbol, preferredSeriesLength)
+        if (!state.seriesState.awaitingReset || state.seriesState.winner) {
+          return state as unknown as Json
+        }
+        const nextState: RoomGameState = {
+          ...state,
+          board: buildEmptyBoard(),
+          currentPlayer: 'X',
+          status: 'playing',
+          phase: 'playing',
+          winningLine: null,
+          winner: null,
+          lastMoveAt: new Date().toISOString(),
+          seriesState: { ...state.seriesState, awaitingReset: false },
+          roundMoves: 0
+        }
+        return nextState as unknown as Json
+      })
+    } catch (err) {
+      console.error('Falha ao iniciar próxima ronda', err)
+    }
+  }, [room, queueEntry, remoteSeriesState.awaitingReset, remoteSeriesState.winner, updateRoomState, localPlayerId, opponentId, playerSymbol, preferredSeriesLength])
   const derivedRoomCode = typeof roomState?.room_code === 'string'
     ? roomState.room_code
     : typeof queueMetadata?.room_code === 'string'
@@ -306,24 +443,24 @@ export default function TicTacToeGame() {
       : null
 
   const handleJoinPublic = async () => {
-    await joinQueue({ mode: 'public', metadata: { variant: mode } })
+    await joinQueue({ mode: 'public', metadata: { variant: mode, series_length: seriesChoice } })
   }
 
   const handleCreatePrivate = async () => {
     const code = generatedCode?.trim() || generateMatchCode()
     setGeneratedCode(code)
-    await joinQueue({ mode: 'private', matchCode: code, seat: 'host', metadata: { variant: mode, room_code: code } })
+    await joinQueue({ mode: 'private', matchCode: code, seat: 'host', metadata: { variant: mode, room_code: code, series_length: seriesChoice } })
   }
 
   const handleJoinWithCode = async () => {
     if (!inviteCode.trim()) return
-    await joinQueue({ mode: 'private', matchCode: inviteCode.trim().toUpperCase(), seat: 'guest', metadata: { variant: mode } })
+    await joinQueue({ mode: 'private', matchCode: inviteCode.trim().toUpperCase(), seat: 'guest', metadata: { variant: mode, series_length: seriesChoice } })
   }
 
   const handleFriendInvite = async (friendId: string) => {
     const code = generateMatchCode()
     setGeneratedCode(code)
-    await joinQueue({ mode: 'private', matchCode: code, seat: 'host', metadata: { invitee: friendId, variant: mode, room_code: code } })
+    await joinQueue({ mode: 'private', matchCode: code, seat: 'host', metadata: { invitee: friendId, variant: mode, room_code: code, series_length: seriesChoice } })
   }
 
   const resetLocalState = () => {
@@ -394,6 +531,283 @@ export default function TicTacToeGame() {
             </button>
           </div>
           <p className="mt-10 text-sm text-zinc-500 dark:text-zinc-400">Todos os modos em PT-PT com suporte total a dark mode.</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (selectedMode === 'matchmaking' && queueStatus === 'matched') {
+    const seriesSubtitle = seriesComplete
+      ? 'Série concluída — o Elo foi sincronizado automaticamente com a tua conta.'
+      : `Primeiro a ${roundsToWin} vitórias vence a série.`
+
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-zinc-950 via-slate-950 to-black px-4 py-10 text-zinc-50">
+        <div className="mx-auto max-w-5xl space-y-8">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <button
+              type="button"
+              onClick={() => void handleBackToSelection()}
+              className="text-sm font-semibold text-zinc-300 transition hover:text-white"
+            >
+              ← Sair da série
+            </button>
+            <div className="flex flex-wrap items-center gap-2 text-[0.65rem] font-semibold uppercase tracking-[0.35em] text-zinc-500">
+              <span className="rounded-full border border-white/10 px-3 py-1">Melhor de {remoteSeriesState.length}</span>
+              <span className="rounded-full border border-white/10 px-3 py-1">Sala {derivedRoomCode ?? room?.id ?? '—'}</span>
+            </div>
+          </div>
+
+          <section className="rounded-3xl border border-white/10 bg-white/5 p-8 shadow-[0_30px_120px_rgba(0,0,0,0.45)] backdrop-blur">
+            <div className="flex flex-col gap-8 lg:flex-row">
+              <div className="space-y-6 lg:flex-1">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-400">Série online</p>
+                  <h1 className="mt-2 text-4xl font-bold text-white sm:text-5xl">
+                    {seriesComplete ? (playerSeriesVictory ? 'Série conquistada!' : 'Derrota honrosa') : remoteStatusLabel}
+                  </h1>
+                  <p className="mt-2 text-sm text-zinc-400">{seriesSubtitle}</p>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className={`rounded-2xl border px-5 py-4 ${playerSeriesVictory ? 'border-emerald-400/60 bg-emerald-500/5' : 'border-white/10 bg-white/5'}`}>
+                    <div className="flex items-center justify-between text-xs uppercase tracking-[0.3em] text-zinc-400">
+                      <span>{playerName}</span>
+                      <span className="font-mono text-base text-zinc-200">{playerSymbol}</span>
+                    </div>
+                    <p className="mt-3 text-4xl font-bold text-white">{playerWins}</p>
+                    <p className="text-xs text-zinc-400">Vitórias</p>
+                    {seriesComplete && (
+                      <p className={`mt-3 text-sm font-semibold ${playerEloDelta >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>
+                        {playerEloDelta >= 0 ? `+${playerEloDelta}` : playerEloDelta} Elo
+                      </p>
+                    )}
+                  </div>
+                  <div className={`rounded-2xl border px-5 py-4 ${!playerSeriesVictory && seriesComplete ? 'border-rose-400/60 bg-rose-500/5' : 'border-white/10 bg-white/5'}`}>
+                    <div className="flex items-center justify-between text-xs uppercase tracking-[0.3em] text-zinc-400">
+                      <span>{opponentName}</span>
+                      <span className="font-mono text-base text-zinc-200">{opponentSymbol}</span>
+                    </div>
+                    <p className="mt-3 text-4xl font-bold text-white">{opponentWins}</p>
+                    <p className="text-xs text-zinc-400">Vitórias</p>
+                    {seriesComplete && (
+                      <p className={`mt-3 text-sm font-semibold ${opponentEloDelta >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>
+                        {opponentEloDelta >= 0 ? `+${opponentEloDelta}` : opponentEloDelta} Elo
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between text-xs uppercase tracking-[0.3em] text-zinc-500">
+                    <span>Progresso da série</span>
+                    <span>{playerWins} - {opponentWins}</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {seriesSlots.map((roundSlot, index) => {
+                      const slotState = roundSlot?.draw
+                        ? 'draw'
+                        : roundSlot?.winner === playerSymbol
+                          ? 'player'
+                          : roundSlot?.winner === opponentSymbol
+                            ? 'opponent'
+                            : 'pending'
+                      const slotClass =
+                        slotState === 'player'
+                          ? 'border-emerald-400/70 bg-emerald-500/10 text-emerald-200'
+                          : slotState === 'opponent'
+                            ? 'border-rose-400/70 bg-rose-500/10 text-rose-200'
+                            : slotState === 'draw'
+                              ? 'border-amber-400/60 bg-amber-500/10 text-amber-200'
+                              : 'border-white/15 text-zinc-500'
+                      const slotLabel =
+                        slotState === 'player'
+                          ? `${playerName} venceu`
+                          : slotState === 'opponent'
+                            ? `${opponentName} venceu`
+                            : slotState === 'draw'
+                              ? 'Empate'
+                              : 'Por disputar'
+                      return (
+                        <span
+                          key={`serie-slot-${index}`}
+                          title={slotLabel}
+                          className={`flex h-10 w-10 items-center justify-center rounded-full border text-sm font-semibold ${slotClass}`}
+                        >
+                          {index + 1}
+                        </span>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {!seriesComplete && remoteSeriesState.awaitingReset && (
+                  <button
+                    type="button"
+                    onClick={() => void handleStartNextRound()}
+                    className="inline-flex items-center gap-2 rounded-full border border-emerald-400/60 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-500/20"
+                  >
+                    🔁 Iniciar próxima ronda
+                  </button>
+                )}
+              </div>
+
+              <div className="lg:w-[420px]">
+                <div className="rounded-3xl border border-white/10 bg-zinc-950/60 p-6">
+                  {remoteBoard ? (
+                    <div className="grid grid-cols-3 gap-3">
+                      {remoteBoard.map((cell, index) => {
+                        const isWinning = remoteWinningLine?.includes(index)
+                        const disableCell =
+                          Boolean(cell) ||
+                          !isPlayerTurn ||
+                          remotePhaseNotPlayable ||
+                          remoteStatus !== 'playing' ||
+                          remoteSeriesState.awaitingReset ||
+                          seriesComplete
+                        return (
+                          <button
+                            key={`active-${index}`}
+                            type="button"
+                            aria-label={`Casa ${BOARD_LABELS[index]}`}
+                            onClick={() => handleRemoteCellClick(index)}
+                            disabled={disableCell}
+                            className={`relative flex h-28 items-center justify-center rounded-2xl border text-5xl font-semibold transition-all duration-200 ${
+                              cell
+                                ? 'border-white/20 bg-white/10 text-white'
+                                : 'border-dashed border-white/15 text-white/40 hover:border-white/40 hover:text-white'
+                            } ${
+                              isWinning
+                                ? 'border-emerald-400 bg-emerald-500/10 shadow-[0_0_35px_rgba(16,185,129,0.35)]'
+                                : ''
+                            } ${disableCell ? 'cursor-not-allowed opacity-60' : ''}`}
+                          >
+                            {cell && (
+                              <span className={cell === 'X' ? 'text-emerald-300' : 'text-sky-300'}>{cell}</span>
+                            )}
+                            {isWinning && <span className="absolute inset-0 rounded-2xl border-2 border-emerald-300/60" />}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-3 gap-3">
+                      {Array.from({ length: 9 }).map((_, index) => (
+                        <div key={`skeleton-${index}`} className="h-28 rounded-2xl border border-white/10 bg-white/5" />
+                      ))}
+                    </div>
+                  )}
+                  <p className="mt-4 text-sm text-zinc-400">{boardMessage}</p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-3xl border border-white/10 bg-white/5 p-6">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-400">Histórico</p>
+                <h2 className="text-xl font-semibold text-white">Rondas jogadas</h2>
+              </div>
+              <span className="text-xs text-zinc-500">Atualiza em tempo real via Realtime</span>
+            </div>
+            <div className="mt-4 space-y-3">
+              {remoteSeriesState.rounds.length === 0 && (
+                <p className="text-sm text-zinc-400">Ainda sem rondas concluídas — começa a primeira jogada!</p>
+              )}
+              {remoteSeriesState.rounds.map(round => {
+                const label = round.draw
+                  ? 'Empate tenso'
+                  : round.winner === playerSymbol
+                    ? `${playerName} venceu`
+                    : `Vitória de ${opponentName}`
+                const finishedDate = new Date(round.finishedAt)
+                const timestamp = Number.isNaN(finishedDate.getTime())
+                  ? '—'
+                  : finishedDate.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })
+                return (
+                  <div
+                    key={round.id}
+                    className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-zinc-900/40 px-4 py-3"
+                  >
+                    <div>
+                      <p className="text-sm font-semibold text-white">Ronda {round.round}</p>
+                      <p className="text-xs text-zinc-400">{label}</p>
+                    </div>
+                    <div className="text-right text-xs text-zinc-500">
+                      <p>{round.moves} jogadas</p>
+                      <p>{timestamp}</p>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </section>
+
+          {seriesComplete && (
+            <section className="rounded-3xl border border-white/10 bg-gradient-to-br from-emerald-600/10 via-white/5 to-sky-500/10 p-8">
+              <p className="text-xs font-semibold uppercase tracking-[0.4em] text-zinc-400">Fim da série</p>
+              <h3 className="mt-2 text-3xl font-bold text-white">
+                {playerSeriesVictory ? 'Campeão confirmado' : 'Continua a treinar'}
+              </h3>
+              <p className="mt-2 text-sm text-zinc-300">
+                {playerSeriesVictory
+                  ? 'Partilha esta vitória com os amigos ou regressa ao lobby para procurar o próximo desafio.'
+                  : 'Aprende com esta série e volta ao lobby para tentar recuperar o Elo perdido.'}
+              </p>
+
+              <div className="mt-6 flex flex-wrap gap-4">
+                <div className={`rounded-2xl border px-5 py-4 text-lg font-semibold ${playerEloDelta >= 0 ? 'border-emerald-400/60 text-emerald-200' : 'border-rose-400/60 text-rose-200'}`}>
+                  {playerEloDelta >= 0 ? `+${playerEloDelta}` : playerEloDelta} Elo
+                  <p className="text-xs font-normal text-zinc-400">{playerName}</p>
+                </div>
+                <div className="rounded-2xl border border-white/10 px-5 py-4 text-sm text-zinc-200">
+                  Adversário: {opponentEloDelta >= 0 ? `+${opponentEloDelta}` : opponentEloDelta} Elo
+                </div>
+              </div>
+
+              <div className="mt-6 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                {[
+                  {
+                    label: 'Rondas jogadas',
+                    value: totalRoundsPlayed,
+                    hint: `Máximo de ${remoteSeriesState.length}`
+                  },
+                  {
+                    label: 'Jogadas totais',
+                    value: totalMovesPlayed,
+                    hint: `${totalRoundsPlayed ? Math.round(totalMovesPlayed / totalRoundsPlayed) : 0} por ronda`
+                  },
+                  {
+                    label: 'Empates intensos',
+                    value: remoteSeriesState.draws,
+                    hint: `Streak máx: ${playerMaxStreak}`
+                  },
+                  {
+                    label: 'Vitória mais rápida',
+                    value: fastestPlayerRound ? `${fastestPlayerRound} jogadas` : '—',
+                    hint: fastestPlayerRound ? 'Registada nesta série' : 'Ainda por registar'
+                  }
+                ].map(stat => (
+                  <div key={stat.label} className="rounded-2xl border border-white/10 bg-zinc-900/40 px-5 py-4">
+                    <p className="text-xs uppercase tracking-[0.3em] text-zinc-400">{stat.label}</p>
+                    <p className="mt-2 text-2xl font-semibold text-white">{stat.value}</p>
+                    <p className="text-xs text-zinc-500">{stat.hint}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-6 flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={() => void handleBackToSelection()}
+                  className="inline-flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
+                >
+                  ← Voltar ao lobby
+                </button>
+              </div>
+            </section>
+          )}
         </div>
       </div>
     )
@@ -497,6 +911,28 @@ export default function TicTacToeGame() {
                     ✋ Cancelar procura
                     <span className="mt-1 block text-xs font-normal text-zinc-500 dark:text-zinc-400">Liberta a vaga quando quiseres</span>
                   </button>
+                </div>
+
+                <div className="rounded-2xl border border-amber-100 bg-amber-50/70 p-5 dark:border-amber-500/30 dark:bg-amber-500/10">
+                  <p className="text-sm font-semibold text-amber-900 dark:text-amber-100">Formato da série</p>
+                  <p className="text-xs text-amber-900/80 dark:text-amber-200/80">Escolhe antes de entrares na fila pública ou de gerar códigos privados.</p>
+                  <div className="mt-3 inline-flex rounded-2xl border border-amber-200 bg-white/80 p-1 text-sm font-semibold text-amber-700 dark:border-amber-500/40 dark:bg-zinc-900/70 dark:text-amber-200">
+                    {([3, 5] as SeriesLengthOption[]).map(length => (
+                      <button
+                        key={`series-${length}`}
+                        type="button"
+                        onClick={() => setSeriesChoice(length)}
+                        className={`rounded-2xl px-4 py-2 transition ${
+                          seriesChoice === length
+                            ? 'bg-white text-amber-900 shadow-sm dark:bg-amber-500/20 dark:text-white'
+                            : 'text-amber-600/70 dark:text-amber-200/70'
+                        }`}
+                      >
+                        Melhor de {length}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="mt-2 text-[0.7rem] text-amber-900/70 dark:text-amber-100/70">Partilhamos esta escolha com o adversário assim que a sala fica ativa.</p>
                 </div>
 
                 <div className="rounded-2xl border border-zinc-100 bg-zinc-50/70 p-5 dark:border-zinc-800 dark:bg-zinc-900/60">
@@ -911,6 +1347,98 @@ function buildEmptyBoard(): CellValue[] {
   return Array.from({ length: 9 }, () => null as CellValue)
 }
 
+function createEmptySeriesState(length: SeriesLengthOption): SeriesState {
+  return {
+    length,
+    wins: { X: 0, O: 0 },
+    draws: 0,
+    rounds: [],
+    awaitingReset: false,
+    eloDelta: { X: 0, O: 0 }
+  }
+}
+
+function hydrateSeriesState(raw: unknown, fallbackLength: SeriesLengthOption): SeriesState {
+  if (!raw || typeof raw !== 'object') {
+    return createEmptySeriesState(fallbackLength)
+  }
+
+  const candidate = raw as Partial<SeriesState>
+  const length = candidate.length === 5 ? 5 : 3
+  const safeRounds = Array.isArray(candidate.rounds)
+    ? candidate.rounds.map((round, index) => ({
+        id: typeof round?.id === 'string' ? round.id : crypto.randomUUID(),
+        round: typeof round?.round === 'number' ? round.round : index + 1,
+        winner: round?.winner === 'X' || round?.winner === 'O' ? round.winner : null,
+        draw: Boolean(round?.draw),
+        moves: typeof round?.moves === 'number' ? round.moves : 0,
+        finishedAt: typeof round?.finishedAt === 'string' ? round.finishedAt : new Date().toISOString()
+      }))
+    : []
+
+  return {
+    length,
+    wins: {
+      X: typeof candidate.wins?.X === 'number' ? candidate.wins.X : 0,
+      O: typeof candidate.wins?.O === 'number' ? candidate.wins.O : 0
+    },
+    draws: typeof candidate.draws === 'number' ? candidate.draws : 0,
+    rounds: safeRounds,
+    winner: candidate.winner === 'X' || candidate.winner === 'O' ? candidate.winner : undefined,
+    awaitingReset: Boolean(candidate.awaitingReset),
+    eloDelta: {
+      X: typeof candidate.eloDelta?.X === 'number' ? candidate.eloDelta.X : 0,
+      O: typeof candidate.eloDelta?.O === 'number' ? candidate.eloDelta.O : 0
+    }
+  }
+}
+
+function concludeSeriesRound(series: SeriesState, result: { winner: CellValue | null; draw: boolean; moves: number }): SeriesState {
+  const wins = { ...series.wins }
+  let draws = series.draws
+  if (result.winner) {
+    wins[result.winner] += 1
+  } else if (result.draw) {
+    draws += 1
+  }
+
+  const nextRounds = [
+    ...series.rounds,
+    {
+      id: crypto.randomUUID(),
+      round: series.rounds.length + 1,
+      winner: result.winner,
+      draw: result.draw,
+      moves: result.moves,
+      finishedAt: new Date().toISOString()
+    }
+  ]
+
+  const target = Math.ceil(series.length / 2)
+  let resolvedWinner: CellValue | null = series.winner ?? null
+  if (!resolvedWinner) {
+    if (wins.X >= target) resolvedWinner = 'X'
+    if (wins.O >= target) resolvedWinner = 'O'
+  }
+
+  const eloDelta = resolvedWinner ? computeSeriesEloDelta(series.length, resolvedWinner) : series.eloDelta ?? { X: 0, O: 0 }
+
+  return {
+    ...series,
+    wins,
+    draws,
+    rounds: nextRounds,
+    winner: resolvedWinner ?? undefined,
+    awaitingReset: resolvedWinner ? false : true,
+    eloDelta
+  }
+}
+
+function computeSeriesEloDelta(length: SeriesLengthOption, winner: CellValue): Record<'X' | 'O', number> {
+  const swing = length === 5 ? 30 : 24
+  return winner === 'X' ? { X: swing, O: -swing } : { X: -swing, O: swing }
+}
+
 function mergeParticipants(
   existing: RoomParticipant[] | undefined,
   selfId: string | null,
@@ -938,7 +1466,8 @@ function normalizeStateForUpdate(
   current: Json | null,
   selfId: string | null,
   opponentId: string | null,
-  playerSymbol: CellValue
+  playerSymbol: CellValue,
+  preferredSeriesLength: SeriesLengthOption
 ): NormalizedRoomState {
   const base = (current ?? {}) as RoomGameState
   const board = Array.isArray(base.board) && base.board.length === 9 ? [...(base.board as CellValue[])] : buildEmptyBoard()
@@ -948,6 +1477,8 @@ function normalizeStateForUpdate(
   const winningLine = Array.isArray(base.winningLine) ? [...(base.winningLine as number[])] : null
   const winner: CellValue | null = base.winner === 'X' || base.winner === 'O' ? base.winner : null
   const currentPlayer: CellValue = base.currentPlayer === 'O' ? 'O' : 'X'
+  const seriesState = hydrateSeriesState(base.seriesState, preferredSeriesLength)
+  const roundMoves = typeof base.roundMoves === 'number' ? base.roundMoves : countFilledCells(board)
 
   return {
     ...base,
@@ -957,7 +1488,9 @@ function normalizeStateForUpdate(
     status,
     winningLine,
     winner,
-    currentPlayer
+    currentPlayer,
+    seriesState,
+    roundMoves
   }
 }
 
@@ -968,4 +1501,8 @@ function findWinningLine(board: CellValue[], symbol: CellValue): number[] | null
     }
   }
   return null
+}
+
+function countFilledCells(board: CellValue[]) {
+  return board.filter(Boolean).length
 }

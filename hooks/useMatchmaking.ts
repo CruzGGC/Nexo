@@ -488,7 +488,7 @@ export function useMatchmaking(gameType: SupportedMatchGame) {
       const skillBracket = options.skillBracket ?? deriveSkillBracket(rating)
       const region = options.regionOverride ?? normalizeRegion(profile?.country_code)
       const matchCode = options.matchCode?.toUpperCase()
-      const metadata: Record<string, unknown> = {
+      const metadataRecord: Record<string, unknown> = {
         ...options.metadata,
         mode: options.mode,
         matchCode,
@@ -496,14 +496,16 @@ export function useMatchmaking(gameType: SupportedMatchGame) {
       }
 
       if (options.seat) {
-        metadata.seat = options.seat
+        metadataRecord.seat = options.seat
       }
+
+      const metadataJson = metadataRecord as Json
 
       logDebug('joinQueue:rpc input', {
         rating,
         skillBracket,
         region,
-        metadata
+        metadata: metadataRecord
       })
 
       if (rpcAbortControllerRef.current) {
@@ -521,15 +523,15 @@ export function useMatchmaking(gameType: SupportedMatchGame) {
 
       let payload: MatchmakingJoinResult | null = null
       try {
-        const { data, error: rpcError } = await (supabase as any)
+        const { data, error: rpcError } = await supabase
           .rpc('matchmaking_join_and_create_room', {
             p_user_id: currentUser.id,
             p_game_type: gameType,
             p_rating_snapshot: rating,
             p_skill_bracket: skillBracket,
             p_region: region,
-            p_metadata: metadata
-          }, { signal: abortController.signal })
+            p_metadata: metadataJson
+          })
 
         if (rpcError || !data) {
           logDebug('joinQueue:rpc error', rpcError)

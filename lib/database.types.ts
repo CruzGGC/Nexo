@@ -482,6 +482,17 @@ export type Database = {
           words: Json
         }[]
       }
+      matchmaking_join_and_create_room: {
+        Args: {
+          p_user_id: string
+          p_game_type: string
+          p_rating_snapshot: number
+          p_skill_bracket: string
+          p_region: string
+          p_metadata?: Json | null
+        }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never
