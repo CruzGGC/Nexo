@@ -70,6 +70,7 @@ export function useMatchmaking(gameType: SupportedMatchGame) {
   )
   const lastPresencePayloadRef = useRef<LobbyPresenceMeta | null>(null)
   const pendingPresenceRef = useRef<Partial<LobbyPresenceMeta> | null>(null)
+  const syncPresenceLatestRef = useRef<(overrides?: Partial<LobbyPresenceMeta>) => void>(() => {})
   const logDebug = useCallback((...args: unknown[]) => {
     console.debug(`[matchmaking:${gameType}]`, ...args)
   }, [gameType])
@@ -213,6 +214,10 @@ export function useMatchmaking(gameType: SupportedMatchGame) {
     [buildPresencePayload, logDebug]
   )
 
+  useEffect(() => {
+    syncPresenceLatestRef.current = syncPresence
+  }, [syncPresence])
+
   const setupLobbyChannel = useCallback(() => {
     const channel = supabase
       .channel(`matchmaking:lobby:${gameType}`, {
@@ -231,7 +236,7 @@ export function useMatchmaking(gameType: SupportedMatchGame) {
     channel.subscribe(status => {
       logDebug('lobby channel status', status)
       if (status === 'SUBSCRIBED') {
-        syncPresence()
+        syncPresenceLatestRef.current?.()
         return
       }
 
@@ -254,7 +259,7 @@ export function useMatchmaking(gameType: SupportedMatchGame) {
     })
 
     return channel
-  }, [computeLobbyStats, gameType, logDebug, supabase, syncPresence])
+  }, [computeLobbyStats, gameType, logDebug, supabase])
 
   useEffect(() => {
     const channel = setupLobbyChannel()

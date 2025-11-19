@@ -1,8 +1,10 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useMatchmaking } from '@/hooks/useMatchmaking'
 import { generateMatchCode } from '@/lib/matchmaking'
+import { useAuth } from '@/components/AuthProvider'
+import type { Json } from '@/lib/database.types'
 
 type CellValue = 'X' | 'O' | null
 
@@ -31,11 +33,33 @@ interface ConfettiBurst {
   color: string
 }
 
+type RoomParticipant = {
+  id: string
+  ready?: boolean
+  marker?: CellValue
+  display_name?: string
+}
+
 type RoomGameState = {
   room_code?: string
   variant?: string
-  phase?: string
-  participants?: Array<{ id: string; ready?: boolean; marker?: CellValue }>
+  phase?: 'waiting' | 'ready' | 'playing' | 'finished'
+  participants?: RoomParticipant[]
+  board?: CellValue[]
+  currentPlayer?: CellValue
+  status?: GameStatus
+  winningLine?: number[] | null
+  winner?: CellValue | null
+  lastMoveAt?: string
+}
+
+type NormalizedRoomState = RoomGameState & {
+  board: CellValue[]
+  currentPlayer: CellValue
+  status: GameStatus
+  phase: NonNullable<RoomGameState['phase']>
+  winningLine: number[] | null
+  winner: CellValue | null
 }
 
 const FRIENDS = [
@@ -57,9 +81,10 @@ export default function TicTacToeGame() {
   const [bursts, setBursts] = useState<ConfettiBurst[]>([])
   const [generatedCode, setGeneratedCode] = useState(() => generateMatchCode())
   const [inviteCode, setInviteCode] = useState('')
+  const { user } = useAuth()
 
   const matchmaking = useMatchmaking('tic_tac_toe')
-  const { status: queueStatus, queueEntry, room, joinQueue, leaveQueue, lobbyStats } = matchmaking
+  const { status: queueStatus, queueEntry, room, joinQueue, leaveQueue, lobbyStats, updateRoomState } = matchmaking
   const topRegions = useMemo(
     () => Object.entries(lobbyStats.regions).sort((a, b) => b[1] - a[1]).slice(0, 3),
     [lobbyStats.regions]
@@ -152,8 +177,128 @@ export default function TicTacToeGame() {
     error: 'Falha — tenta novamente'
   }[queueStatus]
 
-  const queueMetadata = queueEntry?.metadata && typeof queueEntry.metadata === 'object' ? (queueEntry.metadata as Record<string, unknown>) : null
+  const queueMetadata = useMemo(() => {
+    if (!queueEntry?.metadata) return null
+    if (typeof queueEntry.metadata === 'string') {
+      try {
+        return JSON.parse(queueEntry.metadata) as Record<string, unknown>
+      } catch (err) {
+        console.warn('Metadata inválida na fila', err)
+        return null
+      }
+    }
+    if (typeof queueEntry.metadata === 'object') {
+      return queueEntry.metadata as Record<string, unknown>
+    }
+    return null
+  }, [queueEntry?.metadata])
+
   const roomState = room?.game_state && typeof room.game_state === 'object' ? (room.game_state as RoomGameState) : null
+  const playerSymbol: CellValue = queueMetadata?.symbol === 'O' ? 'O' : 'X'
+  const opponentId = typeof queueMetadata?.opponent_id === 'string' ? (queueMetadata.opponent_id as string) : null
+  const remoteBoard = useMemo(() => (Array.isArray(roomState?.board) && roomState.board.length === 9 ? (roomState.board as CellValue[]) : null), [roomState?.board])
+  const remotePhase: RoomGameState['phase'] = roomState?.phase ?? (room ? 'waiting' : undefined)
+  const remoteStatus = (roomState?.status ?? 'playing') as GameStatus
+  const remoteWinningLine = Array.isArray(roomState?.winningLine) ? (roomState.winningLine as number[]) : null
+  const remoteWinner = roomState?.winner === 'X' || roomState?.winner === 'O' ? roomState.winner : null
+  const remoteCurrentPlayer: CellValue = roomState?.currentPlayer === 'O' ? 'O' : 'X'
+  const remoteParticipants: RoomParticipant[] = Array.isArray(roomState?.participants)
+    ? (roomState.participants as RoomParticipant[])
+    : []
+  const opponentSymbol: CellValue = playerSymbol === 'X' ? 'O' : 'X'
+  const localPlayerId = queueEntry?.user_id ?? user?.id ?? null
+  const playerParticipant = remoteParticipants.find(participant => participant.id === localPlayerId)
+  const opponentParticipant = remoteParticipants.find(participant => participant.id && participant.id !== localPlayerId)
+  const isPlayerTurn =
+    queueStatus === 'matched' &&
+    remotePhase === 'playing' &&
+    remoteStatus === 'playing' &&
+    remoteBoard !== null &&
+    remoteCurrentPlayer === playerSymbol
+  const remotePhaseNotPlayable = remotePhase !== undefined && remotePhase !== 'playing'
+  const remoteStatusLabel = useMemo(() => {
+    if (!room) return 'Sem sala sincronizada'
+    if (!remoteBoard) return 'A preparar tabuleiro online…'
+    if (remotePhase === 'finished' || remoteStatus === 'win' || remoteStatus === 'draw') {
+      if (remoteStatus === 'draw') return 'Empate confirmado'
+      return remoteWinner ? `Vitória de ${remoteWinner}` : 'Partida concluída'
+    }
+    if (remotePhase === 'waiting') return 'A aguardar ligação do adversário'
+    return isPlayerTurn ? 'É a tua vez de jogar' : 'Aguardando jogada do adversário'
+  }, [room, remoteBoard, remotePhase, remoteStatus, remoteWinner, isPlayerTurn])
+
+  const ensureRoomReady = useCallback(async () => {
+    if (!room || !queueEntry || remoteBoard) return
+    try {
+      await updateRoomState(current => {
+        const existing = (current ?? {}) as RoomGameState
+        if (Array.isArray(existing.board) && existing.board.length === 9) {
+          return (current ?? ({} as Json)) as Json
+        }
+        const participants = mergeParticipants(existing.participants, localPlayerId, opponentId, playerSymbol)
+        const nextState: RoomGameState = {
+          ...existing,
+          board: buildEmptyBoard(),
+          currentPlayer: 'X',
+          status: 'playing',
+          phase: 'playing',
+          participants,
+          winningLine: null,
+          winner: null,
+          lastMoveAt: new Date().toISOString()
+        }
+        return nextState as unknown as Json
+      })
+    } catch (err) {
+      console.error('Falha ao preparar estado remoto', err)
+    }
+  }, [room, queueEntry, remoteBoard, updateRoomState, localPlayerId, opponentId, playerSymbol])
+
+  useEffect(() => {
+    if (queueStatus !== 'matched') return
+    if (!room || !queueEntry) return
+    if (remoteBoard) return
+    void ensureRoomReady()
+  }, [queueStatus, room, queueEntry, remoteBoard, ensureRoomReady])
+
+  const handleRemoteCellClick = useCallback(async (index: number) => {
+    if (!room || !queueEntry || !remoteBoard) return
+    if (remoteBoard[index]) return
+    if (queueStatus !== 'matched') return
+    if (remotePhase !== 'playing' || remoteStatus !== 'playing') return
+    if (remoteCurrentPlayer !== playerSymbol) return
+
+    try {
+      await updateRoomState(current => {
+        const state = normalizeStateForUpdate(current, localPlayerId, opponentId, playerSymbol)
+        if (state.phase !== 'playing' || state.status !== 'playing') {
+          return state as unknown as Json
+        }
+        if (state.board[index] || state.currentPlayer !== playerSymbol) {
+          return state as unknown as Json
+        }
+
+        const nextBoard = [...state.board]
+        nextBoard[index] = playerSymbol
+        const winningLine = findWinningLine(nextBoard, playerSymbol)
+        const draw = !winningLine && nextBoard.every(Boolean)
+
+        const nextState: RoomGameState = {
+          ...state,
+          board: nextBoard,
+          currentPlayer: playerSymbol === 'X' ? 'O' : 'X',
+          status: winningLine ? 'win' : draw ? 'draw' : 'playing',
+          phase: winningLine || draw ? 'finished' : state.phase,
+          winningLine: winningLine ?? null,
+          winner: winningLine ? playerSymbol : draw ? null : state.winner ?? null,
+          lastMoveAt: new Date().toISOString()
+        }
+        return nextState as unknown as Json
+      })
+    } catch (err) {
+      console.error('Falha ao enviar jogada remota', err)
+    }
+  }, [room, queueEntry, remoteBoard, queueStatus, remotePhase, remoteStatus, remoteCurrentPlayer, playerSymbol, updateRoomState, localPlayerId, opponentId])
   const derivedRoomCode = typeof roomState?.room_code === 'string'
     ? roomState.room_code
     : typeof queueMetadata?.room_code === 'string'
@@ -386,6 +531,80 @@ export default function TicTacToeGame() {
                     </p>
                   </div>
                 </div>
+
+                {room && (
+                  <div className="rounded-2xl border border-indigo-100 bg-gradient-to-br from-white via-indigo-50/30 to-sky-50/40 p-6 shadow-xl dark:border-indigo-500/30 dark:from-zinc-900 dark:via-slate-900 dark:to-slate-900/60">
+                    <div className="flex flex-wrap items-center justify-between gap-4">
+                      <div>
+                        <p className="text-sm font-semibold text-indigo-600 dark:text-indigo-200">Sala encontrada</p>
+                        <p className="text-2xl font-bold text-zinc-900 dark:text-white">{remoteStatusLabel}</p>
+                        <p className="text-xs text-zinc-500 dark:text-zinc-400">Sala {derivedRoomCode ?? room.id}</p>
+                      </div>
+                      <div className="text-right text-xs text-zinc-500 dark:text-zinc-400">
+                        <p>O teu símbolo</p>
+                        <p className="text-3xl font-semibold text-zinc-900 dark:text-white">{playerSymbol}</p>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 text-xs text-zinc-500 dark:text-zinc-400">
+                      <p>
+                        Tu: {playerParticipant?.marker ?? playerSymbol} • Adversário: {opponentParticipant?.marker ?? opponentSymbol}
+                      </p>
+                    </div>
+
+                    {remoteBoard ? (
+                      <>
+                        <div className="mt-6 grid grid-cols-3 gap-3">
+                          {remoteBoard.map((cell, index) => {
+                            const isWinning = remoteWinningLine?.includes(index)
+                            return (
+                              <button
+                                key={`remote-${index}`}
+                                type="button"
+                                aria-label={`Casa remota ${BOARD_LABELS[index]}`}
+                                onClick={() => handleRemoteCellClick(index)}
+                                disabled={Boolean(cell) || !isPlayerTurn || remotePhaseNotPlayable || remoteStatus !== 'playing'}
+                                className={`relative flex h-24 items-center justify-center rounded-2xl border text-4xl font-semibold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 dark:text-white ${
+                                  cell
+                                    ? 'border-indigo-200 bg-white text-indigo-700 shadow-inner dark:border-slate-700 dark:bg-slate-900'
+                                    : 'border-dashed border-indigo-200 text-indigo-200 hover:-translate-y-1 hover:border-indigo-400 hover:text-indigo-500 dark:border-slate-700 dark:text-slate-500 dark:hover:border-indigo-400'
+                                } ${
+                                  isWinning
+                                    ? 'border-indigo-400 bg-indigo-50/70 shadow-[0_0_30px_rgba(79,70,229,0.35)] dark:bg-indigo-500/10'
+                                    : ''
+                                } ${
+                                  !isPlayerTurn || remoteStatus !== 'playing' || remotePhaseNotPlayable
+                                    ? 'cursor-not-allowed opacity-70'
+                                    : ''
+                                }`}
+                              >
+                                {cell && (
+                                  <span className={cell === 'X' ? 'text-indigo-500' : 'text-emerald-400'}>
+                                    {cell}
+                                  </span>
+                                )}
+                                {isWinning && <span className="absolute inset-0 rounded-2xl border-2 border-indigo-400/70 animate-pulse" />}
+                              </button>
+                            )
+                          })}
+                        </div>
+                        <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-300">
+                          {remotePhase === 'finished' || remoteStatus !== 'playing'
+                            ? remoteStatus === 'draw'
+                              ? 'Empate confirmado. Podes regressar ao lobby para nova partida.'
+                              : remoteWinner
+                                ? `Vitória para ${remoteWinner}.`
+                                : 'Partida concluída.'
+                            : isPlayerTurn
+                              ? 'É a tua vez — escolhe a melhor jogada.'
+                              : 'À espera da jogada do adversário.'}
+                        </p>
+                      </>
+                    ) : (
+                      <p className="mt-6 text-sm text-zinc-500 dark:text-zinc-300">A sincronizar tabuleiro…</p>
+                    )}
+                  </div>
+                )}
 
                 <div className="rounded-2xl border border-zinc-200/70 bg-white/80 p-5 dark:border-zinc-800 dark:bg-zinc-900">
                   <p className="text-sm font-semibold text-zinc-700 dark:text-zinc-200">Código privado</p>
@@ -686,4 +905,67 @@ export default function TicTacToeGame() {
         </div>
       </div>
   )
+}
+
+function buildEmptyBoard(): CellValue[] {
+  return Array.from({ length: 9 }, () => null as CellValue)
+}
+
+function mergeParticipants(
+  existing: RoomParticipant[] | undefined,
+  selfId: string | null,
+  opponentId: string | null,
+  playerSymbol: CellValue
+): RoomParticipant[] {
+  const snapshot = Array.isArray(existing) ? existing.map(participant => ({ ...participant })) : []
+  const ensureEntry = (id: string | null, marker: CellValue) => {
+    if (!id) return
+    const current = snapshot.find(participant => participant.id === id)
+    if (current) {
+      if (!current.marker) current.marker = marker
+      if (current.ready === undefined) current.ready = true
+    } else {
+      snapshot.push({ id, marker, ready: true })
+    }
+  }
+
+  ensureEntry(selfId, playerSymbol)
+  ensureEntry(opponentId, playerSymbol === 'X' ? 'O' : 'X')
+  return snapshot
+}
+
+function normalizeStateForUpdate(
+  current: Json | null,
+  selfId: string | null,
+  opponentId: string | null,
+  playerSymbol: CellValue
+): NormalizedRoomState {
+  const base = (current ?? {}) as RoomGameState
+  const board = Array.isArray(base.board) && base.board.length === 9 ? [...(base.board as CellValue[])] : buildEmptyBoard()
+  const participants = mergeParticipants(base.participants, selfId, opponentId, playerSymbol)
+  const phase: NonNullable<RoomGameState['phase']> = base.phase ?? 'playing'
+  const status: GameStatus = base.status ?? 'playing'
+  const winningLine = Array.isArray(base.winningLine) ? [...(base.winningLine as number[])] : null
+  const winner: CellValue | null = base.winner === 'X' || base.winner === 'O' ? base.winner : null
+  const currentPlayer: CellValue = base.currentPlayer === 'O' ? 'O' : 'X'
+
+  return {
+    ...base,
+    board,
+    participants,
+    phase,
+    status,
+    winningLine,
+    winner,
+    currentPlayer
+  }
+}
+
+function findWinningLine(board: CellValue[], symbol: CellValue): number[] | null {
+  for (const pattern of WIN_PATTERNS) {
+    if (pattern.every(position => board[position] === symbol)) {
+      return [...pattern]
+    }
+  }
+  return null
 }
