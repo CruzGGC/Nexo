@@ -319,14 +319,18 @@ export default function CrosswordGameShell({ initialCategories }: CrosswordGameS
         )}
 
         {isComplete && gameMode !== 'duel' && (
-          <div className="mx-auto max-w-2xl rounded-2xl border border-zinc-200 bg-white p-8 text-center shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-            <div className="mb-6 text-6xl">🎉</div>
-            <h2 className="mb-4 text-3xl font-bold text-zinc-900 dark:text-zinc-50">Parabéns!</h2>
-            <p className="mb-2 text-lg text-zinc-700 dark:text-zinc-300">
+          <div className="mx-auto max-w-2xl rounded-3xl border border-zinc-200 bg-white p-8 text-center shadow-xl dark:border-zinc-800 dark:bg-zinc-900 animate-in zoom-in-95 duration-300">
+            <div className="mb-6 text-7xl animate-bounce">🎉</div>
+            <h2 className="mb-2 text-3xl font-black tracking-tight text-zinc-900 dark:text-zinc-50">Parabéns!</h2>
+            <p className="mb-6 text-lg text-zinc-600 dark:text-zinc-400">
               Completou o puzzle {gameMode === 'daily' ? 'diário' : selectedCategoryMeta ? `de ${selectedCategoryMeta.name}` : 'aleatório'} em
             </p>
-            <div className="mb-8 font-mono text-4xl font-bold text-zinc-900 dark:text-zinc-50">
-              {formatChronometer(finalTime)}
+            
+            <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-2xl p-6 mb-8 border border-zinc-100 dark:border-zinc-800">
+              <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-1">Tempo Final</p>
+              <p className="text-5xl font-black text-zinc-900 dark:text-white tracking-tighter">
+                {formatChronometer(finalTime)}
+              </p>
             </div>
 
             {gameMode === 'random' && (
@@ -336,14 +340,14 @@ export default function CrosswordGameShell({ initialCategories }: CrosswordGameS
             )}
 
             {gameMode === 'daily' && (
-              <div className="mb-6 text-left text-sm">
+              <div className="mb-8 text-left text-sm">
                 {isAuthenticated ? (
                   <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 text-emerald-900 shadow-sm dark:border-emerald-500/30 dark:bg-emerald-950/30 dark:text-emerald-100">
-                    <p>{crosswordStatusCopy[crosswordScoreStatus]}</p>
+                    <p className="font-medium">{crosswordStatusCopy[crosswordScoreStatus]}</p>
                     {crosswordScoreStatus === 'error' && (
                       <button
                         onClick={handleDailyScoreSubmit}
-                        className="mt-3 w-full rounded-full bg-emerald-600 px-4 py-2 font-semibold text-white transition hover:bg-emerald-500"
+                        className="mt-3 w-full rounded-xl bg-emerald-600 px-4 py-2 font-bold text-white transition hover:bg-emerald-500 shadow-sm"
                       >
                         Tentar novamente
                       </button>
@@ -356,19 +360,19 @@ export default function CrosswordGameShell({ initialCategories }: CrosswordGameS
                   </div>
                 ) : (
                   <div className="rounded-2xl border border-zinc-200 bg-zinc-50/80 p-4 text-zinc-700 shadow-sm dark:border-zinc-700 dark:bg-zinc-900/80 dark:text-zinc-300">
-                    <p>
+                    <p className="font-medium">
                       Entra como convidado ou liga a tua conta Google para registar o tempo nas classificações diárias.
                     </p>
                     <div className="mt-3 flex flex-col gap-2 sm:flex-row">
                       <button
                         onClick={() => { void signInAsGuest() }}
-                        className="flex-1 rounded-full bg-zinc-900 px-4 py-2 font-semibold text-white transition hover:bg-zinc-800 dark:bg-zinc-50 dark:text-zinc-900"
+                        className="flex-1 rounded-xl bg-zinc-900 px-4 py-2.5 font-bold text-white transition hover:bg-zinc-800 dark:bg-zinc-50 dark:text-zinc-900 shadow-sm"
                       >
                         Entrar como Convidado
                       </button>
                       <button
                         onClick={() => { void continueWithGoogle() }}
-                        className="flex-1 rounded-full border border-zinc-300 px-4 py-2 font-semibold text-zinc-900 transition hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-50 dark:hover:bg-zinc-800"
+                        className="flex-1 rounded-xl border-2 border-zinc-200 px-4 py-2.5 font-bold text-zinc-900 transition hover:bg-zinc-50 hover:border-zinc-300 dark:border-zinc-700 dark:text-zinc-50 dark:hover:bg-zinc-800"
                       >
                         Google
                       </button>
@@ -378,10 +382,10 @@ export default function CrosswordGameShell({ initialCategories }: CrosswordGameS
               </div>
             )}
 
-            <div className="flex flex-col gap-4 sm:flex-row sm:justify-center">
+            <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
               <button
                 onClick={handleRestart}
-                className="rounded-full bg-zinc-900 px-8 py-3 font-semibold text-white transition-colors hover:bg-zinc-700 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
+                className="rounded-xl bg-zinc-900 px-6 py-4 font-bold text-white transition-all hover:-translate-y-0.5 hover:bg-zinc-800 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200 shadow-sm"
               >
                 {gameMode === 'daily'
                   ? 'Jogar Novamente'
@@ -392,14 +396,14 @@ export default function CrosswordGameShell({ initialCategories }: CrosswordGameS
               {gameMode === 'daily' && (
                 <Link
                   href="/leaderboards"
-                  className="rounded-full border border-zinc-300 px-8 py-3 font-semibold text-zinc-900 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-50 dark:hover:bg-zinc-800"
+                  className="rounded-xl bg-yellow-400 px-6 py-4 font-bold text-zinc-900 transition-all hover:-translate-y-0.5 hover:bg-yellow-500 shadow-sm text-center"
                 >
                   Ver Classificações
                 </Link>
               )}
               <button
                 onClick={handleChangeMode}
-                className="rounded-full border border-zinc-300 px-8 py-3 font-semibold text-zinc-900 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-50 dark:hover:bg-zinc-800"
+                className="rounded-xl bg-transparent px-6 py-4 font-bold text-zinc-600 transition-colors hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
               >
                 Mudar Modo
               </button>

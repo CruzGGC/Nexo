@@ -1,3 +1,5 @@
+
+
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
@@ -99,53 +101,52 @@ type LeaderboardPayload =
   | {
       type: 'crossword' | 'wordsearch'
       entries: ScoreEntry[]
-      puzzleId: string | null
-      puzzleDate: string | null
+      puzzle: { id: string; date: string }
     }
 
-export default function LeaderboardsClient() {
+export function LeaderboardsClient() {
   const [activeTab, setActiveTab] = useState<LeaderboardType>('crossword')
-  const [ratingFilter, setRatingFilter] = useState<RatingGameType>(ratingGameTypes[0].id)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [ratingFilter, setRatingFilter] = useState<RatingGameType>('tic_tac_toe')
   const [scores, setScores] = useState<ScoreEntry[]>([])
   const [ratings, setRatings] = useState<RatingEntry[]>([])
-  const [puzzleMeta, setPuzzleMeta] = useState<{ id: string | null; date: string | null }>({ id: null, date: null })
+  const [puzzleMeta, setPuzzleMeta] = useState<{ id: string | null; date: string | null }>({
+    id: null,
+    date: null
+  })
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   const query = useMemo(() => {
-    const params = new URLSearchParams({ type: activeTab })
+    const params = new URLSearchParams()
+    params.set('type', activeTab)
     if (activeTab === 'ratings') {
-      params.set('game_type', ratingFilter)
+      params.set('game', ratingFilter)
     }
-    return `/api/leaderboards?${params.toString()}`
+    return params.toString()
   }, [activeTab, ratingFilter])
 
   useEffect(() => {
     const controller = new AbortController()
-    async function loadData() {
-      setLoading(true)
-      setError(null)
-      if (activeTab === 'ratings') {
-        setScores([])
-        setPuzzleMeta({ id: null, date: null })
-      } else {
-        setRatings([])
-      }
+    const loadData = async () => {
       try {
-        const response = await fetch(query, { cache: 'no-store', signal: controller.signal })
-        if (!response.ok) {
-          throw new Error('Falha ao carregar leaderboard')
-        }
-        const payload = (await response.json()) as LeaderboardPayload
-        if (payload.type === 'ratings') {
-          setRatings(payload.entries)
+        setLoading(true)
+        setError(null)
+        const res = await fetch(`/api/leaderboards?${query}`, {
+          signal: controller.signal
+        })
+        if (!res.ok) throw new Error('Falha ao carregar dados')
+        const data = (await res.json()) as LeaderboardPayload
+
+        if (data.type === 'ratings') {
+          setRatings(data.entries)
         } else {
-          setScores(payload.entries)
-          setPuzzleMeta({ id: payload.puzzleId ?? null, date: payload.puzzleDate ?? null })
+          setScores(data.entries)
+          setPuzzleMeta(data.puzzle)
         }
       } catch (err) {
-        if (err instanceof DOMException && err.name === 'AbortError') return
-        setError('Não foi possível carregar os dados. Tenta novamente em instantes.')
+        if (err instanceof Error && err.name === 'AbortError') return
+        console.error(err)
+        setError('Não foi possível carregar a classificação.')
       } finally {
         setLoading(false)
       }
@@ -155,71 +156,90 @@ export default function LeaderboardsClient() {
   }, [activeTab, query])
 
   const renderScores = () => (
-    <div className="space-y-3">
-      <div className="flex flex-col gap-1 rounded-2xl border border-amber-100 bg-amber-50/60 px-4 py-3 text-xs text-amber-900 shadow-sm dark:border-amber-500/30 dark:bg-amber-900/20 dark:text-amber-100 sm:flex-row sm:items-center sm:justify-between">
-        <p>
+    <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="flex flex-col gap-2 rounded-2xl border border-amber-100 bg-amber-50/60 px-6 py-4 text-sm text-amber-900 shadow-sm dark:border-amber-500/30 dark:bg-amber-900/20 dark:text-amber-100 sm:flex-row sm:items-center sm:justify-between">
+        <p className="flex items-center gap-2">
+          <span className="text-xl">📅</span>
           Puzzle diário:{' '}
-          <span className="font-semibold">
+          <span className="font-bold">
             {formatPuzzleDate(puzzleMeta.date) ?? 'A aguardar publicação'}
           </span>
         </p>
-        {puzzleMeta.id && <p className="font-mono text-[11px] text-amber-800/80 dark:text-amber-100/70">ID: {puzzleMeta.id}</p>}
+        {puzzleMeta.id && <p className="font-mono text-xs text-amber-800/80 dark:text-amber-100/70">ID: {puzzleMeta.id}</p>}
       </div>
-      <div className="overflow-x-auto rounded-2xl border border-zinc-200 bg-white/70 shadow-sm backdrop-blur dark:border-zinc-800 dark:bg-zinc-900/70">
-      <table className="min-w-full divide-y divide-zinc-100 text-left text-sm dark:divide-zinc-800">
-        <thead className="bg-zinc-50 text-xs uppercase tracking-wide text-zinc-500 dark:bg-zinc-900/50 dark:text-zinc-400">
-          <tr>
-            <th className="px-4 py-3">#</th>
-            <th className="px-4 py-3">Jogador</th>
-            <th className="px-4 py-3">Tempo</th>
-            <th className="px-4 py-3">Terminado</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
-          {scores.map(entry => (
-            <tr key={`${entry.puzzle_id}-${entry.rank ?? 'x'}`} className="bg-white/40 text-zinc-900 dark:bg-zinc-900/40 dark:text-zinc-50">
-              <td className="px-4 py-3 font-semibold text-zinc-700 dark:text-zinc-200">{entry.rank ?? '—'}</td>
-              <td className="px-4 py-3">
-                <div className="flex items-center gap-3">
-                  <div className="h-8 w-8 rounded-full bg-zinc-200 text-center text-sm leading-8 dark:bg-zinc-800">
-                    {entry.display_name?.[0]?.toUpperCase() ?? '👤'}
-                  </div>
-                  <div>
-                    <p className="font-medium text-zinc-900 dark:text-zinc-50">{entry.display_name ?? entry.username ?? 'Jogador'}</p>
-                    <p className="text-xs text-zinc-500 dark:text-zinc-400">@{entry.username ?? 'anónimo'}</p>
-                  </div>
-                </div>
-              </td>
-              <td className="px-4 py-3 font-mono text-lg text-amber-600 dark:text-amber-400">{formatTime(entry.time_ms)}</td>
-              <td className="px-4 py-3 text-zinc-500 dark:text-zinc-400">{formatDate(entry.completed_at)}</td>
-            </tr>
-          ))}
-          {!loading && scores.length === 0 && (
-            <tr>
-              <td colSpan={4} className="px-4 py-6 text-center text-zinc-500 dark:text-zinc-400">
-                Ainda não há tempos registados hoje. Sê o primeiro!
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
+      <div className="overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900">
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-zinc-100 text-left text-sm dark:divide-zinc-800">
+            <thead className="bg-zinc-50 text-xs uppercase tracking-wider text-zinc-500 dark:bg-zinc-900/50 dark:text-zinc-400">
+              <tr>
+                <th className="px-6 py-4 font-bold">#</th>
+                <th className="px-6 py-4 font-bold">Jogador</th>
+                <th className="px-6 py-4 font-bold">Tempo</th>
+                <th className="px-6 py-4 font-bold">Terminado</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+              {scores.map((entry, index) => (
+                <tr 
+                  key={`${entry.puzzle_id}-${entry.rank ?? 'x'}`} 
+                  className="bg-white transition-colors hover:bg-zinc-50 dark:bg-zinc-900 dark:hover:bg-zinc-800/50"
+                >
+                  <td className="px-6 py-4">
+                    <span className={`flex h-8 w-8 items-center justify-center rounded-full font-bold ${
+                      index === 0 ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' :
+                      index === 1 ? 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-400' :
+                      index === 2 ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' :
+                      'text-zinc-500 dark:text-zinc-400'
+                    }`}>
+                      {entry.rank ?? index + 1}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-100 text-lg font-bold text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+                        {entry.display_name?.[0]?.toUpperCase() ?? '👤'}
+                      </div>
+                      <div>
+                        <p className="font-bold text-zinc-900 dark:text-zinc-50">{entry.display_name ?? entry.username ?? 'Jogador'}</p>
+                        <p className="text-xs text-zinc-500 dark:text-zinc-400">@{entry.username ?? 'anónimo'}</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 font-mono text-lg font-bold text-amber-600 dark:text-amber-400">{formatTime(entry.time_ms)}</td>
+                  <td className="px-6 py-4 text-zinc-500 dark:text-zinc-400">{formatDate(entry.completed_at)}</td>
+                </tr>
+              ))}
+              {!loading && scores.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="px-6 py-12 text-center text-zinc-500 dark:text-zinc-400">
+                    <div className="flex flex-col items-center gap-2">
+                      <span className="text-4xl">🏆</span>
+                      <p className="font-medium">Ainda não há tempos registados hoje.</p>
+                      <p className="text-sm">Sê o primeiro a completar o puzzle!</p>
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   )
 
   const renderRatings = () => (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-3">
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">Filtrar jogo:</p>
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="flex flex-wrap items-center gap-4 rounded-2xl bg-white p-4 shadow-sm dark:bg-zinc-900">
+        <p className="text-sm font-bold text-zinc-900 dark:text-zinc-100">Filtrar jogo:</p>
         <div className="flex flex-wrap gap-2">
           {ratingGameTypes.map(option => (
             <button
               key={option.id}
               onClick={() => setRatingFilter(option.id)}
-              className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+              className={`rounded-xl px-4 py-2 text-sm font-bold transition-all ${
                 ratingFilter === option.id
-                  ? 'bg-amber-500 text-white shadow'
-                  : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300'
+                  ? 'bg-amber-500 text-white shadow-md scale-105'
+                  : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700'
               }`}
             >
               {option.label}
@@ -227,63 +247,81 @@ export default function LeaderboardsClient() {
           ))}
         </div>
       </div>
-      <div className="overflow-x-auto rounded-2xl border border-zinc-200 bg-white/70 shadow-sm backdrop-blur dark:border-zinc-800 dark:bg-zinc-900/70">
-        <table className="min-w-full divide-y divide-zinc-100 text-left text-sm dark:divide-zinc-800">
-          <thead className="bg-zinc-50 text-xs uppercase tracking-wide text-zinc-500 dark:bg-zinc-900/50 dark:text-zinc-400">
-            <tr>
-              <th className="px-4 py-3">#</th>
-              <th className="px-4 py-3">Jogador</th>
-              <th className="px-4 py-3">Rating</th>
-              <th className="px-4 py-3">Desvio</th>
-              <th className="px-4 py-3">Jogos</th>
-              <th className="px-4 py-3">Vitórias</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
-            {ratings.map(entry => (
-              <tr key={`${entry.game_type}-${entry.rank ?? 'x'}-${entry.username}`} className="bg-white/40 text-zinc-900 dark:bg-zinc-900/40 dark:text-zinc-50">
-                <td className="px-4 py-3 font-semibold text-zinc-700 dark:text-zinc-200">{entry.rank ?? '—'}</td>
-                <td className="px-4 py-3">
-                  <div className="flex items-center gap-3">
-                    <div className="h-8 w-8 rounded-full bg-zinc-200 text-center text-sm leading-8 dark:bg-zinc-800">
-                      {entry.display_name?.[0]?.toUpperCase() ?? '👤'}
-                    </div>
-                    <div>
-                      <p className="font-medium text-zinc-900 dark:text-zinc-50">{entry.display_name ?? entry.username ?? 'Jogador'}</p>
-                      <p className="text-xs text-zinc-500 dark:text-zinc-400">@{entry.username ?? 'anónimo'}</p>
-                    </div>
-                  </div>
-                </td>
-                <td className="px-4 py-3 font-semibold text-emerald-600 dark:text-emerald-400">{Math.round(entry.rating ?? 0)}</td>
-                <td className="px-4 py-3 text-zinc-500 dark:text-zinc-400">±{Math.round(entry.deviation ?? 0)}</td>
-                <td className="px-4 py-3 text-zinc-500 dark:text-zinc-400">{entry.matches_played ?? 0}</td>
-                <td className="px-4 py-3 font-medium text-indigo-600 dark:text-indigo-400">{formatWinRate(entry.win_rate)}</td>
-              </tr>
-            ))}
-            {!loading && ratings.length === 0 && (
+      <div className="overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900">
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-zinc-100 text-left text-sm dark:divide-zinc-800">
+            <thead className="bg-zinc-50 text-xs uppercase tracking-wider text-zinc-500 dark:bg-zinc-900/50 dark:text-zinc-400">
               <tr>
-                <td colSpan={6} className="px-4 py-6 text-center text-zinc-500 dark:text-zinc-400">
-                  Ainda não existem partidas ranqueadas. Prepara-te para ser o primeiro campeão!
-                </td>
+                <th className="px-6 py-4 font-bold">#</th>
+                <th className="px-6 py-4 font-bold">Jogador</th>
+                <th className="px-6 py-4 font-bold">Rating</th>
+                <th className="px-6 py-4 font-bold">Desvio</th>
+                <th className="px-6 py-4 font-bold">Jogos</th>
+                <th className="px-6 py-4 font-bold">Vitórias</th>
               </tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+              {ratings.map((entry, index) => (
+                <tr 
+                  key={`${entry.game_type}-${entry.rank ?? 'x'}-${entry.username}`} 
+                  className="bg-white transition-colors hover:bg-zinc-50 dark:bg-zinc-900 dark:hover:bg-zinc-800/50"
+                >
+                  <td className="px-6 py-4">
+                    <span className={`flex h-8 w-8 items-center justify-center rounded-full font-bold ${
+                      index === 0 ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' :
+                      index === 1 ? 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-400' :
+                      index === 2 ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' :
+                      'text-zinc-500 dark:text-zinc-400'
+                    }`}>
+                      {entry.rank ?? index + 1}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-100 text-lg font-bold text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+                        {entry.display_name?.[0]?.toUpperCase() ?? '👤'}
+                      </div>
+                      <div>
+                        <p className="font-bold text-zinc-900 dark:text-zinc-50">{entry.display_name ?? entry.username ?? 'Jogador'}</p>
+                        <p className="text-xs text-zinc-500 dark:text-zinc-400">@{entry.username ?? 'anónimo'}</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 font-black text-emerald-600 dark:text-emerald-400">{Math.round(entry.rating ?? 0)}</td>
+                  <td className="px-6 py-4 text-zinc-500 dark:text-zinc-400">±{Math.round(entry.deviation ?? 0)}</td>
+                  <td className="px-6 py-4 font-medium text-zinc-700 dark:text-zinc-300">{entry.matches_played ?? 0}</td>
+                  <td className="px-6 py-4 font-bold text-indigo-600 dark:text-indigo-400">{formatWinRate(entry.win_rate)}</td>
+                </tr>
+              ))}
+              {!loading && ratings.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-6 py-12 text-center text-zinc-500 dark:text-zinc-400">
+                    <div className="flex flex-col items-center gap-2">
+                      <span className="text-4xl">🏅</span>
+                      <p className="font-medium">Ainda não existem partidas ranqueadas.</p>
+                      <p className="text-sm">Prepara-te para ser o primeiro campeão!</p>
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   )
 
   return (
-    <section className="space-y-6">
-      <div className="flex flex-wrap gap-2">
+    <section className="space-y-8 animate-in fade-in zoom-in duration-500">
+      <div className="flex flex-wrap gap-3 rounded-3xl bg-white p-2 shadow-lg dark:bg-zinc-900">
         {leaderboardTabs.map(tab => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`rounded-full px-5 py-2 text-sm font-semibold transition ${
+            className={`flex-1 rounded-2xl px-6 py-3 text-sm font-bold transition-all ${
               activeTab === tab.id
-                ? 'bg-amber-500 text-white shadow'
-                : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300'
+                ? 'bg-amber-500 text-white shadow-md scale-[1.02]'
+                : 'bg-transparent text-zinc-600 hover:bg-zinc-50 dark:text-zinc-400 dark:hover:bg-zinc-800'
             }`}
           >
             {tab.title}
@@ -291,19 +329,23 @@ export default function LeaderboardsClient() {
         ))}
       </div>
 
-      <p className="text-sm text-zinc-600 dark:text-zinc-400">
-        {leaderboardTabs.find(tab => tab.id === activeTab)?.description}
-      </p>
+      <div className="text-center">
+        <p className="text-lg font-medium text-zinc-600 dark:text-zinc-400">
+          {leaderboardTabs.find(tab => tab.id === activeTab)?.description}
+        </p>
+      </div>
 
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
-          {error}
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-center text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
+          <p className="font-bold">Erro</p>
+          <p>{error}</p>
         </div>
       )}
 
       {loading && (
-        <div className="rounded-xl border border-zinc-200 bg-white/70 px-4 py-6 text-center text-sm text-zinc-500 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/70 dark:text-zinc-400">
-          A carregar leaderboard...
+        <div className="flex flex-col items-center justify-center gap-4 rounded-3xl border border-zinc-200 bg-white/70 py-24 shadow-xl backdrop-blur dark:border-zinc-800 dark:bg-zinc-900/70">
+          <div className="h-12 w-12 animate-spin rounded-full border-4 border-zinc-200 border-t-amber-500 dark:border-zinc-800 dark:border-t-amber-500"></div>
+          <p className="font-bold text-zinc-500 dark:text-zinc-400">A carregar classificações...</p>
         </div>
       )}
 

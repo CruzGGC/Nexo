@@ -304,7 +304,7 @@ export default function CrosswordGrid({
   };
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-8 animate-in fade-in zoom-in duration-500">
       {/* Hidden input for mobile keyboard */}
       <input
         ref={inputRef}
@@ -320,41 +320,47 @@ export default function CrosswordGrid({
       />
 
       {/* Error counter and toggle */}
-      <div className="flex items-center justify-between rounded-lg bg-zinc-100 p-4 dark:bg-zinc-800">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 rounded-2xl bg-white p-4 shadow-sm border border-zinc-200 dark:bg-zinc-900 dark:border-zinc-800">
         <div className="flex items-center gap-4">
-          <div className="text-sm">
-            <span className="font-semibold text-zinc-900 dark:text-zinc-50">
-              Erros: {errorCount}
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-zinc-100 dark:bg-zinc-800">
+            <span className="text-sm font-medium text-zinc-600 dark:text-zinc-400">Erros:</span>
+            <span className={`text-sm font-bold ${errorCount > 0 ? 'text-red-600 dark:text-red-400' : 'text-zinc-900 dark:text-zinc-50'}`}>
+              {errorCount}
             </span>
           </div>
           <button
             onClick={() => setShowOnlyErrors(!showOnlyErrors)}
-            className="rounded-md bg-zinc-200 px-3 py-1 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-300 dark:bg-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-600"
+            className={`
+              rounded-full px-4 py-1.5 text-xs font-medium transition-all
+              ${showOnlyErrors 
+                ? 'bg-zinc-900 text-zinc-50 hover:bg-zinc-800 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200' 
+                : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700'}
+            `}
           >
             {showOnlyErrors ? '👁️ Mostrar Tudo' : '❌ Mostrar Apenas Erros'}
           </button>
         </div>
-        <div className="flex gap-2 text-xs">
-          <div className="flex items-center gap-1">
-            <div className="h-3 w-3 rounded bg-yellow-200 dark:bg-yellow-900"></div>
+        <div className="flex gap-3 text-xs font-medium">
+          <div className="flex items-center gap-1.5">
+            <div className="h-2.5 w-2.5 rounded-full bg-yellow-400 shadow-sm"></div>
             <span className="text-zinc-600 dark:text-zinc-400">Selecionada</span>
           </div>
-          <div className="flex items-center gap-1">
-            <div className="h-3 w-3 rounded bg-red-200 dark:bg-red-900"></div>
+          <div className="flex items-center gap-1.5">
+            <div className="h-2.5 w-2.5 rounded-full bg-red-400 shadow-sm"></div>
             <span className="text-zinc-600 dark:text-zinc-400">Erro</span>
           </div>
-          <div className="flex items-center gap-1">
-            <div className="h-3 w-3 rounded bg-green-200 dark:bg-green-900"></div>
+          <div className="flex items-center gap-1.5">
+            <div className="h-2.5 w-2.5 rounded-full bg-green-400 shadow-sm"></div>
             <span className="text-zinc-600 dark:text-zinc-400">Correta</span>
           </div>
         </div>
       </div>
 
-      <div className="flex flex-col gap-6 lg:flex-row">
+      <div className="flex flex-col gap-8 lg:flex-row">
         {/* Grelha */}
-        <div className="flex-1">
+        <div className="flex-1 flex flex-col items-center w-full">
           <div
-            className="inline-grid gap-0 border-2 border-zinc-900 dark:border-zinc-50"
+            className="grid gap-[1px] bg-zinc-300 p-[1px] shadow-xl rounded-lg overflow-hidden dark:bg-zinc-700 w-full max-w-2xl mx-auto"
             style={{
               gridTemplateColumns: `repeat(${grid[0].length}, minmax(0, 1fr))`,
             }}
@@ -379,34 +385,34 @@ export default function CrosswordGrid({
                   <div
                     key={`${rowIndex}-${colIndex}`}
                     className={`
-                      relative flex h-10 w-10 items-center justify-center border border-zinc-300 text-lg font-bold
-                      transition-colors dark:border-zinc-700 sm:h-12 sm:w-12
+                      relative aspect-square flex items-center justify-center text-base sm:text-lg font-bold select-none
+                      transition-all duration-200
                       ${
                         cell.isBlack || isStructural
                           ? 'bg-zinc-900 dark:bg-zinc-950'
                           : isSelected
-                          ? 'bg-yellow-200 dark:bg-yellow-900'
+                          ? 'bg-yellow-400 text-zinc-900 z-10 scale-105 shadow-lg rounded-md'
                           : hasError && showOnlyErrors
-                          ? 'bg-red-200 dark:bg-red-900'
+                          ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400'
                           : hasError
-                          ? 'bg-red-100 dark:bg-red-950'
+                          ? 'bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400'
                           : isCorrect && showOnlyErrors
-                          ? 'bg-green-200 dark:bg-green-900'
+                          ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
                           : isInCurrentWord
-                          ? 'bg-yellow-100 dark:bg-yellow-950'
-                          : 'bg-white hover:bg-zinc-50 dark:bg-zinc-900 dark:hover:bg-zinc-800'
+                          ? 'bg-yellow-100 text-zinc-900 dark:bg-yellow-900/30 dark:text-zinc-100'
+                          : 'bg-white text-zinc-900 hover:bg-zinc-50 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700'
                       }
                       ${!cell.isBlack && !isStructural && 'cursor-pointer'}
                     `}
                     onClick={() => handleCellClick(rowIndex, colIndex)}
                   >
                     {cell.number && (
-                      <span className="absolute left-0.5 top-0 text-[10px] text-zinc-600 dark:text-zinc-400">
+                      <span className={`absolute left-0.5 top-0.5 text-[0.6rem] sm:text-[0.7rem] font-medium leading-none ${isSelected ? 'text-zinc-800/70' : 'text-zinc-400 dark:text-zinc-500'}`}>
                         {cell.number}
                       </span>
                     )}
                     {!cell.isBlack && !isStructural && (
-                      <span className={`${hasError ? 'text-red-700 dark:text-red-300' : isCorrect ? 'text-green-700 dark:text-green-300' : 'text-zinc-900 dark:text-zinc-50'}`}>
+                      <span className={`transform transition-transform ${cellValue ? 'scale-100' : 'scale-0'}`}>
                         {cell.value}
                       </span>
                     )}
@@ -415,18 +421,18 @@ export default function CrosswordGrid({
               })
             )}
           </div>
-          <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-400">
-            💡 Toque numa célula para escrever • Use as setas para navegar • Tab para mudar direção
+          <p className="mt-6 text-sm font-medium text-zinc-500 dark:text-zinc-400 flex items-center gap-2 bg-zinc-100 dark:bg-zinc-800/50 px-4 py-2 rounded-full">
+            💡 Toque numa célula para escrever • Use as setas para navegar
           </p>
         </div>
 
         {/* Pistas */}
-        <div className="w-full space-y-6 lg:w-80">
-          <div>
-            <h3 className="mb-3 text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-              Horizontais
+        <div className="w-full space-y-8 lg:w-80 lg:shrink-0">
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl p-6 shadow-sm border border-zinc-200 dark:border-zinc-800">
+            <h3 className="mb-4 flex items-center gap-2 text-lg font-bold text-zinc-900 dark:text-zinc-50">
+              <span className="text-xl">➡️</span> Horizontais
             </h3>
-            <div className="space-y-2">
+            <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-zinc-200 dark:scrollbar-thumb-zinc-700">
               {clues.across.map((clue) => (
                 <button
                   key={clue.number}
@@ -435,28 +441,28 @@ export default function CrosswordGrid({
                     setDirection('across');
                   }}
                   className={`
-                    w-full rounded-lg p-3 text-left text-sm transition-colors
+                    w-full rounded-xl p-3 text-left text-sm transition-all duration-200
                     ${
                       selectedClue?.number === clue.number && direction === 'across'
-                        ? 'bg-yellow-100 dark:bg-yellow-950'
-                        : 'bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700'
+                        ? 'bg-yellow-400 text-zinc-900 shadow-md scale-[1.02]'
+                        : 'bg-zinc-50 text-zinc-600 hover:bg-zinc-100 dark:bg-zinc-800/50 dark:text-zinc-400 dark:hover:bg-zinc-800'
                     }
                   `}
                 >
-                  <span className="font-semibold text-zinc-900 dark:text-zinc-50">
+                  <span className={`font-bold ${selectedClue?.number === clue.number && direction === 'across' ? 'text-zinc-900' : 'text-zinc-900 dark:text-zinc-200'}`}>
                     {clue.number}.
                   </span>{' '}
-                  <span className="text-zinc-700 dark:text-zinc-300">{clue.text}</span>
+                  <span>{clue.text}</span>
                 </button>
               ))}
             </div>
           </div>
 
-          <div>
-            <h3 className="mb-3 text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-              Verticais
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl p-6 shadow-sm border border-zinc-200 dark:border-zinc-800">
+            <h3 className="mb-4 flex items-center gap-2 text-lg font-bold text-zinc-900 dark:text-zinc-50">
+              <span className="text-xl">⬇️</span> Verticais
             </h3>
-            <div className="space-y-2">
+            <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-zinc-200 dark:scrollbar-thumb-zinc-700">
               {clues.down.map((clue) => (
                 <button
                   key={clue.number}
@@ -465,18 +471,18 @@ export default function CrosswordGrid({
                     setDirection('down');
                   }}
                   className={`
-                    w-full rounded-lg p-3 text-left text-sm transition-colors
+                    w-full rounded-xl p-3 text-left text-sm transition-all duration-200
                     ${
                       selectedClue?.number === clue.number && direction === 'down'
-                        ? 'bg-yellow-100 dark:bg-yellow-950'
-                        : 'bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700'
+                        ? 'bg-yellow-400 text-zinc-900 shadow-md scale-[1.02]'
+                        : 'bg-zinc-50 text-zinc-600 hover:bg-zinc-100 dark:bg-zinc-800/50 dark:text-zinc-400 dark:hover:bg-zinc-800'
                     }
                   `}
                 >
-                  <span className="font-semibold text-zinc-900 dark:text-zinc-50">
+                  <span className={`font-bold ${selectedClue?.number === clue.number && direction === 'down' ? 'text-zinc-900' : 'text-zinc-900 dark:text-zinc-200'}`}>
                     {clue.number}.
                   </span>{' '}
-                  <span className="text-zinc-700 dark:text-zinc-300">{clue.text}</span>
+                  <span>{clue.text}</span>
                 </button>
               ))}
             </div>

@@ -599,16 +599,16 @@ function GameHeader({
   onTimeUpdate
 }: GameHeaderProps) {
   return (
-    <div className="flex flex-col sm:flex-row items-center justify-between mb-8 gap-4">
+    <div className="flex flex-col sm:flex-row items-center justify-between mb-8 gap-4 animate-in fade-in slide-in-from-top-4 duration-500">
       <div className="flex items-center gap-4">
         <button
           onClick={onChangeMode}
-          className="text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors"
+          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-zinc-600 transition-colors hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-50"
         >
           ← Mudar Modo
         </button>
-        <div className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-zinc-900 rounded-lg shadow">
-          <span className="text-2xl">
+        <div className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-zinc-900 rounded-full shadow-sm border border-zinc-200 dark:border-zinc-800">
+          <span className="text-xl">
             {gameMode === 'daily' ? '📅' : '🎲'}
           </span>
           <span className="font-bold text-zinc-900 dark:text-white">
@@ -617,14 +617,14 @@ function GameHeader({
         </div>
       </div>
 
-      <div className="flex items-center gap-4">
-        <div className="bg-white dark:bg-zinc-900 rounded-lg shadow px-6 py-3">
+      <div className="flex items-center gap-3">
+        <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-800 px-4 py-2">
           <Timer isRunning={isTimerRunning} onTimeUpdate={onTimeUpdate} />
         </div>
 
         <button
           onClick={onRestart}
-          className="px-4 py-3 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 rounded-lg hover:scale-105 transition-transform font-semibold"
+          className="p-3 bg-zinc-900 dark:bg-zinc-50 text-white dark:text-zinc-900 rounded-xl hover:scale-105 transition-transform shadow-sm"
           title={gameMode === 'daily' ? 'Reiniciar' : 'Novo Puzzle'}
         >
           {gameMode === 'daily' ? '↻' : '🎲'}
@@ -669,29 +669,33 @@ function CompletionModal({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-40">
-      <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl p-8 max-w-md w-full animate-bounce">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-300">
+      <div className="bg-white dark:bg-zinc-900 rounded-3xl shadow-2xl p-8 max-w-md w-full animate-in zoom-in-95 duration-300 border border-zinc-200 dark:border-zinc-800">
         <div className="text-center">
-          <div className="text-7xl mb-4">🎉</div>
-          <h2 className="text-3xl font-bold text-zinc-900 dark:text-white mb-4">
+          <div className="text-7xl mb-6 animate-bounce">🎉</div>
+          <h2 className="text-3xl font-black tracking-tight text-zinc-900 dark:text-white mb-2">
             Parabéns!
           </h2>
-          <p className="text-lg text-zinc-600 dark:text-zinc-400 mb-2">
+          <p className="text-lg text-zinc-600 dark:text-zinc-400 mb-6">
             Encontraste todas as palavras!
           </p>
-          <p className="text-4xl font-bold text-emerald-600 dark:text-emerald-400 mb-6">
-            {formatChronometer(timeMs)}
-          </p>
+          
+          <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-2xl p-6 mb-8 border border-zinc-100 dark:border-zinc-800">
+            <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-1">Tempo Final</p>
+            <p className="text-5xl font-black text-zinc-900 dark:text-white tracking-tighter">
+              {formatChronometer(timeMs)}
+            </p>
+          </div>
 
           {gameMode === 'daily' && (
-            <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50/80 p-4 text-left text-sm text-amber-900 shadow-sm dark:border-amber-500/30 dark:bg-amber-950/30 dark:text-amber-100">
+            <div className="mb-8 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-left text-sm text-amber-900 shadow-sm dark:border-amber-900/30 dark:bg-amber-950/30 dark:text-amber-100">
               {isAuthenticated ? (
                 <div className="space-y-3">
-                  <p>{statusCopy[scoreStatus]}</p>
+                  <p className="font-medium">{statusCopy[scoreStatus]}</p>
                   {scoreStatus === 'error' && (
                     <button
                       onClick={() => onSubmitScore()}
-                      className="w-full rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-amber-400"
+                      className="w-full rounded-xl bg-amber-500 px-4 py-2 text-sm font-bold text-white transition hover:bg-amber-400 shadow-sm"
                     >
                       Tentar novamente
                     </button>
@@ -704,19 +708,19 @@ function CompletionModal({
                 </div>
               ) : (
                 <div className="space-y-3">
-                  <p>
+                  <p className="font-medium">
                     Entra como convidado ou liga a tua conta Google para guardares o tempo no leaderboard diário.
                   </p>
                   <div className="flex flex-col gap-2 sm:flex-row">
                     <button
                       onClick={() => onSignInAsGuest && onSignInAsGuest()}
-                      className="flex-1 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-zinc-800 dark:bg-zinc-50 dark:text-zinc-900"
+                      className="flex-1 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-zinc-800 dark:bg-zinc-50 dark:text-zinc-900 shadow-sm"
                     >
                       Entrar como Convidado
                     </button>
                     <button
                       onClick={() => onSignInWithGoogle && onSignInWithGoogle()}
-                      className="flex-1 rounded-lg border border-zinc-300 px-4 py-2 text-sm font-semibold text-zinc-900 transition hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-50 dark:hover:bg-zinc-800"
+                      className="flex-1 rounded-xl border-2 border-zinc-200 px-4 py-2.5 text-sm font-bold text-zinc-900 transition hover:bg-zinc-50 hover:border-zinc-300 dark:border-zinc-700 dark:text-zinc-50 dark:hover:bg-zinc-800"
                     >
                       Google
                     </button>
@@ -730,20 +734,20 @@ function CompletionModal({
             {gameMode === 'daily' && (
               <button
                 onClick={onViewLeaderboard}
-                className="px-6 py-3 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg font-semibold transition-colors"
+                className="w-full px-6 py-4 bg-yellow-400 hover:bg-yellow-500 text-zinc-900 rounded-xl font-bold transition-all hover:-translate-y-0.5 shadow-sm"
               >
                 🏆 Ver Classificações
               </button>
             )}
             <button
               onClick={onRestart}
-              className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-semibold transition-colors"
+              className="w-full px-6 py-4 bg-zinc-900 hover:bg-zinc-800 text-white dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200 rounded-xl font-bold transition-all hover:-translate-y-0.5 shadow-sm"
             >
               {gameMode === 'daily' ? '↻ Reiniciar' : '🎲 Novo Puzzle'}
             </button>
             <button
               onClick={onChangeMode}
-              className="px-6 py-3 bg-zinc-200 dark:bg-zinc-700 text-zinc-900 dark:text-white rounded-lg font-semibold transition-colors"
+              className="w-full px-6 py-4 bg-transparent hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400 rounded-xl font-bold transition-colors"
             >
               Mudar Modo
             </button>

@@ -34,8 +34,9 @@ export default function Timer({ isRunning, onTimeUpdate }: TimerProps) {
   };
 
   return (
-    <div className="font-mono text-2xl font-bold text-zinc-900 dark:text-zinc-50">
-      {formatTime(timeMs)}
+    <div className="flex items-center gap-2 font-mono text-xl font-bold text-zinc-900 dark:text-zinc-50">
+      <span className="text-zinc-400 dark:text-zinc-600">⏱️</span>
+      <span>{formatTime(timeMs)}</span>
     </div>
   );
 }

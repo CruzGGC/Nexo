@@ -188,15 +188,14 @@ export default function WordSearchGrid({ grid, words, onComplete }: WordSearchGr
   }
 
   return (
-    <div className="flex flex-col lg:flex-row gap-8 items-start">
-      {/* Grid */}
-      <div className="flex-1">
+    <div className="flex flex-col lg:flex-row gap-8 animate-in fade-in zoom-in duration-500">
+      {/* Grid Container */}
+      <div className="flex-1 flex justify-center items-start">
         <div
           ref={gridRef}
-          className="inline-grid gap-1 p-4 bg-white dark:bg-zinc-900 rounded-xl shadow-lg"
+          className="grid gap-1 p-4 bg-white dark:bg-zinc-900 rounded-2xl shadow-xl border border-zinc-200 dark:border-zinc-800 select-none touch-none"
           style={{
             gridTemplateColumns: `repeat(${grid[0].length}, minmax(0, 1fr))`,
-            touchAction: 'none'
           }}
           onMouseUp={handleMouseUp}
           onMouseLeave={handleMouseUp}
@@ -218,26 +217,20 @@ export default function WordSearchGrid({ grid, words, onComplete }: WordSearchGr
                   data-row={rowIndex}
                   data-col={colIndex}
                   className={`
-                    aspect-square flex items-center justify-center
-                    text-base sm:text-lg lg:text-xl font-bold
-                    rounded-lg cursor-pointer select-none
-                    transition-all duration-200 wordsearch-cell
+                    relative flex items-center justify-center
+                    w-8 h-8 sm:w-10 sm:h-10 lg:w-11 lg:h-11
+                    text-lg sm:text-xl font-bold rounded-lg
+                    transition-all duration-200 cursor-pointer
                     ${inFoundWords 
-                      ? 'bg-emerald-400 dark:bg-emerald-600 text-white shadow-lg scale-110' 
+                      ? 'bg-emerald-500 text-white shadow-md scale-105 z-10' 
                       : inSelection
-                        ? 'bg-yellow-300 dark:bg-yellow-600 text-zinc-900 dark:text-white shadow-md scale-105'
+                        ? 'bg-yellow-400 text-zinc-900 shadow-md scale-110 z-20'
                         : isHovered
-                          ? 'bg-zinc-100 dark:bg-zinc-800 scale-105'
-                          : 'bg-zinc-50 dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700'
+                          ? 'bg-zinc-100 dark:bg-zinc-800 scale-110 z-10'
+                          : 'bg-zinc-50 dark:bg-zinc-800/50 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
                     }
-                    ${inSelection && isSelecting ? 'animate-pulse' : ''}
-                    ${isCelebrating ? 'wordsearch-cell-success' : ''}
+                    ${isCelebrating ? 'animate-bounce' : ''}
                   `}
-                  style={{
-                    width: '2.5rem',
-                    height: '2.5rem',
-                    animationDelay: `${(rowIndex * grid[0].length + colIndex) * 15}ms`
-                  }}
                   onMouseDown={() => handleMouseDown(rowIndex, colIndex)}
                   onMouseEnter={() => handleMouseEnter(rowIndex, colIndex)}
                   onTouchStart={(e) => handleTouchStart(e, rowIndex, colIndex)}
@@ -250,64 +243,68 @@ export default function WordSearchGrid({ grid, words, onComplete }: WordSearchGr
         </div>
       </div>
 
-      {/* Lista de Palavras */}
-      <div className="w-full lg:w-80 bg-white dark:bg-zinc-900 rounded-xl shadow-lg p-6">
-        <h3 className="text-xl font-bold mb-4 text-zinc-900 dark:text-white">
-          Palavras ({foundWords.length}/{words.length})
-        </h3>
-        <div className="space-y-3">
-          {words.map((word, index) => {
-            const found = isWordFound(word.word)
-            return (
-              <div
-                key={index}
-                className={`
-                  p-3 rounded-lg transition-all duration-300
-                  ${found 
-                    ? 'bg-emerald-100 dark:bg-emerald-900/30 scale-105' 
-                    : 'bg-zinc-100 dark:bg-zinc-800'
-                  }
-                `}
-              >
-                <div className="flex items-center gap-2 mb-1">
-                  {found && (
-                    <span className="text-emerald-600 dark:text-emerald-400 animate-bounce">
-                      ✓
-                    </span>
-                  )}
-                  <span
-                    className={`
-                      font-bold text-base
-                      ${found 
-                        ? 'line-through text-emerald-700 dark:text-emerald-300' 
-                        : 'text-zinc-900 dark:text-white'
-                      }
-                    `}
-                  >
-                    {word.word}
-                  </span>
-                </div>
-                <p className="text-sm text-zinc-600 dark:text-zinc-400">
-                  {word.definition}
-                </p>
-              </div>
-            )
-          })}
-        </div>
-
-        {/* Progresso */}
-        <div className="mt-6">
-          <div className="w-full bg-zinc-200 dark:bg-zinc-700 rounded-full h-3 overflow-hidden">
+      {/* Sidebar */}
+      <div className="w-full lg:w-80 space-y-6">
+        {/* Progress Card */}
+        <div className="bg-white dark:bg-zinc-900 rounded-2xl p-6 shadow-sm border border-zinc-200 dark:border-zinc-800">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-50">Progresso</h3>
+            <span className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
+              {foundWords.length}/{words.length}
+            </span>
+          </div>
+          <div className="w-full bg-zinc-100 dark:bg-zinc-800 rounded-full h-3 overflow-hidden">
             <div
-              className="h-full bg-gradient-to-r from-emerald-500 to-emerald-600 transition-all duration-500 ease-out"
+              className="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 transition-all duration-500 ease-out"
               style={{
                 width: `${(foundWords.length / words.length) * 100}%`
               }}
             />
           </div>
-          <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-2 text-center">
-            {Math.round((foundWords.length / words.length) * 100)}% completo
-          </p>
+        </div>
+
+        {/* Words List */}
+        <div className="bg-white dark:bg-zinc-900 rounded-2xl p-6 shadow-sm border border-zinc-200 dark:border-zinc-800">
+          <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-50 mb-4">Palavras</h3>
+          <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-zinc-200 dark:scrollbar-thumb-zinc-700">
+            {words.map((word, index) => {
+              const found = isWordFound(word.word)
+              return (
+                <div
+                  key={index}
+                  className={`
+                    p-3 rounded-xl transition-all duration-300 border
+                    ${found 
+                      ? 'bg-emerald-50 border-emerald-100 dark:bg-emerald-900/20 dark:border-emerald-900/30' 
+                      : 'bg-zinc-50 border-zinc-100 dark:bg-zinc-800/50 dark:border-zinc-800'
+                    }
+                  `}
+                >
+                  <div className="flex items-center gap-2">
+                    {found && (
+                      <span className="text-emerald-500 dark:text-emerald-400 text-lg">✓</span>
+                    )}
+                    <span
+                      className={`
+                        font-bold text-sm
+                        ${found 
+                          ? 'text-emerald-700 dark:text-emerald-400 line-through decoration-2 decoration-emerald-500/30' 
+                          : 'text-zinc-700 dark:text-zinc-300'
+                        }
+                      `}
+                    >
+                      {word.word}
+                    </span>
+                  </div>
+                  {word.definition && (
+                    <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400 line-clamp-2">
+                      {word.definition}
+                    </p>
+                  )}
+                </div>
+              )
+            })}
+          </div>
         </div>
       </div>
     </div>

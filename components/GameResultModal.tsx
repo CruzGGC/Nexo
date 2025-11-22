@@ -24,18 +24,18 @@ export function GameResultModal({ isOpen, result, winnerName, onClose }: GameRes
   if (!mounted || !isOpen) return null
 
   const content = (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-300">
-      <div className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white p-6 text-center shadow-xl transition-all dark:bg-zinc-900 animate-in zoom-in-95 duration-300">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-300">
+      <div className="w-full max-w-md transform overflow-hidden rounded-3xl bg-white p-8 text-center shadow-2xl transition-all dark:bg-zinc-900 animate-in zoom-in-95 duration-300 border border-zinc-200 dark:border-zinc-800">
         
-        <div className="mb-6 text-6xl animate-bounce">
+        <div className="mb-8 text-7xl animate-bounce">
           {result === 'victory' ? '🏆' : result === 'defeat' ? '💔' : '🤝'}
         </div>
 
-        <h2 className="mb-2 text-3xl font-bold text-zinc-900 dark:text-white">
+        <h2 className="mb-3 text-4xl font-black tracking-tight text-zinc-900 dark:text-white">
           {result === 'victory' ? 'Vitória!' : result === 'defeat' ? 'Derrota!' : 'Empate!'}
         </h2>
 
-        <p className="mb-8 text-lg text-zinc-600 dark:text-zinc-400">
+        <p className="mb-8 text-lg font-medium text-zinc-600 dark:text-zinc-400">
           {result === 'victory' 
             ? 'Parabéns! Foste o mais rápido.' 
             : result === 'defeat'
@@ -46,7 +46,7 @@ export function GameResultModal({ isOpen, result, winnerName, onClose }: GameRes
         <div className="flex flex-col gap-3">
           <button
             onClick={onClose}
-            className="w-full rounded-lg bg-zinc-900 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-zinc-700 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
+            className="w-full rounded-xl bg-zinc-900 px-6 py-4 text-lg font-bold text-white transition-all hover:scale-[1.02] hover:bg-zinc-800 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200 shadow-lg"
           >
             Voltar ao Menu
           </button>

@@ -1,4 +1,4 @@
-import LeaderboardsClient from '@/components/LeaderboardsClient'
+import { LeaderboardsClient } from '@/components/LeaderboardsClient'
 import AuthCallout from '@/components/AuthCallout'
 
 export default function LeaderboardsPage() {
