@@ -93,3 +93,33 @@ body {
 .slide-in-from-bottom-4 {
   animation-name: slide-in-from-bottom;
 }
+
+@keyframes float {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+  100% { transform: translateY(0px); }
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 1; box-shadow: 0 0 20px rgba(255, 255, 255, 0.1); }
+  50% { opacity: 0.8; box-shadow: 0 0 40px rgba(255, 255, 255, 0.2); }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes gradient-xy {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.animate-gradient-xy {
+  background-size: 200% 200%;
+  animation: gradient-xy 15s ease infinite;
+}
