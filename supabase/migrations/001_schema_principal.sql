@@ -384,12 +384,14 @@ CREATE POLICY "Perfis públicos para leitura"
 
 CREATE POLICY "Utilizadores podem atualizar próprio perfil"
   ON profiles FOR UPDATE
-  USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
+  TO authenticated
+  USING ((select auth.uid()) = user_id)
+  WITH CHECK ((select auth.uid()) = user_id);
 
 CREATE POLICY "Sistema pode inserir perfis"
   ON profiles FOR INSERT
-  WITH CHECK (auth.uid() = user_id);
+  TO authenticated
+  WITH CHECK ((select auth.uid()) = user_id);
 
 -- ----------------------------------------------------------------------------
 -- 5.2 DICTIONARY_PT - Leitura pública, escrita apenas admin
@@ -449,11 +451,13 @@ CREATE POLICY "Scores públicos para leitura"
 
 CREATE POLICY "Utilizadores podem inserir próprios scores"
   ON scores FOR INSERT
-  WITH CHECK (auth.uid() = user_id);
+  TO authenticated
+  WITH CHECK ((select auth.uid()) = user_id);
 
 CREATE POLICY "Utilizadores podem deletar próprios scores"
   ON scores FOR DELETE
-  USING (auth.uid() = user_id);
+  TO authenticated
+  USING ((select auth.uid()) = user_id);
 
 -- Nota: UPDATE bloqueado (scores são imutáveis)
 
@@ -468,32 +472,29 @@ CREATE POLICY "Salas públicas para leitura"
 
 CREATE POLICY "Hosts podem criar salas"
   ON game_rooms FOR INSERT
-  WITH CHECK (auth.uid() = host_id);
+  TO authenticated
+  WITH CHECK ((select auth.uid()) = host_id);
 
-CREATE POLICY "Hosts podem atualizar próprias salas"
+CREATE POLICY "Hosts e Participantes podem atualizar salas"
   ON game_rooms FOR UPDATE
-  USING (auth.uid() = host_id)
-  WITH CHECK (auth.uid() = host_id);
-
-CREATE POLICY "Participantes podem atualizar salas"
-  ON game_rooms FOR UPDATE
+  TO authenticated
   USING (
-    auth.uid() IS NOT NULL AND (
-      auth.uid() = host_id
+    (select auth.uid()) IS NOT NULL AND (
+      (select auth.uid()) = host_id
       OR EXISTS (
         SELECT 1
         FROM jsonb_array_elements(coalesce(game_state->'participants', '[]'::jsonb)) AS participant
-        WHERE participant->>'id' = auth.uid()::text
+        WHERE participant->>'id' = (select auth.uid())::text
       )
     )
   )
   WITH CHECK (
-    auth.uid() IS NOT NULL AND (
-      auth.uid() = host_id
+    (select auth.uid()) IS NOT NULL AND (
+      (select auth.uid()) = host_id
       OR EXISTS (
         SELECT 1
         FROM jsonb_array_elements(coalesce(game_state->'participants', '[]'::jsonb)) AS participant
-        WHERE participant->>'id' = auth.uid()::text
+        WHERE participant->>'id' = (select auth.uid())::text
       )
     )
   );
@@ -504,7 +505,8 @@ ALTER TABLE game_rooms REPLICA IDENTITY FULL;
 
 CREATE POLICY "Hosts podem deletar próprias salas"
   ON game_rooms FOR DELETE
-  USING (auth.uid() = host_id);
+  TO authenticated
+  USING ((select auth.uid()) = host_id);
 
 -- ----------------------------------------------------------------------------
 -- 5.9 PLAYER_RATINGS - Leitura pública, escrita pelo próprio
@@ -517,16 +519,19 @@ CREATE POLICY "Ratings públicos para leitura"
 
 CREATE POLICY "Utilizadores criam rating inicial"
   ON player_ratings FOR INSERT
-  WITH CHECK (auth.uid() = user_id);
+  TO authenticated
+  WITH CHECK ((select auth.uid()) = user_id);
 
 CREATE POLICY "Utilizadores atualizam próprio rating"
   ON player_ratings FOR UPDATE
-  USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
+  TO authenticated
+  USING ((select auth.uid()) = user_id)
+  WITH CHECK ((select auth.uid()) = user_id);
 
 CREATE POLICY "Utilizadores removem próprio rating"
   ON player_ratings FOR DELETE
-  USING (auth.uid() = user_id);
+  TO authenticated
+  USING ((select auth.uid()) = user_id);
 
 -- ----------------------------------------------------------------------------
 -- 5.10 MATCHMAKING_QUEUE - Gestão pelo próprio utilizador
@@ -539,16 +544,19 @@ CREATE POLICY "Fila pública para leitura"
 
 CREATE POLICY "Jogadores entram na fila"
   ON matchmaking_queue FOR INSERT
-  WITH CHECK (auth.uid() = user_id);
+  TO authenticated
+  WITH CHECK ((select auth.uid()) = user_id);
 
 CREATE POLICY "Jogadores atualizam entrada"
   ON matchmaking_queue FOR UPDATE
-  USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
+  TO authenticated
+  USING ((select auth.uid()) = user_id)
+  WITH CHECK ((select auth.uid()) = user_id);
 
 CREATE POLICY "Jogadores removem entrada"
   ON matchmaking_queue FOR DELETE
-  USING (auth.uid() = user_id);
+  TO authenticated
+  USING ((select auth.uid()) = user_id);
 
 -- ============================================================================
 -- 6. VIEWS OTIMIZADAS
@@ -558,7 +566,7 @@ CREATE POLICY "Jogadores removem entrada"
 -- 6.1 VIEW: words_with_categories
 -- Agrega palavras com suas categorias em JSON
 -- ----------------------------------------------------------------------------
-CREATE OR REPLACE VIEW words_with_categories AS
+CREATE OR REPLACE VIEW words_with_categories WITH (security_invoker = true) AS
 SELECT 
   d.word,
   d.definition,
@@ -586,7 +594,7 @@ COMMENT ON VIEW words_with_categories IS 'Palavras agregadas com suas categorias
 -- 6.2 VIEW: leaderboard_crosswords
 -- Top scores de palavras cruzadas (cache-friendly)
 -- ----------------------------------------------------------------------------
-CREATE OR REPLACE VIEW leaderboard_crosswords AS
+CREATE OR REPLACE VIEW leaderboard_crosswords WITH (security_invoker = true) AS
 SELECT 
   s.puzzle_id,
   s.time_ms,
@@ -606,7 +614,7 @@ COMMENT ON VIEW leaderboard_crosswords IS 'Ranking de palavras cruzadas ordenado
 -- 6.3 VIEW: leaderboard_wordsearches
 -- Top scores de sopa de letras
 -- ----------------------------------------------------------------------------
-CREATE OR REPLACE VIEW leaderboard_wordsearches AS
+CREATE OR REPLACE VIEW leaderboard_wordsearches WITH (security_invoker = true) AS
 SELECT 
   s.puzzle_id,
   s.time_ms,
@@ -626,7 +634,7 @@ COMMENT ON VIEW leaderboard_wordsearches IS 'Ranking de sopa de letras ordenado 
 -- 6.4 VIEW: leaderboard_player_ratings
 -- Ranking global por jogo usando player_ratings
 -- ----------------------------------------------------------------------------
-CREATE OR REPLACE VIEW leaderboard_player_ratings AS
+CREATE OR REPLACE VIEW leaderboard_player_ratings WITH (security_invoker = true) AS
 SELECT 
   r.game_type,
   r.rating,
@@ -656,7 +664,8 @@ BEGIN
   NEW.updated_at = now();
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public;
 
 CREATE TRIGGER set_updated_at
   BEFORE UPDATE ON profiles
@@ -759,7 +768,8 @@ BEGIN
     LIMIT 1;
   END IF;
 END;
-$$ LANGUAGE plpgsql STABLE SECURITY DEFINER;
+$$ LANGUAGE plpgsql STABLE SECURITY DEFINER
+SET search_path = public;
 
 COMMENT ON FUNCTION get_daily_crossword IS 'Busca puzzle diário com fallback para dia anterior';
 
@@ -803,7 +813,8 @@ BEGIN
     LIMIT 1;
   END IF;
 END;
-$$ LANGUAGE plpgsql STABLE SECURITY DEFINER;
+$$ LANGUAGE plpgsql STABLE SECURITY DEFINER
+SET search_path = public;
 
 COMMENT ON FUNCTION get_daily_wordsearch IS 'Busca puzzle diário com fallback para dia anterior';
 

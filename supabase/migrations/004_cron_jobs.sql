@@ -118,6 +118,21 @@ BEGIN
 END $$;
 
 -- ============================================================================
+-- 3. SEGURANÇA: REVOGAR ACESSO PÚBLICO
+-- ============================================================================
+-- Remover acesso do role 'anon' às tabelas do pg_cron para evitar avisos de segurança
+DO $$
+BEGIN
+  -- Tentar revogar permissões se possível (pode falhar dependendo do dono)
+  BEGIN
+    REVOKE ALL ON TABLE cron.job FROM anon;
+    REVOKE ALL ON TABLE cron.job_run_details FROM anon;
+  EXCEPTION WHEN OTHERS THEN
+    RAISE NOTICE 'Não foi possível revogar permissões de cron.job/job_run_details (provavelmente já restrito ou sem permissão)';
+  END;
+END $$;
+
+-- ============================================================================
 -- 5. FUNÇÃO DE LIMPEZA: REMOVER PUZZLES ANTIGOS
 -- ============================================================================
 
@@ -146,7 +161,8 @@ BEGIN
   RAISE NOTICE '🧹 Limpeza: % crosswords e % wordsearches deletados', 
     v_crosswords_deleted, v_wordsearches_deleted;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public;
 
 COMMENT ON FUNCTION cleanup_old_daily_puzzles IS 'Remove puzzles diários com mais de 90 dias';
 
@@ -175,7 +191,7 @@ SELECT cron.schedule(
 -- ============================================================================
 
 -- View para ver status dos cron jobs
-CREATE OR REPLACE VIEW cron_jobs_status AS
+CREATE OR REPLACE VIEW cron_jobs_status WITH (security_invoker = true) AS
 SELECT 
   jobid,
   schedule,
@@ -192,7 +208,7 @@ ORDER BY jobid DESC;
 COMMENT ON VIEW cron_jobs_status IS 'Monitorizar status dos cron jobs agendados';
 
 -- View para ver histórico de execuções (últimas 100)
-CREATE OR REPLACE VIEW cron_jobs_history AS
+CREATE OR REPLACE VIEW cron_jobs_history WITH (security_invoker = true) AS
 SELECT 
   runid,
   jobid,
@@ -289,7 +305,8 @@ BEGIN
     END,
     'Jobs devem executar diariamente'::TEXT;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public, cron, extensions, app_private;
 
 COMMENT ON FUNCTION diagnose_cron_setup IS 'Diagnostica configuração dos cron jobs';
 
