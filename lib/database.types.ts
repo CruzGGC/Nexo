@@ -449,6 +449,12 @@ export type Database = {
       }
     }
     Functions: {
+      claim_victory: {
+        Args: {
+          p_room_id: string
+        }
+        Returns: void
+      }
       get_daily_crossword: {
         Args: {
           target_date?: string | null

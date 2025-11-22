@@ -23,7 +23,7 @@ const LEADERBOARD_CONFIG = {
   }
 >
 
-const RATING_GAME_TYPES = ['crossword', 'wordsearch', 'tic_tac_toe', 'battleship'] as const
+const RATING_GAME_TYPES = ['crossword', 'wordsearch', 'tic_tac_toe', 'battleship', 'crossword_duel', 'wordsearch_duel'] as const
 
 const isLeaderboardType = (value: unknown): value is LeaderboardType =>
   value === 'crossword' || value === 'wordsearch' || value === 'ratings'

@@ -475,6 +475,33 @@ CREATE POLICY "Hosts podem atualizar próprias salas"
   USING (auth.uid() = host_id)
   WITH CHECK (auth.uid() = host_id);
 
+CREATE POLICY "Participantes podem atualizar salas"
+  ON game_rooms FOR UPDATE
+  USING (
+    auth.uid() IS NOT NULL AND (
+      auth.uid() = host_id
+      OR EXISTS (
+        SELECT 1
+        FROM jsonb_array_elements(coalesce(game_state->'participants', '[]'::jsonb)) AS participant
+        WHERE participant->>'id' = auth.uid()::text
+      )
+    )
+  )
+  WITH CHECK (
+    auth.uid() IS NOT NULL AND (
+      auth.uid() = host_id
+      OR EXISTS (
+        SELECT 1
+        FROM jsonb_array_elements(coalesce(game_state->'participants', '[]'::jsonb)) AS participant
+        WHERE participant->>'id' = auth.uid()::text
+      )
+    )
+  );
+
+-- Realtime configuration
+ALTER PUBLICATION supabase_realtime ADD TABLE game_rooms;
+ALTER TABLE game_rooms REPLICA IDENTITY FULL;
+
 CREATE POLICY "Hosts podem deletar próprias salas"
   ON game_rooms FOR DELETE
   USING (auth.uid() = host_id);

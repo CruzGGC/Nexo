@@ -29,8 +29,8 @@ type RatingEntry = {
 const ratingGameTypes = [
   { id: 'tic_tac_toe', label: 'Jogo do Galo' },
   { id: 'battleship', label: 'Batalha Naval' },
-  { id: 'crossword', label: 'Palavras Cruzadas' },
-  { id: 'wordsearch', label: 'Sopa de Letras' }
+  { id: 'crossword_duel', label: 'Duelo Cruzadas' },
+  { id: 'wordsearch_duel', label: 'Duelo Sopa' }
 ] as const
 
 type RatingGameType = (typeof ratingGameTypes)[number]['id']

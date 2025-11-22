@@ -8,6 +8,8 @@ interface MatchmakingViewProps {
   onCancel: () => void
   status: string
   roomCode?: string
+  title?: string
+  description?: string
 }
 
 export function MatchmakingView({
@@ -16,7 +18,9 @@ export function MatchmakingView({
   onJoinPrivate,
   onCancel,
   status,
-  roomCode
+  roomCode,
+  title = 'Modo Online',
+  description = 'Escolhe como queres encontrar o teu oponente.'
 }: MatchmakingViewProps) {
   const [inviteCode, setInviteCode] = useState('')
   const [generatedCode] = useState(generateMatchCode())
@@ -39,7 +43,7 @@ export function MatchmakingView({
           </h2>
           <p className="text-slate-500 dark:text-slate-400">
             {status === 'matched' 
-              ? 'A preparar o tabuleiro...' 
+              ? 'A preparar o jogo...' 
               : 'Aguardando conexão...'}
           </p>
           {roomCode && (
@@ -61,9 +65,9 @@ export function MatchmakingView({
   return (
     <div className="flex flex-col items-center justify-center gap-8 py-12 animate-in fade-in zoom-in duration-500">
       <div className="text-center space-y-4">
-        <h2 className="text-3xl font-bold text-slate-900 dark:text-white">Modo Online</h2>
+        <h2 className="text-3xl font-bold text-slate-900 dark:text-white">{title}</h2>
         <p className="text-slate-600 dark:text-slate-400">
-          Escolhe como queres encontrar o teu oponente.
+          {description}
         </p>
       </div>
 
@@ -98,81 +102,74 @@ export function MatchmakingView({
             <div className="rounded-xl bg-emerald-100 p-3 text-2xl dark:bg-emerald-900/30">👋</div>
             <div>
               <h3 className="font-bold text-slate-900 dark:text-white">Entrar com Código</h3>
-              <p className="text-sm text-slate-500 dark:text-slate-400">Tens um código? Cola-o aqui.</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400">Usa um código partilhado por um amigo.</p>
             </div>
           </button>
         </div>
       )}
 
       {view === 'create' && (
-        <div className="w-full max-w-md space-y-6 rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-xl dark:border-slate-800 dark:bg-slate-900">
-          <div>
-            <h3 className="text-xl font-bold text-slate-900 dark:text-white">A tua Sala</h3>
-            <p className="text-sm text-slate-500 dark:text-slate-400">Partilha este código com o teu amigo.</p>
-          </div>
-          
-          <div className="rounded-xl bg-slate-100 p-4 font-mono text-3xl font-bold tracking-widest text-slate-900 dark:bg-slate-800 dark:text-white">
-            {generatedCode}
+        <div className="w-full max-w-md space-y-6 rounded-2xl border border-slate-200 bg-white p-8 dark:border-slate-800 dark:bg-slate-900">
+          <div className="text-center">
+            <h3 className="text-xl font-bold text-slate-900 dark:text-white">Sala Privada</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400">Partilha este código com o teu amigo</p>
           </div>
 
-          <div className="flex gap-3">
-            <button
-              onClick={() => setView('menu')}
-              className="flex-1 rounded-xl border border-slate-200 py-3 font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
-            >
-              Voltar
-            </button>
+          <div className="flex items-center justify-center gap-4 rounded-xl bg-slate-100 p-4 dark:bg-slate-800">
+            <code className="text-3xl font-black tracking-widest text-slate-900 dark:text-white">
+              {generatedCode}
+            </code>
+          </div>
+
+          <div className="grid gap-3">
             <button
               onClick={() => onCreatePrivate(generatedCode)}
-              className="flex-1 rounded-xl bg-indigo-600 py-3 font-bold text-white shadow-lg transition hover:bg-indigo-700 hover:scale-105"
+              className="w-full rounded-xl bg-indigo-600 py-3 font-bold text-white transition hover:bg-indigo-700"
             >
-              Criar Sala
+              Aguardar Amigo
+            </button>
+            <button
+              onClick={() => setView('menu')}
+              className="w-full rounded-xl border border-slate-200 py-3 font-bold text-slate-600 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+            >
+              Voltar
             </button>
           </div>
         </div>
       )}
 
       {view === 'join' && (
-        <div className="w-full max-w-md space-y-6 rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-xl dark:border-slate-800 dark:bg-slate-900">
-          <div>
-            <h3 className="text-xl font-bold text-slate-900 dark:text-white">Entrar na Sala</h3>
-            <p className="text-sm text-slate-500 dark:text-slate-400">Cola o código que recebeste.</p>
+        <div className="w-full max-w-md space-y-6 rounded-2xl border border-slate-200 bg-white p-8 dark:border-slate-800 dark:bg-slate-900">
+          <div className="text-center">
+            <h3 className="text-xl font-bold text-slate-900 dark:text-white">Entrar em Sala</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400">Insere o código partilhado</p>
           </div>
-          
+
           <input
             type="text"
             value={inviteCode}
             onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
             placeholder="CÓDIGO"
-            className="w-full rounded-xl border-2 border-slate-200 bg-slate-50 p-4 text-center font-mono text-2xl font-bold uppercase tracking-widest outline-none focus:border-indigo-500 focus:bg-white dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:focus:border-indigo-500"
             maxLength={6}
+            className="w-full rounded-xl border-2 border-slate-200 bg-transparent p-4 text-center text-2xl font-bold tracking-widest outline-none focus:border-emerald-500 dark:border-slate-700 dark:text-white"
           />
 
-          <div className="flex gap-3">
-            <button
-              onClick={() => setView('menu')}
-              className="flex-1 rounded-xl border border-slate-200 py-3 font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
-            >
-              Voltar
-            </button>
+          <div className="grid gap-3">
             <button
               onClick={() => onJoinPrivate(inviteCode)}
-              disabled={inviteCode.length < 4}
-              className="flex-1 rounded-xl bg-emerald-600 py-3 font-bold text-white shadow-lg transition hover:bg-emerald-700 hover:scale-105 disabled:opacity-50 disabled:hover:scale-100"
+              disabled={inviteCode.length < 6}
+              className="w-full rounded-xl bg-emerald-600 py-3 font-bold text-white transition hover:bg-emerald-700 disabled:opacity-50"
             >
               Entrar
             </button>
+            <button
+              onClick={() => setView('menu')}
+              className="w-full rounded-xl border border-slate-200 py-3 font-bold text-slate-600 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+            >
+              Voltar
+            </button>
           </div>
         </div>
-      )}
-
-      {view === 'menu' && (
-        <button
-          onClick={onCancel}
-          className="text-sm font-semibold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
-        >
-          Voltar ao Menu Principal
-        </button>
       )}
     </div>
   )

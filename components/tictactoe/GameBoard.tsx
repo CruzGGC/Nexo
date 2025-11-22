@@ -1,5 +1,3 @@
-import { useState, useEffect } from 'react'
-
 type CellValue = 'X' | 'O' | null
 
 interface GameBoardProps {

@@ -2,15 +2,15 @@ import Link from 'next/link'
 import type { GameMode } from '@/lib/types/games'
 
 interface ModeSelectionProps {
-  gameMode: GameMode
+  gameMode: GameMode | null
   isLoading: boolean
   error: string | null
   onSelectMode: (mode: GameMode) => void | Promise<void>
 }
 
 const loadingCopy: Record<GameMode, string> = {
-  daily: 'A carregar puzzle diário...',
-  random: 'A gerar puzzle aleatório...',
+  daily: 'A carregar sopa de letras diária...',
+  random: 'A gerar sopa de letras aleatória...',
   duel: 'A preparar duelo...'
 }
 
@@ -25,7 +25,7 @@ export function ModeSelection({ gameMode, isLoading, error, onSelectMode }: Mode
           >
             ← Voltar
           </Link>
-          <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-50">Palavras Cruzadas</h1>
+          <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-50">Sopa de Letras</h1>
           <div className="w-20" />
         </div>
       </header>
@@ -34,7 +34,7 @@ export function ModeSelection({ gameMode, isLoading, error, onSelectMode }: Mode
         <div className="w-full max-w-4xl">
           <div className="mb-8 text-center">
             <h2 className="mb-2 text-3xl font-bold text-zinc-900 dark:text-zinc-50">Escolha o Modo de Jogo</h2>
-            <p className="text-zinc-600 dark:text-zinc-400">Selecione como quer jogar palavras cruzadas</p>
+            <p className="text-zinc-600 dark:text-zinc-400">Selecione como quer jogar sopa de letras</p>
           </div>
 
           {error && (
@@ -103,7 +103,7 @@ export function ModeSelection({ gameMode, isLoading, error, onSelectMode }: Mode
             </button>
           </div>
 
-          {isLoading && (
+          {isLoading && gameMode && (
             <div className="mt-8 text-center">
               <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-4 border-zinc-200 border-t-zinc-900 dark:border-zinc-800 dark:border-t-zinc-50" />
               <p className="text-zinc-600 dark:text-zinc-400">{loadingCopy[gameMode]}</p>

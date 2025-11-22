@@ -28,12 +28,17 @@ DECLARE
   v_match_reason text := 'rpc';
   v_user_metadata jsonb := '{}'::jsonb;
   v_removed integer := 0;
+  v_puzzle_id uuid;
 BEGIN
   v_user_metadata := jsonb_strip_nulls(coalesce(p_metadata, '{}'::jsonb));
   v_match_code := upper(nullif(coalesce(v_user_metadata->>'matchCode', v_user_metadata->>'match_code'), ''));
   IF v_match_code IS NOT NULL THEN
     v_user_metadata := jsonb_set(v_user_metadata, '{matchCode}', to_jsonb(v_match_code), TRUE);
   END IF;
+
+  -- Select appropriate puzzle ID based on game type
+  -- For duel modes, we generate a new random UUID which will be populated by the host client
+  v_puzzle_id := gen_random_uuid();
 
   -- remove stale queued entry for the same user/game
   DELETE FROM matchmaking_queue
@@ -102,7 +107,7 @@ BEGIN
   VALUES (
     v_host.user_id,
     p_game_type,
-    gen_random_uuid(),
+    v_puzzle_id,
     jsonb_build_object(
       'room_code', v_room_code,
       'phase', 'preparação',
@@ -170,3 +175,60 @@ COMMENT ON FUNCTION public.matchmaking_join_and_create_room IS 'Transactional ma
 
 GRANT EXECUTE ON FUNCTION public.matchmaking_join_and_create_room TO authenticated;
 GRANT EXECUTE ON FUNCTION public.matchmaking_join_and_create_room TO anon;
+
+-- ============================================================================
+-- CLAIM VICTORY RPC
+-- ============================================================================
+
+CREATE OR REPLACE FUNCTION claim_victory(p_room_id UUID)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_room game_rooms%ROWTYPE;
+  v_user_id UUID := auth.uid();
+  v_is_participant BOOLEAN;
+  v_current_progress JSONB;
+BEGIN
+  -- Get room
+  SELECT * INTO v_room FROM game_rooms WHERE id = p_room_id;
+  
+  IF v_room.id IS NULL THEN
+    RAISE EXCEPTION 'Room not found';
+  END IF;
+
+  -- Check if already finished
+  IF v_room.finished_at IS NOT NULL THEN
+    RETURN; -- Already finished, do nothing
+  END IF;
+
+  -- Check participation
+  -- Host is always a participant, but check array too for consistency
+  SELECT EXISTS (
+    SELECT 1
+    FROM jsonb_array_elements(coalesce(v_room.game_state->'participants', '[]'::jsonb)) AS p
+    WHERE (p->>'id')::uuid = v_user_id
+  ) INTO v_is_participant;
+
+  IF NOT v_is_participant AND v_room.host_id != v_user_id THEN
+    RAISE EXCEPTION 'Not a participant';
+  END IF;
+
+  -- Get current progress to preserve other player's progress
+  v_current_progress := coalesce(v_room.game_state->'progress', '{}'::jsonb);
+
+  -- Update room atomically
+  UPDATE game_rooms
+  SET 
+    status = 'finished',
+    finished_at = NOW(),
+    game_state = v_room.game_state || jsonb_build_object(
+      'winner_id', v_user_id,
+      'progress', v_current_progress || jsonb_build_object(v_user_id::text, 100)
+    )
+  WHERE id = p_room_id AND finished_at IS NULL;
+END;
+$$;
+

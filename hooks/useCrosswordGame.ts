@@ -90,6 +90,9 @@ export function useCrosswordGame({ initialCategories }: UseCrosswordGameOptions)
       setGameMode(mode)
       if (mode === 'daily') {
         await fetchPuzzle(mode)
+      } else if (mode === 'duel') {
+        setShowModeSelection(false)
+        setShowCategorySelection(false)
       } else {
         if (!categories.length) {
           await refreshCategories()
@@ -172,6 +175,8 @@ export function useCrosswordGame({ initialCategories }: UseCrosswordGameOptions)
     refreshCategories,
     selectedCategory,
     selectedCategoryMeta,
+    setPuzzle,
+    setIsLoading,
     showCategorySelection,
     showModeSelection
   }

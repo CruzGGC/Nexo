@@ -43,7 +43,7 @@ export default function TicTacToeGame() {
 
   // --- Derived State ---
   const roomState = useMemo(() => (room?.game_state as unknown as RoomState) || {}, [room?.game_state])
-  const participants = roomState.participants || []
+  const participants = useMemo(() => roomState.participants || [], [roomState.participants])
   const myId = user?.id
   const opponent = participants.find((p) => p.id !== myId)
   
@@ -66,10 +66,23 @@ export default function TicTacToeGame() {
   // --- Effects ---
 
   useEffect(() => {
-    if (status === 'matched' && viewMode === 'matchmaking') {
-      setViewMode('game')
-      // Initialize online game state if host
-      if (participants[0]?.id === myId) {
+    if (status === 'matched') {
+      const timer = setTimeout(() => {
+        setViewMode((prev) => {
+          if (prev === 'matchmaking') {
+            return 'game'
+          }
+          return prev
+        })
+      }, 0)
+      return () => clearTimeout(timer)
+    }
+  }, [status])
+
+  useEffect(() => {
+    if (status === 'matched' && participants.length > 0) {
+      // Initialize online game state if host and not initialized
+      if (participants[0]?.id === myId && !roomState.board) {
         updateRoomState(() => ({
           board: Array(9).fill(null),
           currentPlayer: 'X',
@@ -79,7 +92,7 @@ export default function TicTacToeGame() {
         } as unknown as Json))
       }
     }
-  }, [status, viewMode, participants, myId, updateRoomState])
+  }, [status, participants, myId, updateRoomState, roomState.board])
 
   // --- Logic ---
 

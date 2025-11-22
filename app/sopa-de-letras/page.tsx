@@ -8,6 +8,11 @@ import { apiFetch } from '@/lib/api-client'
 import { formatChronometer } from '@/lib/utils/time'
 import { useAuth } from '@/components/AuthProvider'
 import { useScoreSubmission } from '@/hooks/useScoreSubmission'
+import { ModeSelection } from '@/components/wordsearch/ModeSelection'
+import { useMatchmaking } from '@/hooks/useMatchmaking'
+import { MatchmakingView } from '@/components/MatchmakingView'
+import { GameResultModal } from '@/components/GameResultModal'
+import { getSupabaseBrowserClient } from '@/lib/supabase-browser'
 import type { SubmissionStatus } from '@/hooks/useScoreSubmission'
 import type { Category, GameMode, WordSearchGridCell, WordSearchPuzzle } from '@/lib/types/games'
 
@@ -16,6 +21,13 @@ import type { Category, GameMode, WordSearchGridCell, WordSearchPuzzle } from '@
 // ============================================================================
 
 type GameModeState = GameMode | null
+
+type GameState = {
+  participants?: Array<{ id: string; role: 'host' | 'guest' }>;
+  progress?: Record<string, number>;
+  room_code?: string;
+  [key: string]: unknown;
+}
 
 // ============================================================================
 // Utility Functions
@@ -65,6 +77,11 @@ export default function WordSearchPage() {
     submitScore: submitDailyScore,
     reset: resetScoreSubmission
   } = useScoreSubmission('wordsearch')
+
+  const matchmaking = useMatchmaking('wordsearch_duel')
+  const supabase = getSupabaseBrowserClient()
+
+  const [duelResult, setDuelResult] = useState<{ result: 'victory' | 'defeat' | 'draw', winnerName?: string } | null>(null)
 
   // ============================================================================
   // API Functions
@@ -137,6 +154,85 @@ export default function WordSearchPage() {
     }
   }, [showConfetti])
 
+  // Load puzzle when matched in duel mode
+  useEffect(() => {
+    if (gameMode === 'duel' && matchmaking.status === 'matched' && matchmaking.room && !puzzle) {
+      const initDuel = async () => {
+        setLoading(true)
+        const puzzleId = matchmaking.room!.puzzle_id
+        const myId = user?.id
+        const gameState = matchmaking.room!.game_state as unknown as GameState
+        const amIHost = gameState?.participants?.find((p) => p.id === myId)?.role === 'host'
+        
+        if (amIHost) {
+           try {
+             await apiFetch('/api/wordsearch/duel/create', { 
+               method: 'POST', 
+               body: JSON.stringify({ id: puzzleId }) 
+             })
+           } catch (err) {
+             console.error('Failed to create duel puzzle:', err)
+           }
+        }
+        
+        // Poll for puzzle
+        let attempts = 0
+        while (attempts < 20) {
+           try {
+             const data = await apiFetch<WordSearchPuzzle>(`/api/wordsearch/${puzzleId}`, {
+                cache: 'no-store'
+             })
+             setPuzzle(data)
+             setIsTimerRunning(true)
+             setLoading(false)
+             return
+           } catch {
+             await new Promise(r => setTimeout(r, 1000))
+             attempts++
+           }
+        }
+        setLoading(false)
+        console.error('Timeout waiting for puzzle')
+      }
+      void initDuel()
+    }
+  }, [gameMode, matchmaking.status, matchmaking.room, puzzle, setLoading, setIsTimerRunning, user?.id])
+
+  // Handle duel completion and winner detection
+  useEffect(() => {
+    if (gameMode === 'duel' && matchmaking.room) {
+      const gameState = matchmaking.room.game_state as unknown as GameState
+      const winnerId = gameState?.winner_id
+
+      if (isComplete && !winnerId && user) {
+        const reportWin = async () => {
+          const { error } = await supabase.rpc('claim_victory', {
+            p_room_id: matchmaking.room!.id
+          })
+          
+          if (error) {
+            console.error('Failed to report win:', error)
+          }
+        }
+        void reportWin()
+      }
+
+      if (winnerId && !duelResult) {
+        const isMe = winnerId === user?.id
+        setTimeout(() => {
+          // Double check if we are still in duel mode before setting result
+          setDuelResult(prev => {
+            if (prev) return prev // Already set
+            return {
+              result: isMe ? 'victory' : 'defeat',
+              winnerName: isMe ? undefined : 'Oponente'
+            }
+          })
+        }, 0)
+      }
+    }
+  }, [gameMode, isComplete, matchmaking.room, user, supabase, duelResult])
+
   // ============================================================================
   // Event Handlers
   // ============================================================================
@@ -146,6 +242,8 @@ export default function WordSearchPage() {
     
     if (mode === 'daily') {
       fetchPuzzle(mode)
+    } else if (mode === 'duel') {
+      // Do nothing, wait for matchmaking
     } else {
       setShowCategorySelection(true)
     }
@@ -282,53 +380,51 @@ export default function WordSearchPage() {
   // Mode Selection Screen
   if (!gameMode) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-zinc-50 via-white to-zinc-50 dark:from-zinc-950 dark:via-zinc-900 dark:to-zinc-950 p-4 sm:p-8">
-        <div className="max-w-4xl mx-auto">
-          {/* Header */}
-          <div className="text-center mb-12">
-            <h1 className="text-4xl sm:text-5xl font-bold text-zinc-900 dark:text-white mb-4">
-              🔍 Sopa de Letras
-            </h1>
-            <p className="text-lg text-zinc-600 dark:text-zinc-400">
-              Encontre todas as palavras escondidas no grid
-            </p>
-          </div>
-
-          {/* Mode Cards */}
-          <div className="grid md:grid-cols-2 gap-6">
-            <ModeCard
-              icon="📅"
-              title="Modo Diário"
-              description="Puzzle do dia igual para todos. Compete no leaderboard!"
-              badge="🏆 Leaderboard Ativo"
-              hoverColor="yellow"
-              onClick={() => handleSelectMode('daily')}
-            />
-
-            <ModeCard
-              icon="🎲"
-              title="Modo Aleatório"
-              description="Gera novo puzzle a cada partida. Escolhe um tema específico!"
-              badge="🎨 Puzzles Temáticos"
-              hoverColor="emerald"
-              spin
-              onClick={() => handleSelectMode('random')}
-            />
-          </div>
-
-          {/* Back Button */}
-          <div className="mt-12 text-center">
-            <button
-              onClick={() => router.push('/')}
-              className="text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors"
-            >
-              ← Voltar ao Início
-            </button>
-          </div>
-        </div>
-      </div>
+      <ModeSelection
+        gameMode={gameMode}
+        isLoading={loading}
+        error={error}
+        onSelectMode={handleSelectMode}
+      />
     )
   }
+
+  if (gameMode === 'duel' && !puzzle) {
+    return (
+      <MatchmakingView
+        status={matchmaking.status}
+        onJoinPublic={() => matchmaking.joinQueue({ mode: 'public' })}
+        onCreatePrivate={(code) => matchmaking.joinQueue({ mode: 'private', matchCode: code, seat: 'host' })}
+        onJoinPrivate={(code) => matchmaking.joinQueue({ mode: 'private', matchCode: code, seat: 'guest' })}
+        onCancel={() => {
+          matchmaking.leaveQueue()
+          setGameMode(null)
+        }}
+        roomCode={(matchmaking.room?.game_state as unknown as GameState)?.room_code}
+        title="Duelo de Sopa de Letras"
+        description="Encontra um oponente e resolve o mesmo puzzle em tempo real."
+      />
+    )
+  }
+
+  if (duelResult) {
+    return (
+      <GameResultModal
+        isOpen={true}
+        result={duelResult.result}
+        winnerName={duelResult.winnerName}
+        onClose={() => {
+          setDuelResult(null)
+          matchmaking.leaveQueue()
+          setGameMode(null)
+          setPuzzle(null)
+          setIsComplete(false)
+        }}
+      />
+    )
+  }
+
+
 
   // Loading Screen
   if (loading) {
@@ -402,7 +498,7 @@ export default function WordSearchPage() {
         />
 
         {/* Completion Modal */}
-        {isComplete && (
+        {isComplete && gameMode !== 'duel' && (
           <CompletionModal
             timeMs={timeMs}
             gameMode={gameMode}
@@ -482,55 +578,6 @@ function CategoryCard({
           )}
         </>
       )}
-    </button>
-  )
-}
-
-interface ModeCardProps {
-  icon: string
-  title: string
-  description: string
-  badge: string
-  hoverColor: 'yellow' | 'emerald'
-  spin?: boolean
-  onClick: () => void
-}
-
-function ModeCard({ 
-  icon, 
-  title, 
-  description, 
-  badge, 
-  hoverColor, 
-  spin, 
-  onClick 
-}: ModeCardProps) {
-  const hoverBorderColor = hoverColor === 'yellow' 
-    ? 'hover:border-yellow-400 dark:hover:border-yellow-600'
-    : 'hover:border-emerald-400 dark:hover:border-emerald-600'
-    
-  const badgeColor = hoverColor === 'yellow'
-    ? 'text-yellow-600 dark:text-yellow-400'
-    : 'text-emerald-600 dark:text-emerald-400'
-
-  return (
-    <button
-      onClick={onClick}
-      className={`group relative p-8 bg-white dark:bg-zinc-900 rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 hover:scale-105 border-2 border-transparent ${hoverBorderColor}`}
-    >
-      <div className={`text-6xl mb-4 ${spin ? 'group-hover:animate-spin' : 'group-hover:animate-bounce'}`}>
-        {icon}
-      </div>
-      <h2 className="text-2xl font-bold text-zinc-900 dark:text-white mb-2">
-        {title}
-      </h2>
-      <p className="text-zinc-600 dark:text-zinc-400 mb-4">
-        {description}
-      </p>
-      <div className={`flex items-center justify-center gap-2 text-sm font-semibold ${badgeColor}`}>
-        <span>{badge.split(' ')[0]}</span>
-        <span>{badge.split(' ').slice(1).join(' ')}</span>
-      </div>
     </button>
   )
 }

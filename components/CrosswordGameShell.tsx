@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useCallback, useEffect } from 'react'
+import { useMemo, useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import CrosswordGrid from '@/components/CrosswordGrid'
 import Timer from '@/components/Timer'
@@ -12,6 +12,12 @@ import { HowToPlay } from '@/components/crossword/HowToPlay'
 import { useCrosswordGame } from '@/hooks/useCrosswordGame'
 import { useAuth } from '@/components/AuthProvider'
 import { useScoreSubmission } from '@/hooks/useScoreSubmission'
+import { useMatchmaking } from '@/hooks/useMatchmaking'
+import { MatchmakingView } from '@/components/MatchmakingView'
+import { GameResultModal } from '@/components/GameResultModal'
+import { apiFetch } from '@/lib/api-client'
+import type { CrosswordPuzzle } from '@/lib/types/games'
+import { getSupabaseBrowserClient } from '@/lib/supabase-browser'
 
 const LISBON_DATE_FORMATTER = new Intl.DateTimeFormat('pt-PT', {
   day: 'numeric',
@@ -19,6 +25,13 @@ const LISBON_DATE_FORMATTER = new Intl.DateTimeFormat('pt-PT', {
   year: 'numeric',
   timeZone: 'Europe/Lisbon'
 })
+
+type GameState = {
+  participants?: Array<{ id: string; role: 'host' | 'guest' }>;
+  progress?: Record<string, number>;
+  room_code?: string;
+  [key: string]: unknown;
+}
 
 function formatLisbonDate(dateString?: string | null) {
   if (!dateString) return null
@@ -53,9 +66,14 @@ export default function CrosswordGameShell({ initialCategories }: CrosswordGameS
     modeLabel,
     puzzle,
     selectedCategoryMeta,
+    setPuzzle,
     showCategorySelection,
     showModeSelection,
   } = useCrosswordGame({ initialCategories })
+  
+  const matchmaking = useMatchmaking('crossword_duel')
+  const supabase = getSupabaseBrowserClient()
+
   const { user, signInAsGuest, continueWithGoogle } = useAuth()
   const {
     submitScore: submitCrosswordScore,
@@ -68,9 +86,92 @@ export default function CrosswordGameShell({ initialCategories }: CrosswordGameS
   const fallbackDateLabel = useMemo(() => formatLisbonDate(puzzle?.publish_date), [puzzle?.publish_date])
   const servedDateLabel = useMemo(() => formatLisbonDate(puzzle?.servedForDate), [puzzle?.servedForDate])
 
+  const [duelResult, setDuelResult] = useState<{ result: 'victory' | 'defeat' | 'draw', winnerName?: string } | null>(null)
+
   useEffect(() => {
     resetCrosswordScore()
   }, [puzzle?.id, resetCrosswordScore])
+
+  // Load puzzle when matched in duel mode
+  useEffect(() => {
+    if (gameMode === 'duel' && matchmaking.status === 'matched' && matchmaking.room && !puzzle) {
+      const initDuel = async () => {
+        const puzzleId = matchmaking.room!.puzzle_id
+        const myId = user?.id
+        const gameState = matchmaking.room!.game_state as unknown as GameState
+        const amIHost = gameState?.participants?.find((p) => p.id === myId)?.role === 'host'
+        
+        if (amIHost) {
+           try {
+             await apiFetch('/api/crossword/duel/create', { 
+               method: 'POST', 
+               body: JSON.stringify({ id: puzzleId }) 
+             })
+           } catch (err) {
+             console.error('Failed to create duel puzzle:', err)
+           }
+        }
+        
+        // Poll for puzzle
+        let attempts = 0
+        while (attempts < 20) {
+           try {
+             const data = await apiFetch<CrosswordPuzzle>(`/api/crossword/${puzzleId}`, {
+                cache: 'no-store'
+             })
+             setPuzzle(data)
+             handleStartGame()
+             return
+           } catch {
+             await new Promise(r => setTimeout(r, 1000))
+             attempts++
+           }
+        }
+        console.error('Timeout waiting for puzzle')
+      }
+      void initDuel()
+    }
+  }, [gameMode, matchmaking.status, matchmaking.room, puzzle, setPuzzle, handleStartGame, user?.id])
+
+  // Handle duel completion
+  useEffect(() => {
+    if (gameMode === 'duel' && matchmaking.room && user) {
+      const gameState = matchmaking.room.game_state as unknown as GameState
+      const winnerId = gameState?.winner_id as string | undefined
+      
+      // If I just finished, report win
+      if (isComplete && !winnerId) {
+        const reportWin = async () => {
+          const { error } = await supabase.rpc('claim_victory', {
+            p_room_id: matchmaking.room!.id
+          })
+            
+          if (error) {
+            console.error('Failed to report win:', error)
+          }
+        }
+        void reportWin()
+      }
+
+      // Check for winner (me or opponent)
+      if (winnerId && !duelResult) {
+        const isMe = winnerId === user?.id
+        // Assuming participants might have display_name in future, or we fetch profile. 
+        // For now we don't have names easily accessible in game_state unless we put them there.
+        // We can just say "Oponente" if not me.
+        
+        setTimeout(() => {
+          setDuelResult(prev => {
+            if (prev) return prev
+            return {
+              result: isMe ? 'victory' : 'defeat',
+              winnerName: isMe ? undefined : 'Oponente'
+            }
+          })
+        }, 0)
+      }
+    }
+  }, [gameMode, isComplete, matchmaking.room, user, supabase, duelResult])
 
   const handleDailyScoreSubmit = useCallback(() => {
     if (!user?.id || !puzzle || finalTime <= 0) {
@@ -96,6 +197,39 @@ export default function CrosswordGameShell({ initialCategories }: CrosswordGameS
     saving: 'A guardar o teu tempo na leaderboard diária...',
     success: 'Tempo registado! Consulta as classificações para ver a tua posição.',
     error: crosswordScoreError ?? 'Não foi possível guardar o teu tempo.'
+  }
+
+  if (gameMode === 'duel' && !puzzle) {
+    return (
+      <MatchmakingView
+        status={matchmaking.status}
+        onJoinPublic={() => matchmaking.joinQueue({ mode: 'public' })}
+        onCreatePrivate={(code) => matchmaking.joinQueue({ mode: 'private', matchCode: code, seat: 'host' })}
+        onJoinPrivate={(code) => matchmaking.joinQueue({ mode: 'private', matchCode: code, seat: 'guest' })}
+        onCancel={() => {
+          matchmaking.leaveQueue()
+          handleChangeMode()
+        }}
+        roomCode={(matchmaking.room?.game_state as unknown as GameState)?.room_code}
+        title="Duelo de Palavras Cruzadas"
+        description="Encontra um oponente e resolve o mesmo puzzle em tempo real."
+      />
+    )
+  }
+
+  if (duelResult) {
+    return (
+      <GameResultModal
+        isOpen={true}
+        result={duelResult.result}
+        winnerName={duelResult.winnerName}
+        onClose={() => {
+          setDuelResult(null)
+          matchmaking.leaveQueue()
+          handleChangeMode()
+        }}
+      />
+    )
   }
 
   if (showCategorySelection) {
@@ -184,7 +318,7 @@ export default function CrosswordGameShell({ initialCategories }: CrosswordGameS
           </div>
         )}
 
-        {isComplete && (
+        {isComplete && gameMode !== 'duel' && (
           <div className="mx-auto max-w-2xl rounded-2xl border border-zinc-200 bg-white p-8 text-center shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
             <div className="mb-6 text-6xl">🎉</div>
             <h2 className="mb-4 text-3xl font-bold text-zinc-900 dark:text-zinc-50">Parabéns!</h2>
