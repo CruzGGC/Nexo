@@ -56,7 +56,7 @@ export function autoPlaceFleet(size = 10): FleetPlacement {
   return { ocean, ships }
 }
 
-function canPlaceShip(board: BattleshipBoard, row: number, col: number, size: number, horizontal: boolean) {
+export function canPlaceShip(board: BattleshipBoard, row: number, col: number, size: number, horizontal: boolean) {
   for (let i = 0; i < size; i++) {
     const r = row + (horizontal ? 0 : i)
     const c = col + (horizontal ? i : 0)
