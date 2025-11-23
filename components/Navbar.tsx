@@ -4,6 +4,10 @@ import { motion } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabase";
+import { User } from "@supabase/supabase-js";
+import { User as UserIcon } from "lucide-react";
 
 const navLinks = [
     { name: "Início", href: "/" },
@@ -13,6 +17,24 @@ const navLinks = [
 ];
 
 export default function Navbar() {
+    const [user, setUser] = useState<User | null>(null);
+
+    useEffect(() => {
+        // Get initial session
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            setUser(session?.user ?? null);
+        });
+
+        // Listen for changes
+        const {
+            data: { subscription },
+        } = supabase.auth.onAuthStateChange((_event, session) => {
+            setUser(session?.user ?? null);
+        });
+
+        return () => subscription.unsubscribe();
+    }, []);
+
     return (
         <motion.nav
             initial={{ y: -100, opacity: 0 }}
@@ -50,12 +72,22 @@ export default function Navbar() {
             </div>
 
             <div className="flex items-center gap-4">
-                <Link
-                    href="/auth/login"
-                    className="px-5 py-2 text-sm font-bold text-black bg-white rounded-full hover:bg-blue-50 transition-all hover:scale-105 hover:shadow-[0_0_15px_rgba(255,255,255,0.5)]"
-                >
-                    Entrar
-                </Link>
+                {user ? (
+                    <Link
+                        href="/profile"
+                        className="px-5 py-2 text-sm font-bold text-white bg-white/10 border border-white/10 rounded-full hover:bg-white/20 transition-all hover:scale-105 flex items-center gap-2"
+                    >
+                        <UserIcon size={16} />
+                        Perfil
+                    </Link>
+                ) : (
+                    <Link
+                        href="/auth/login"
+                        className="px-5 py-2 text-sm font-bold text-black bg-white rounded-full hover:bg-blue-50 transition-all hover:scale-105 hover:shadow-[0_0_15px_rgba(255,255,255,0.5)]"
+                    >
+                        Entrar
+                    </Link>
+                )}
             </div>
         </motion.nav>
     );
