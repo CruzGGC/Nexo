@@ -24,6 +24,7 @@ export default function BackgroundGrid() {
             duration: Math.random() * 20 + 10,
             delay: Math.random() * 5,
         }));
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setParticles(newParticles);
     }, []);
 

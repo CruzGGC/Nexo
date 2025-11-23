@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useRef, useEffect, useMemo } from 'react'
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import type { WordPlacement } from '@/lib/wordsearch-generator'
 import { validateSelection } from '@/lib/wordsearch-generator'
 
@@ -20,6 +21,8 @@ interface WordSearchGridProps {
   grid: string[][]
   words: WordPlacement[]
   onComplete?: (foundWords: string[]) => void
+  hintRequest?: number
+  isMuted?: boolean
 }
 
 const getCellKey = (row: number, col: number) => `${row}-${col}`
@@ -43,14 +46,51 @@ function getSelectionCells(sel: Selection): { row: number; col: number }[] {
   return cells
 }
 
-export default function WordSearchGrid({ grid, words, onComplete }: WordSearchGridProps) {
+// Sound Utility
+const useGridSounds = (isMuted: boolean = false) => {
+  const playTone = useCallback((freq: number, type: OscillatorType, duration: number, vol = 0.05) => {
+    if (isMuted) return
+    const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
+    if (!AudioCtx) return
+
+    const ctx = new AudioCtx()
+    const osc = ctx.createOscillator()
+    const gain = ctx.createGain()
+
+    osc.type = type
+    osc.frequency.setValueAtTime(freq, ctx.currentTime)
+
+    gain.gain.setValueAtTime(vol, ctx.currentTime)
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration)
+
+    osc.connect(gain)
+    gain.connect(ctx.destination)
+
+    osc.start()
+    osc.stop(ctx.currentTime + duration)
+  }, [isMuted])
+
+  return {
+    playSelect: () => playTone(800, 'sine', 0.05, 0.02),
+    playFound: () => {
+      playTone(600, 'sine', 0.1, 0.05)
+      setTimeout(() => !isMuted && playTone(800, 'sine', 0.2, 0.05), 100)
+    },
+    playError: () => playTone(200, 'sawtooth', 0.2, 0.02)
+  }
+}
+
+export default function WordSearchGrid({ grid, words, onComplete, hintRequest, isMuted = false }: WordSearchGridProps) {
   const [selection, setSelection] = useState<Selection | null>(null)
   const [foundWords, setFoundWords] = useState<FoundWord[]>([])
   const [isSelecting, setIsSelecting] = useState(false)
   const [hoveredCell, setHoveredCell] = useState<{ row: number; col: number } | null>(null)
   const [successCells, setSuccessCells] = useState<Set<string>>(() => new Set())
+  const [hintedCell, setHintedCell] = useState<{ row: number; col: number } | null>(null)
   const gridRef = useRef<HTMLDivElement>(null)
   const successTimeouts = useRef<number[]>([])
+  const lastProcessedHintRef = useRef<number>(0)
+  const { playSelect, playFound, playError } = useGridSounds(isMuted)
 
   const selectedCells = useMemo(() => (selection ? getSelectionCells(selection) : []), [selection])
   const selectedCellKeys = useMemo(() => {
@@ -74,6 +114,28 @@ export default function WordSearchGrid({ grid, words, onComplete }: WordSearchGr
     }
   }, [])
 
+  // Handle Hint Request
+  useEffect(() => {
+    if (hintRequest && hintRequest > lastProcessedHintRef.current) {
+      lastProcessedHintRef.current = hintRequest
+
+      // Find a word that hasn't been found yet
+      const unFoundWord = words.find(w => !foundWords.some(fw => fw.word === w.word))
+
+      if (unFoundWord) {
+        // Highlight the starting cell of the word
+        setHintedCell({ row: unFoundWord.startRow, col: unFoundWord.startCol })
+
+        // Clear hint after 3 seconds
+        const timeout = setTimeout(() => {
+          setHintedCell(null)
+        }, 3000)
+
+        return () => clearTimeout(timeout)
+      }
+    }
+  }, [hintRequest, words, foundWords])
+
   // Verificar se puzzle está completo
   useEffect(() => {
     if (foundWords.length === words.length && words.length > 0) {
@@ -93,18 +155,22 @@ export default function WordSearchGrid({ grid, words, onComplete }: WordSearchGr
       currentRow: row,
       currentCol: col
     })
+    playSelect()
   }
 
   const handleMouseEnter = (row: number, col: number) => {
     setHoveredCell({ row, col })
     if (isSelecting) {
+      if (selection?.currentRow !== row || selection?.currentCol !== col) {
+        playSelect()
+      }
       setSelection(prev =>
         prev
           ? {
-              ...prev,
-              currentRow: row,
-              currentCol: col
-            }
+            ...prev,
+            currentRow: row,
+            currentCol: col
+          }
           : prev
       )
     }
@@ -125,15 +191,20 @@ export default function WordSearchGrid({ grid, words, onComplete }: WordSearchGr
     if (word && direction) {
       // Verificar se palavra existe na lista
       const foundWord = words.find(w => w.word === word)
-      
+
       if (foundWord && !foundWords.some(fw => fw.word === word)) {
         // Adicionar palavra encontrada
         const cells = getSelectionCells(selection)
         setFoundWords([...foundWords, { word, cells }])
-        
+
         // Animação de sucesso
         triggerSuccessAnimation(cells)
+        playFound()
+      } else {
+        playError()
       }
+    } else {
+      playError()
     }
 
     setIsSelecting(false)
@@ -141,17 +212,18 @@ export default function WordSearchGrid({ grid, words, onComplete }: WordSearchGr
   }
 
   const handleTouchStart = (e: React.TouchEvent, row: number, col: number) => {
-    e.preventDefault()
+    // e.preventDefault() // Removed to allow scrolling if needed, but might need it back for game
+    void e
     handleMouseDown(row, col)
   }
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    e.preventDefault()
+    // e.preventDefault()
     if (!isSelecting) return
 
     const touch = e.touches[0]
     const element = document.elementFromPoint(touch.clientX, touch.clientY)
-    
+
     if (element && element.hasAttribute('data-cell')) {
       const row = parseInt(element.getAttribute('data-row') || '0')
       const col = parseInt(element.getAttribute('data-col') || '0')
@@ -159,8 +231,8 @@ export default function WordSearchGrid({ grid, words, onComplete }: WordSearchGr
     }
   }
 
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    e.preventDefault()
+  const handleTouchEnd = () => {
+    // e.preventDefault()
     handleMouseUp()
   }
 
@@ -193,7 +265,7 @@ export default function WordSearchGrid({ grid, words, onComplete }: WordSearchGr
       <div className="flex-1 flex justify-center items-start">
         <div
           ref={gridRef}
-          className="grid gap-1 p-4 bg-white dark:bg-zinc-900 rounded-2xl shadow-xl border border-zinc-200 dark:border-zinc-800 select-none touch-none"
+          className="grid gap-1 p-4 bg-white/5 rounded-2xl shadow-[0_0_30px_rgba(0,0,0,0.3)] border border-white/10 select-none touch-none backdrop-blur-md"
           style={{
             gridTemplateColumns: `repeat(${grid[0].length}, minmax(0, 1fr))`,
           }}
@@ -209,34 +281,65 @@ export default function WordSearchGrid({ grid, words, onComplete }: WordSearchGr
               const inFoundWords = foundCellKeys.has(cellKey)
               const isHovered = hoveredCell?.row === rowIndex && hoveredCell?.col === colIndex
               const isCelebrating = successCells.has(cellKey)
+              const isHinted = hintedCell?.row === rowIndex && hintedCell?.col === colIndex
 
               return (
-                <div
+                <motion.div
                   key={`${rowIndex}-${colIndex}`}
                   data-cell
                   data-row={rowIndex}
                   data-col={colIndex}
+                  initial={false}
+                  animate={{
+                    scale: isCelebrating ? [1, 1.2, 1] : isHinted ? [1, 1.1, 1] : inSelection ? 1.1 : 1,
+                    backgroundColor: inFoundWords
+                      ? 'rgba(6,182,212,0.2)'
+                      : inSelection
+                        ? 'rgba(234,179,8,0.2)'
+                        : isHinted
+                          ? 'rgba(234,179,8,0.4)'
+                          : isHovered
+                            ? 'rgba(255,255,255,0.1)'
+                            : 'rgba(255,255,255,0.02)',
+                    color: inFoundWords
+                      ? '#22d3ee'
+                      : inSelection
+                        ? '#fde047'
+                        : isHinted
+                          ? '#fde047'
+                          : 'rgba(255,255,255,0.8)',
+                    borderColor: inFoundWords
+                      ? '#06b6d4'
+                      : inSelection
+                        ? '#eab308'
+                        : isHinted
+                          ? '#eab308'
+                          : 'transparent',
+                    boxShadow: isHinted ? '0 0 15px rgba(234,179,8,0.5)' : 'none',
+                  }}
+                  transition={{
+                    scale: isHinted ? { repeat: Infinity, duration: 1 } : {}
+                  }}
                   className={`
                     relative flex items-center justify-center
                     w-8 h-8 sm:w-10 sm:h-10 lg:w-11 lg:h-11
                     text-lg sm:text-xl font-bold rounded-lg
-                    transition-all duration-200 cursor-pointer
-                    ${inFoundWords 
-                      ? 'bg-emerald-500 text-white shadow-md scale-105 z-10' 
-                      : inSelection
-                        ? 'bg-yellow-400 text-zinc-900 shadow-md scale-110 z-20'
-                        : isHovered
-                          ? 'bg-zinc-100 dark:bg-zinc-800 scale-110 z-10'
-                          : 'bg-zinc-50 dark:bg-zinc-800/50 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
-                    }
-                    ${isCelebrating ? 'animate-bounce' : ''}
+                    transition-colors duration-200 cursor-pointer
+                    border
+                    ${isCelebrating || isHinted ? 'z-20' : 'z-0'}
                   `}
                   onMouseDown={() => handleMouseDown(rowIndex, colIndex)}
                   onMouseEnter={() => handleMouseEnter(rowIndex, colIndex)}
                   onTouchStart={(e) => handleTouchStart(e, rowIndex, colIndex)}
                 >
                   {letter}
-                </div>
+                  {inFoundWords && (
+                    <motion.div
+                      layoutId={`glow-${cellKey}`}
+                      className="absolute inset-0 rounded-lg bg-cyan-500/20 blur-sm -z-10"
+                    />
+                  )}
+                </motion.div>
               )
             })
           )}
@@ -246,64 +349,74 @@ export default function WordSearchGrid({ grid, words, onComplete }: WordSearchGr
       {/* Sidebar */}
       <div className="w-full lg:w-80 space-y-6">
         {/* Progress Card */}
-        <div className="bg-white dark:bg-zinc-900 rounded-2xl p-6 shadow-sm border border-zinc-200 dark:border-zinc-800">
+        <div className="bg-white/5 rounded-2xl p-6 shadow-lg border border-white/10 backdrop-blur-md">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-50">Progresso</h3>
-            <span className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
+            <h3 className="text-lg font-bold text-white">Progresso</h3>
+            <span className="text-sm font-medium text-zinc-400">
               {foundWords.length}/{words.length}
             </span>
           </div>
-          <div className="w-full bg-zinc-100 dark:bg-zinc-800 rounded-full h-3 overflow-hidden">
-            <div
-              className="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 transition-all duration-500 ease-out"
-              style={{
-                width: `${(foundWords.length / words.length) * 100}%`
-              }}
+          <div className="w-full bg-white/10 rounded-full h-3 overflow-hidden">
+            <motion.div
+              className="h-full bg-gradient-to-r from-cyan-500 to-purple-500"
+              initial={{ width: 0 }}
+              animate={{ width: `${(foundWords.length / words.length) * 100}%` }}
+              transition={{ type: 'spring', stiffness: 50 }}
             />
           </div>
         </div>
 
         {/* Words List */}
-        <div className="bg-white dark:bg-zinc-900 rounded-2xl p-6 shadow-sm border border-zinc-200 dark:border-zinc-800">
-          <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-50 mb-4">Palavras</h3>
-          <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-zinc-200 dark:scrollbar-thumb-zinc-700">
-            {words.map((word, index) => {
-              const found = isWordFound(word.word)
-              return (
-                <div
-                  key={index}
-                  className={`
-                    p-3 rounded-xl transition-all duration-300 border
-                    ${found 
-                      ? 'bg-emerald-50 border-emerald-100 dark:bg-emerald-900/20 dark:border-emerald-900/30' 
-                      : 'bg-zinc-50 border-zinc-100 dark:bg-zinc-800/50 dark:border-zinc-800'
-                    }
-                  `}
-                >
-                  <div className="flex items-center gap-2">
-                    {found && (
-                      <span className="text-emerald-500 dark:text-emerald-400 text-lg">✓</span>
+        <div className="bg-white/5 rounded-2xl p-6 shadow-lg border border-white/10 backdrop-blur-md">
+          <h3 className="text-lg font-bold text-white mb-4">Palavras</h3>
+          <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
+            <AnimatePresence>
+              {words.map((word, index) => {
+                const found = isWordFound(word.word)
+                return (
+                  <motion.div
+                    key={index}
+                    initial={false}
+                    animate={{
+                      backgroundColor: found ? 'rgba(6,182,212,0.1)' : 'rgba(255,255,255,0.02)',
+                      borderColor: found ? 'rgba(6,182,212,0.3)' : 'rgba(255,255,255,0.05)',
+                      scale: found ? 1.02 : 1,
+                    }}
+                    className={`
+                      p-3 rounded-xl border transition-all
+                    `}
+                  >
+                    <div className="flex items-center gap-2">
+                      {found && (
+                        <motion.span
+                          initial={{ scale: 0 }}
+                          animate={{ scale: 1 }}
+                          className="text-cyan-400 text-lg"
+                        >
+                          ✓
+                        </motion.span>
+                      )}
+                      <span
+                        className={`
+                          font-bold text-sm
+                          ${found
+                            ? 'text-cyan-300 line-through decoration-2 decoration-cyan-500/30'
+                            : 'text-zinc-300'
+                          }
+                        `}
+                      >
+                        {word.word}
+                      </span>
+                    </div>
+                    {word.definition && (
+                      <p className="mt-1 text-xs text-zinc-500 line-clamp-2">
+                        {word.definition}
+                      </p>
                     )}
-                    <span
-                      className={`
-                        font-bold text-sm
-                        ${found 
-                          ? 'text-emerald-700 dark:text-emerald-400 line-through decoration-2 decoration-emerald-500/30' 
-                          : 'text-zinc-700 dark:text-zinc-300'
-                        }
-                      `}
-                    >
-                      {word.word}
-                    </span>
-                  </div>
-                  {word.definition && (
-                    <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400 line-clamp-2">
-                      {word.definition}
-                    </p>
-                  )}
-                </div>
-              )
-            })}
+                  </motion.div>
+                )
+              })}
+            </AnimatePresence>
           </div>
         </div>
       </div>

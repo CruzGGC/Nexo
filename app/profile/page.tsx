@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { User } from "@supabase/supabase-js";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Loader2, Mail, Lock, Save, LogOut, Shield, User as UserIcon, Globe, Edit2 } from "lucide-react";
+import { Loader2, Mail, Lock, Save, LogOut, User as UserIcon, Globe, Edit2 } from "lucide-react";
 import BackgroundGrid from "@/components/BackgroundGrid";
 import Navbar from "@/components/Navbar";
 import { Database } from "@/lib/database.types";
@@ -42,7 +42,7 @@ export default function ProfilePage() {
             setUser(session.user);
 
             // Fetch profile
-            const { data: profileData, error } = await supabase
+            const { data: profileData } = await supabase
                 .from("profiles")
                 .select("*")
                 .eq("user_id", session.user.id)
@@ -101,8 +101,8 @@ export default function ProfilePage() {
 
             if (newProfile) setProfile(newProfile);
 
-        } catch (err: any) {
-            setMessage({ type: "error", text: err.message });
+        } catch (err: unknown) {
+            setMessage({ type: "error", text: (err as Error).message });
         } finally {
             setUpdating(false);
         }
@@ -114,7 +114,7 @@ export default function ProfilePage() {
         setMessage(null);
 
         try {
-            const updates: any = {
+            const updates: Partial<Profile> = {
                 display_name: displayName,
                 country_code: editCountry || null,
                 updated_at: new Date().toISOString(),
@@ -145,8 +145,8 @@ export default function ProfilePage() {
                 setIsEditing(false);
             }
 
-        } catch (err: any) {
-            setMessage({ type: "error", text: err.message });
+        } catch (err: unknown) {
+            setMessage({ type: "error", text: (err as Error).message });
         } finally {
             setUpdating(false);
         }
@@ -190,8 +190,8 @@ export default function ProfilePage() {
 
                     {message && (
                         <div className={`mb-6 p-4 rounded-xl border text-sm ${message.type === "success"
-                                ? "bg-green-500/10 border-green-500/20 text-green-400"
-                                : "bg-red-500/10 border-red-500/20 text-red-400"
+                            ? "bg-green-500/10 border-green-500/20 text-green-400"
+                            : "bg-red-500/10 border-red-500/20 text-red-400"
                             }`}>
                             {message.text}
                         </div>
