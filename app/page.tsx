@@ -6,7 +6,7 @@ import BackgroundGrid from "@/components/BackgroundGrid";
 
 export default function Home() {
   return (
-    <main className="min-h-screen bg-[#050505] selection:bg-blue-500/30 relative">
+    <main className="min-h-screen relative overflow-hidden selection:bg-blue-500/30">
       <BackgroundGrid />
       <Navbar />
 
@@ -15,10 +15,10 @@ export default function Home() {
       <section id="games" className="py-32 px-4 relative z-10">
         <div className="max-w-7xl mx-auto">
           <div className="flex flex-col items-center mb-20">
-            <h2 className="text-4xl md:text-6xl font-black text-center mb-6 text-white tracking-tight">
-              ESCOLHE O TEU <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-purple-600">DESAFIO</span>
+            <h2 className="text-4xl md:text-7xl font-black text-center mb-6 text-white tracking-tighter">
+              ESCOLHE O TEU <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-purple-600 neon-text-blue">DESAFIO</span>
             </h2>
-            <p className="text-white/40 text-lg max-w-2xl text-center">
+            <p className="text-white/40 text-lg md:text-xl max-w-2xl text-center font-light">
               Quatro jogos clássicos. Infinitas possibilidades. Escolhe o teu favorito e começa a subir no ranking.
             </p>
           </div>
@@ -62,7 +62,7 @@ export default function Home() {
 
       <Features />
 
-      <footer className="py-12 text-center text-white/20 text-sm border-t border-white/5 relative z-10 bg-[#050505]">
+      <footer className="py-12 text-center text-white/20 text-sm border-t border-white/5 relative z-10 backdrop-blur-sm">
         <p>&copy; {new Date().getFullYear()} Nexo. Todos os direitos reservados.</p>
       </footer>
     </main>

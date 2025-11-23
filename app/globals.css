@@ -1,18 +1,22 @@
 @import "tailwindcss";
 
 :root {
-  --background: #050505;
-  --foreground: #ededed;
+  --background: #030014;
+  --foreground: #ffffff;
 
   --card: rgba(255, 255, 255, 0.03);
   --card-hover: rgba(255, 255, 255, 0.08);
-  --border: rgba(255, 255, 255, 0.08);
+  --border: rgba(255, 255, 255, 0.1);
 
-  --primary: #ffffff;
-  --primary-foreground: #000000;
+  --primary: #6366f1;
+  --primary-foreground: #ffffff;
 
-  --accent: #3b82f6;
-  --accent-glow: rgba(59, 130, 246, 0.5);
+  --secondary: #a855f7;
+  --accent: #ec4899;
+
+  --neon-blue: #00f3ff;
+  --neon-purple: #bc13fe;
+  --neon-pink: #ff0055;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -20,6 +24,10 @@
     --background: #050505;
     --foreground: #ededed;
   }
+}
+
+html {
+  scroll-behavior: smooth;
 }
 
 body {
@@ -63,24 +71,49 @@ body::before {
 
 /* Glassmorphism Utilities */
 .glass {
-  background: rgba(5, 5, 5, 0.7);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .glass-card {
-  background: var(--card);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid var(--border);
-  transition: all 0.3s ease;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .glass-card:hover {
-  background: var(--card-hover);
+  background: rgba(255, 255, 255, 0.08);
   border-color: rgba(255, 255, 255, 0.2);
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 0 20px rgba(124, 58, 237, 0.15);
+  transform: translateY(-2px);
+}
+
+/* Neon Utilities */
+.neon-text-blue {
+  text-shadow: 0 0 10px rgba(0, 243, 255, 0.5),
+    0 0 20px rgba(0, 243, 255, 0.3),
+    0 0 30px rgba(0, 243, 255, 0.1);
+}
+
+.neon-text-purple {
+  text-shadow: 0 0 10px rgba(188, 19, 254, 0.5),
+    0 0 20px rgba(188, 19, 254, 0.3),
+    0 0 30px rgba(188, 19, 254, 0.1);
+}
+
+.neon-border-blue {
+  box-shadow: 0 0 10px rgba(0, 243, 255, 0.2),
+    inset 0 0 10px rgba(0, 243, 255, 0.1);
+}
+
+.neon-border-purple {
+  box-shadow: 0 0 10px rgba(188, 19, 254, 0.2),
+    inset 0 0 10px rgba(188, 19, 254, 0.1);
 }
 
 /* Text Gradients */
@@ -89,4 +122,11 @@ body::before {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-image: linear-gradient(to right, #fff, #94a3b8);
+}
+
+.text-gradient-primary {
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-image: linear-gradient(135deg, var(--neon-blue) 0%, var(--neon-purple) 100%);
 }

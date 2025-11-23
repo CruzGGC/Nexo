@@ -5,82 +5,96 @@ import { useEffect, useState } from "react";
 
 interface Particle {
     id: number;
-    x: string;
-    y: string;
-    scale: number;
-    duration: number;
+    x: number;
+    y: number;
     size: number;
-    targetY: string;
+    duration: number;
+    delay: number;
 }
 
 export default function BackgroundGrid() {
     const [particles, setParticles] = useState<Particle[]>([]);
 
     useEffect(() => {
-        const newParticles = Array.from({ length: 20 }).map((_, i) => ({
+        const newParticles = Array.from({ length: 30 }).map((_, i) => ({
             id: i,
-            x: Math.random() * 100 + "%",
-            y: Math.random() * 100 + "%",
-            scale: Math.random() * 0.5 + 0.5,
-            duration: Math.random() * 10 + 10,
-            size: Math.random() * 4 + 2,
-            targetY: Math.random() * -100 + "%",
+            x: Math.random() * 100,
+            y: Math.random() * 100,
+            size: Math.random() * 3 + 1,
+            duration: Math.random() * 20 + 10,
+            delay: Math.random() * 5,
         }));
         setParticles(newParticles);
     }, []);
 
     return (
-        <div className="fixed inset-0 z-[-1] overflow-hidden pointer-events-none">
-            <div className="absolute inset-0 bg-[#050505]" />
-
-            {/* Moving Grid */}
-            <motion.div
-                initial={{ transform: "perspective(500px) rotateX(60deg) translateY(0)" }}
-                animate={{ transform: "perspective(500px) rotateX(60deg) translateY(50px)" }}
-                transition={{
-                    repeat: Infinity,
-                    duration: 2,
-                    ease: "linear",
-                }}
-                className="absolute inset-[-100%] w-[300%] h-[300%] opacity-30"
+        <div className="fixed inset-0 z-[-1] overflow-hidden pointer-events-none bg-[#030014]">
+            {/* Cyberpunk Grid - Extended with no harsh cutoff */}
+            <div
+                className="absolute inset-0 opacity-20"
                 style={{
                     backgroundImage: `
-            linear-gradient(to right, rgba(59, 130, 246, 0.4) 1px, transparent 1px),
-            linear-gradient(to bottom, rgba(59, 130, 246, 0.4) 1px, transparent 1px)
-          `,
-                    backgroundSize: "50px 50px",
+                        linear-gradient(to right, rgba(59, 130, 246, 0.1) 1px, transparent 1px),
+                        linear-gradient(to bottom, rgba(59, 130, 246, 0.1) 1px, transparent 1px)
+                    `,
+                    backgroundSize: "40px 40px"
                 }}
+            />
+
+            {/* Moving Gradient Orbs */}
+            <motion.div
+                animate={{
+                    scale: [1, 1.2, 1],
+                    opacity: [0.3, 0.5, 0.3],
+                    x: [0, 50, 0],
+                    y: [0, 30, 0],
+                }}
+                transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
+                className="absolute top-0 left-0 w-[500px] h-[500px] bg-blue-500/20 rounded-full blur-[100px] mix-blend-screen"
+            />
+            <motion.div
+                animate={{
+                    scale: [1, 1.1, 1],
+                    opacity: [0.3, 0.4, 0.3],
+                    x: [0, -30, 0],
+                    y: [0, 50, 0],
+                }}
+                transition={{ duration: 12, repeat: Infinity, ease: "easeInOut", delay: 2 }}
+                className="absolute bottom-0 right-0 w-[600px] h-[600px] bg-purple-500/20 rounded-full blur-[120px] mix-blend-screen"
             />
 
             {/* Floating Particles */}
             {particles.map((particle) => (
                 <motion.div
                     key={particle.id}
-                    className="absolute bg-blue-500 rounded-full opacity-20"
+                    className="absolute rounded-full bg-white"
                     initial={{
-                        x: particle.x,
-                        y: particle.y,
-                        scale: particle.scale,
+                        left: `${particle.x}%`,
+                        top: `${particle.y}%`,
+                        opacity: 0,
+                        scale: 0,
                     }}
                     animate={{
-                        y: [null, particle.targetY],
-                        opacity: [0.2, 0],
+                        top: [`${particle.y}%`, `${particle.y - 20}%`],
+                        opacity: [0, 0.5, 0],
+                        scale: [0, 1, 0],
                     }}
                     transition={{
                         duration: particle.duration,
                         repeat: Infinity,
+                        delay: particle.delay,
                         ease: "linear",
                     }}
                     style={{
-                        width: particle.size + "px",
-                        height: particle.size + "px",
+                        width: particle.size,
+                        height: particle.size,
+                        boxShadow: "0 0 10px rgba(255, 255, 255, 0.5)",
                     }}
                 />
             ))}
 
-            {/* Vignette & Gradient Overlay */}
-            <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-transparent to-[#0a0a0a]" />
-            <div className="absolute inset-0 bg-radial-gradient from-transparent to-[#0a0a0a] opacity-60" />
+            {/* Vignette */}
+            <div className="absolute inset-0 bg-radial-gradient from-transparent via-[#030014]/50 to-[#030014] opacity-80" />
         </div>
     );
 }

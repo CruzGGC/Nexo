@@ -41,10 +41,10 @@ export default function GameCard({ title, description, href, color, iconName, de
         y.set(0);
     }
 
-    const rotateX = useTransform(mouseY, [-300, 300], [20, -20]);
-    const rotateY = useTransform(mouseX, [-300, 300], [-20, 20]);
-    const iconX = useTransform(mouseX, [-300, 300], [-40, 40]);
-    const iconY = useTransform(mouseY, [-300, 300], [-40, 40]);
+    const rotateX = useTransform(mouseY, [-300, 300], [25, -25]);
+    const rotateY = useTransform(mouseX, [-300, 300], [-25, 25]);
+    const iconX = useTransform(mouseX, [-300, 300], [-50, 50]);
+    const iconY = useTransform(mouseY, [-300, 300], [-50, 50]);
 
     return (
         <motion.div
@@ -60,44 +60,45 @@ export default function GameCard({ title, description, href, color, iconName, de
                     onMouseMove={onMouseMove}
                     onMouseLeave={onMouseLeave}
                     style={{ rotateX, rotateY, transformStyle: "preserve-3d" }}
-                    className="relative h-full min-h-[300px] p-8 rounded-[2rem] overflow-hidden group border border-white/10 bg-[#0a0a0a]"
+                    className="relative h-full min-h-[320px] p-8 rounded-[2.5rem] overflow-hidden group glass-card border-t border-l border-white/10"
                 >
-                    {/* Gradient Background */}
+                    {/* Neon Glow Background */}
                     <div
-                        className="absolute inset-0 opacity-20 group-hover:opacity-40 transition-opacity duration-500"
+                        className="absolute inset-0 opacity-0 group-hover:opacity-30 transition-opacity duration-500"
                         style={{
-                            background: `linear-gradient(135deg, ${color}, transparent 80%)`,
+                            background: `radial-gradient(circle at center, ${color}, transparent 70%)`,
+                            filter: "blur(40px)",
                         }}
                     />
 
                     {/* Floating Background Icon */}
                     <motion.div
                         style={{ x: iconX, y: iconY, z: 0 }}
-                        className="absolute -right-10 -bottom-10 text-white/5 group-hover:text-white/10 transition-colors duration-500"
+                        className="absolute -right-12 -bottom-12 text-white/5 group-hover:text-white/10 transition-colors duration-500"
                     >
-                        <Icon size={240} strokeWidth={1} />
+                        <Icon size={280} strokeWidth={1} />
                     </motion.div>
 
                     {/* Content */}
-                    <div style={{ transform: "translateZ(60px)" }} className="relative z-10 flex flex-col h-full">
+                    <div style={{ transform: "translateZ(50px)" }} className="relative z-10 flex flex-col h-full">
                         <div
-                            className="w-16 h-16 rounded-2xl flex items-center justify-center mb-6 shadow-lg"
-                            style={{ backgroundColor: `${color}30`, border: `1px solid ${color}50` }}
+                            className="w-16 h-16 rounded-2xl flex items-center justify-center mb-6 shadow-[0_0_20px_rgba(0,0,0,0.3)] backdrop-blur-md border border-white/10"
+                            style={{ backgroundColor: `${color}20` }}
                         >
-                            <Icon size={32} color={color} />
+                            <Icon size={32} color={color} className="drop-shadow-[0_0_10px_rgba(255,255,255,0.5)]" />
                         </div>
 
-                        <h3 className="text-3xl font-black mb-4 text-white tracking-tight">
+                        <h3 className="text-4xl font-black mb-4 text-white tracking-tighter drop-shadow-lg">
                             {title}
                         </h3>
 
-                        <p className="text-white/60 mb-8 leading-relaxed font-medium">
+                        <p className="text-white/70 mb-8 leading-relaxed font-medium text-lg">
                             {description}
                         </p>
 
                         <div className="mt-auto flex items-center gap-2 text-sm font-bold uppercase tracking-wider group-hover:gap-4 transition-all" style={{ color }}>
-                            Jogar Agora
-                            <ArrowRight className="w-5 h-5" />
+                            <span className="drop-shadow-[0_0_5px_rgba(0,0,0,0.5)]">Jogar Agora</span>
+                            <ArrowRight className="w-5 h-5 drop-shadow-[0_0_5px_rgba(0,0,0,0.5)]" />
                         </div>
                     </div>
 
@@ -105,7 +106,7 @@ export default function GameCard({ title, description, href, color, iconName, de
                     <div
                         className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
                         style={{
-                            background: `linear-gradient(105deg, transparent 20%, rgba(255,255,255,0.1) 40%, transparent 60%)`
+                            background: `linear-gradient(105deg, transparent 20%, rgba(255,255,255,0.2) 40%, transparent 60%)`
                         }}
                     />
                 </motion.div>
