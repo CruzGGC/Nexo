@@ -10,7 +10,6 @@ interface BattleBoardProps {
   isMyTurn: boolean
   statusMessage: string
   opponentName?: string
-  playSound: (type: 'hover' | 'click' | 'shoot' | 'hit' | 'miss') => void
 }
 
 export function BattleBoard({
@@ -20,8 +19,7 @@ export function BattleBoard({
   onTargetClick,
   isMyTurn,
   statusMessage,
-  opponentName = 'Adversário',
-  playSound
+  opponentName = 'Adversário'
 }: BattleBoardProps) {
   return (
     <div className="flex flex-col gap-8 animate-in fade-in duration-700">
@@ -65,7 +63,6 @@ export function BattleBoard({
                       key={`${rowIndex}-${colIndex}`}
                       className={cellClass}
                       onClick={() => onTargetClick(rowIndex, colIndex)}
-                      onMouseEnter={() => isMyTurn && cell === '' && playSound('hover')}
                       disabled={!isMyTurn || cell !== ''}
                     >
                       {cellContent}

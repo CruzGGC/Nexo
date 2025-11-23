@@ -11,7 +11,6 @@ interface PlacementBoardProps {
   onReset: () => void
   onConfirm: () => void
   isComplete: boolean
-  playSound: (type: 'hover' | 'click' | 'place' | 'rotate') => void
 }
 
 export function PlacementBoard({
@@ -22,8 +21,7 @@ export function PlacementBoard({
   onShuffle,
   onReset,
   onConfirm,
-  isComplete,
-  playSound
+  isComplete
 }: PlacementBoardProps) {
   const [selectedShipCode, setSelectedShipCode] = useState<BattleshipCell | null>(null)
   const [isHorizontal, setIsHorizontal] = useState(true)
@@ -34,12 +32,11 @@ export function PlacementBoard({
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'r' || e.key === 'R') {
         setIsHorizontal(prev => !prev)
-        playSound('rotate')
       }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [playSound])
+  }, [])
 
   const handleCellClick = (row: number, col: number) => {
     if (selectedShipCode) {
@@ -118,7 +115,6 @@ export function PlacementBoard({
                     className={cellClass}
                     onMouseEnter={() => {
                       setHoverCell({ row: rowIndex, col: colIndex })
-                      if (selectedShipCode) playSound('hover')
                     }}
                     onClick={() => handleCellClick(rowIndex, colIndex)}
                   >
@@ -140,9 +136,7 @@ export function PlacementBoard({
               <button
                 onClick={() => {
                   setIsHorizontal(!isHorizontal)
-                  playSound('rotate')
                 }}
-                onMouseEnter={() => playSound('hover')}
                 className="text-xs font-bold text-cyan-400 hover:text-cyan-300 transition-colors uppercase tracking-wider"
               >
                 {isHorizontal ? '↔️ Horizontal' : '↕️ Vertical'}
@@ -159,10 +153,8 @@ export function PlacementBoard({
                   onClick={() => {
                     if (!isPlaced) {
                       setSelectedShipCode(ship.code as BattleshipCell)
-                      playSound('click')
                     }
                   }}
-                  onMouseEnter={() => !isPlaced && playSound('hover')}
                   disabled={isPlaced}
                   className={`
                     relative flex items-center gap-4 rounded-xl p-3 transition-all text-left border

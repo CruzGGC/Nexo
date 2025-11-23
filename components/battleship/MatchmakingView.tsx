@@ -9,7 +9,6 @@ interface MatchmakingViewProps {
   onCancel: () => void
   status: string
   roomCode?: string
-  playSound: (type: 'hover' | 'click') => void
 }
 
 export function MatchmakingView({
@@ -18,8 +17,7 @@ export function MatchmakingView({
   onJoinPrivate,
   onCancel,
   status,
-  roomCode,
-  playSound
+  roomCode
 }: MatchmakingViewProps) {
   const [inviteCode, setInviteCode] = useState('')
   const [generatedCode, setGeneratedCode] = useState(generateMatchCode())
@@ -60,10 +58,8 @@ export function MatchmakingView({
 
         <button
           onClick={() => {
-            playSound('click')
             onCancel()
           }}
-          onMouseEnter={() => playSound('hover')}
           className="rounded-full border border-white/10 px-8 py-3 text-sm font-bold tracking-wider text-slate-400 transition-all hover:bg-white/10 hover:text-white hover:border-white/20"
         >
           CANCELAR RASTREIO
@@ -87,10 +83,8 @@ export function MatchmakingView({
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             onClick={() => {
-              playSound('click')
               onJoinPublic()
             }}
-            onMouseEnter={() => playSound('hover')}
             className="group flex items-center gap-6 rounded-2xl border border-white/10 bg-white/5 p-6 text-left backdrop-blur-md transition-all hover:bg-white/10 hover:border-cyan-500/50 hover:shadow-[0_0_30px_rgba(6,182,212,0.15)]"
           >
             <div className="rounded-xl bg-cyan-500/10 p-4 text-3xl group-hover:scale-110 transition-transform">🌍</div>
@@ -105,10 +99,8 @@ export function MatchmakingView({
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.1 }}
             onClick={() => {
-              playSound('click')
               setView('create')
             }}
-            onMouseEnter={() => playSound('hover')}
             className="group flex items-center gap-6 rounded-2xl border border-white/10 bg-white/5 p-6 text-left backdrop-blur-md transition-all hover:bg-white/10 hover:border-purple-500/50 hover:shadow-[0_0_30px_rgba(168,85,247,0.15)]"
           >
             <div className="rounded-xl bg-purple-500/10 p-4 text-3xl group-hover:scale-110 transition-transform">🔑</div>
@@ -123,10 +115,8 @@ export function MatchmakingView({
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.2 }}
             onClick={() => {
-              playSound('click')
               setView('join')
             }}
-            onMouseEnter={() => playSound('hover')}
             className="group flex items-center gap-6 rounded-2xl border border-white/10 bg-white/5 p-6 text-left backdrop-blur-md transition-all hover:bg-white/10 hover:border-emerald-500/50 hover:shadow-[0_0_30px_rgba(16,185,129,0.15)]"
           >
             <div className="rounded-xl bg-emerald-500/10 p-4 text-3xl group-hover:scale-110 transition-transform">👋</div>
@@ -138,10 +128,8 @@ export function MatchmakingView({
 
           <button
             onClick={() => {
-              playSound('click')
               onCancel()
             }}
-            onMouseEnter={() => playSound('hover')}
             className="mt-4 text-sm font-bold text-slate-500 hover:text-white transition-colors"
           >
             VOLTAR AO MENU
@@ -166,7 +154,6 @@ export function MatchmakingView({
             </code>
             <button
               onClick={() => {
-                playSound('click')
                 setGeneratedCode(generateMatchCode())
               }}
               className="rounded-lg p-2 hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
@@ -179,20 +166,16 @@ export function MatchmakingView({
           <div className="flex gap-4">
             <button
               onClick={() => {
-                playSound('click')
                 setView('menu')
               }}
-              onMouseEnter={() => playSound('hover')}
               className="flex-1 rounded-xl border border-white/10 py-4 font-bold text-slate-400 hover:bg-white/5 hover:text-white transition-all"
             >
               Voltar
             </button>
             <button
               onClick={() => {
-                playSound('click')
                 onCreatePrivate(generatedCode)
               }}
-              onMouseEnter={() => playSound('hover')}
               className="flex-1 rounded-xl bg-purple-600 py-4 font-bold text-white hover:bg-purple-500 hover:shadow-[0_0_20px_rgba(168,85,247,0.4)] transition-all"
             >
               Criar Sala
@@ -224,20 +207,16 @@ export function MatchmakingView({
           <div className="flex gap-4">
             <button
               onClick={() => {
-                playSound('click')
                 setView('menu')
               }}
-              onMouseEnter={() => playSound('hover')}
               className="flex-1 rounded-xl border border-white/10 py-4 font-bold text-slate-400 hover:bg-white/5 hover:text-white transition-all"
             >
               Voltar
             </button>
             <button
               onClick={() => {
-                playSound('click')
                 onJoinPrivate(inviteCode)
               }}
-              onMouseEnter={() => playSound('hover')}
               disabled={inviteCode.length < 4}
               className="flex-1 rounded-xl bg-emerald-600 py-4 font-bold text-white hover:bg-emerald-500 hover:shadow-[0_0_20px_rgba(16,185,129,0.4)] disabled:opacity-50 disabled:cursor-not-allowed transition-all"
             >

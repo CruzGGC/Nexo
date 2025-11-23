@@ -2,13 +2,9 @@ import { motion } from 'framer-motion'
 
 interface ModeSelectionProps {
   onSelectMode: (mode: 'local' | 'online') => void
-  playSound?: (type: 'hover' | 'click') => void
 }
 
-export function ModeSelection({ onSelectMode, playSound }: ModeSelectionProps) {
-  const handlePlaySound = (type: 'hover' | 'click') => {
-    if (playSound) playSound(type)
-  }
+export function ModeSelection({ onSelectMode }: ModeSelectionProps) {
 
   return (
     <div className="flex flex-col items-center justify-center gap-12 py-12">
@@ -36,10 +32,8 @@ export function ModeSelection({ onSelectMode, playSound }: ModeSelectionProps) {
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.3 }}
           onClick={() => {
-            handlePlaySound('click')
             onSelectMode('local')
           }}
-          onMouseEnter={() => handlePlaySound('hover')}
           className="group relative flex flex-col items-center gap-6 rounded-[2rem] border border-white/10 bg-white/5 p-12 text-center backdrop-blur-xl transition-all hover:bg-white/10 hover:border-blue-500/50 hover:shadow-[0_0_50px_rgba(59,130,246,0.2)]"
         >
           <div className="absolute inset-0 rounded-[2rem] bg-gradient-to-br from-blue-500/0 via-blue-500/0 to-blue-500/0 transition-all duration-500 group-hover:from-blue-500/10 group-hover:to-purple-600/10" />
@@ -63,10 +57,8 @@ export function ModeSelection({ onSelectMode, playSound }: ModeSelectionProps) {
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.4 }}
           onClick={() => {
-            handlePlaySound('click')
             onSelectMode('online')
           }}
-          onMouseEnter={() => handlePlaySound('hover')}
           className="group relative flex flex-col items-center gap-6 rounded-[2rem] border border-white/10 bg-white/5 p-12 text-center backdrop-blur-xl transition-all hover:bg-white/10 hover:border-purple-500/50 hover:shadow-[0_0_50px_rgba(168,85,247,0.2)]"
         >
           <div className="absolute inset-0 rounded-[2rem] bg-gradient-to-br from-purple-500/0 via-purple-500/0 to-purple-500/0 transition-all duration-500 group-hover:from-purple-500/10 group-hover:to-pink-600/10" />

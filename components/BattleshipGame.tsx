@@ -8,7 +8,6 @@ import { MatchmakingView } from '@/components/battleship/MatchmakingView'
 import { PlacementBoard } from '@/components/battleship/PlacementBoard'
 import { BattleBoard } from '@/components/battleship/BattleBoard'
 import { useAuth } from '@/components/AuthProvider'
-import { useSound } from '@/hooks/useSound'
 import type { Json } from '@/lib/database.types'
 import { motion, AnimatePresence } from 'framer-motion'
 
@@ -37,9 +36,6 @@ export default function BattleshipGame() {
   const [nextLocalPhase, setNextLocalPhase] = useState<'p1-setup' | 'p2-setup' | 'p1-turn' | 'p2-turn' | null>(null)
   const [transitionMessage, setTransitionMessage] = useState('')
   const { user } = useAuth()
-
-  // Sound Hook
-  const { playSound, isMuted, toggleMute } = useSound()
 
   const p1Boards = useBattleshipBoards()
   const p2Boards = useBattleshipBoards()
@@ -88,20 +84,18 @@ export default function BattleshipGame() {
       setTimeout(() => {
         setViewMode('placement')
         resetFleet() // Ensure clean slate
-        playSound('start')
       }, 0)
     }
-  }, [status, viewMode, resetFleet, playSound])
+  }, [status, viewMode, resetFleet])
 
   // 2. Handle Phase Change (Placement -> Battle)
   useEffect(() => {
     if (status === 'matched' && phase === 'battle' && viewMode === 'placement') {
       setTimeout(() => {
         setViewMode('battle')
-        playSound('start')
       }, 0)
     }
-  }, [status, phase, viewMode, playSound])
+  }, [status, phase, viewMode])
 
   // 3. Sync Opponent Moves (Battle Phase)
   useEffect(() => {
@@ -111,19 +105,16 @@ export default function BattleshipGame() {
       if (by === myId) {
         // I made the move, ensure my target board reflects it
         markTargetResult(row, col, result)
-        playSound(result === 'hit' ? 'hit' : 'miss')
       } else {
         // Opponent made the move, update my ocean
         receiveAttack(row, col)
-        playSound(result === 'hit' ? 'hit' : 'miss') // Maybe different sound for receiving damage?
       }
     }
-  }, [roomState.lastMove, status, phase, myId, markTargetResult, receiveAttack, playSound])
+  }, [roomState.lastMove, status, phase, myId, markTargetResult, receiveAttack])
 
   // --- Handlers ---
 
   const handleSelectMode = (mode: 'local' | 'online') => {
-    playSound('click')
     setGameMode(mode)
     if (mode === 'online') {
       setViewMode('matchmaking')
@@ -136,28 +127,23 @@ export default function BattleshipGame() {
   }
 
   const handleJoinPublic = () => {
-    playSound('click')
     joinQueue({ mode: 'public' })
   }
 
   const handleCreatePrivate = (code: string) => {
-    playSound('click')
     joinQueue({ mode: 'private', matchCode: code, seat: 'host' })
   }
 
   const handleJoinPrivate = (code: string) => {
-    playSound('click')
     joinQueue({ mode: 'private', matchCode: code, seat: 'guest' })
   }
 
   const handleCancelMatchmaking = () => {
-    playSound('click')
     leaveQueue()
     setViewMode('selection')
   }
 
   const handleConfirmPlacement = async () => {
-    playSound('click')
     if (gameMode === 'local') {
       if (localPhase === 'p1-setup') {
         setTransitionMessage('Passa o dispositivo ao Jogador 2 para posicionar a frota.')
@@ -206,8 +192,6 @@ export default function BattleshipGame() {
       // Prevent double clicks
       if (attacker.targetBoard[row][col] !== '') return
 
-      playSound('shoot')
-
       // Check hit on defender's ocean
       const isHit = defender.ocean[row][col] !== '~'
       const result = isHit ? 'hit' : 'miss'
@@ -217,11 +201,6 @@ export default function BattleshipGame() {
 
       // Update defender's incoming attacks (so they see it on their board)
       defender.receiveAttack(row, col)
-
-      // Play result sound slightly delayed
-      setTimeout(() => {
-        playSound(result === 'hit' ? 'hit' : 'miss')
-      }, 200)
 
       // Wait a moment to show result, then switch turns
       setTimeout(() => {
@@ -236,7 +215,6 @@ export default function BattleshipGame() {
 
     // Optimistic update
     handleTargetClick(row, col)
-    playSound('shoot')
 
     // Send move to server
     await updateRoomState((current) => {
@@ -258,7 +236,6 @@ export default function BattleshipGame() {
   }
 
   const handleTransitionComplete = () => {
-    playSound('start')
     if (nextLocalPhase) {
       setLocalPhase(nextLocalPhase)
       setNextLocalPhase(null)
@@ -286,14 +263,6 @@ export default function BattleshipGame() {
           >
             ← VOLTAR
           </button>
-
-          <button
-            onClick={toggleMute}
-            className="p-2 rounded-full bg-white/5 hover:bg-white/10 transition-colors border border-white/10"
-            title={isMuted ? "Unmute" : "Mute"}
-          >
-            {isMuted ? '🔇' : '🔊'}
-          </button>
         </div>
 
         <AnimatePresence mode="wait">
@@ -305,7 +274,7 @@ export default function BattleshipGame() {
               exit={{ opacity: 0, y: -20 }}
               transition={{ duration: 0.3 }}
             >
-              <ModeSelection onSelectMode={handleSelectMode} playSound={playSound} />
+              <ModeSelection onSelectMode={handleSelectMode} />
             </motion.div>
           )}
 
@@ -324,7 +293,6 @@ export default function BattleshipGame() {
                 onCancel={handleCancelMatchmaking}
                 status={status}
                 roomCode={roomState.room_code}
-                playSound={playSound}
               />
             </motion.div>
           )}
@@ -342,23 +310,18 @@ export default function BattleshipGame() {
                 placedShips={playerFleet}
                 onPlaceShip={(c, r, col, h) => {
                   placeShip(c, r, col, h)
-                  playSound('place')
                 }}
                 onRemoveShip={(c) => {
                   removeShip(c)
-                  playSound('click')
                 }}
                 onShuffle={() => {
                   shuffleFleet()
-                  playSound('rotate')
                 }}
                 onReset={() => {
                   resetFleet()
-                  playSound('click')
                 }}
                 onConfirm={handleConfirmPlacement}
                 isComplete={isPlacementComplete}
-                playSound={playSound}
               />
             </motion.div>
           )}
@@ -412,7 +375,6 @@ export default function BattleshipGame() {
                       : `AGUARDANDO ${opponent?.display_name?.toUpperCase() || 'ADVERSÁRIO'}...`
                 }
                 opponentName={gameMode === 'local' ? (localPhase === 'p1-turn' ? 'Jogador 2' : 'Jogador 1') : opponent?.display_name}
-                playSound={playSound}
               />
             </motion.div>
           )}

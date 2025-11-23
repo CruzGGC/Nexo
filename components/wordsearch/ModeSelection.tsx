@@ -7,7 +7,6 @@ interface ModeSelectionProps {
   isLoading: boolean
   error: string | null
   onSelectMode: (mode: GameMode) => void | Promise<void>
-  playSound?: (type: 'hover' | 'click') => void
 }
 
 const loadingCopy: Record<GameMode, string> = {
@@ -38,11 +37,7 @@ const itemVariants: Variants = {
   }
 }
 
-export function ModeSelection({ gameMode, isLoading, error, onSelectMode, playSound }: ModeSelectionProps) {
-  const handlePlaySound = (type: 'hover' | 'click') => {
-    if (playSound) playSound(type)
-  }
-
+export function ModeSelection({ gameMode, isLoading, error, onSelectMode }: ModeSelectionProps) {
   return (
     <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-[#030014] py-12">
       {/* Background Elements */}
@@ -93,10 +88,8 @@ export function ModeSelection({ gameMode, isLoading, error, onSelectMode, playSo
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.1 }}
             onClick={() => {
-              handlePlaySound('click')
               onSelectMode('daily')
             }}
-            onMouseEnter={() => handlePlaySound('hover')}
             disabled={isLoading}
             className="group relative flex flex-col items-center gap-6 rounded-[2rem] border border-white/10 bg-white/5 p-12 text-center backdrop-blur-xl transition-all hover:bg-white/10 hover:border-yellow-500/50 hover:shadow-[0_0_50px_rgba(234,179,8,0.2)] disabled:opacity-50"
           >
@@ -118,14 +111,12 @@ export function ModeSelection({ gameMode, isLoading, error, onSelectMode, playSo
 
           {/* Random Mode */}
           <motion.button
-            initial={{ opacity: 0, y: 50 }}
+            initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
             onClick={() => {
-              handlePlaySound('click')
               onSelectMode('random')
             }}
-            onMouseEnter={() => handlePlaySound('hover')}
             disabled={isLoading}
             className="group relative flex flex-col items-center gap-6 rounded-[2rem] border border-white/10 bg-white/5 p-12 text-center backdrop-blur-xl transition-all hover:bg-white/10 hover:border-blue-500/50 hover:shadow-[0_0_50px_rgba(59,130,246,0.2)] disabled:opacity-50"
           >
@@ -151,10 +142,8 @@ export function ModeSelection({ gameMode, isLoading, error, onSelectMode, playSo
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.3 }}
             onClick={() => {
-              handlePlaySound('click')
               onSelectMode('duel')
             }}
-            onMouseEnter={() => handlePlaySound('hover')}
             disabled={isLoading}
             className="group relative flex flex-col items-center gap-6 rounded-[2rem] border border-white/10 bg-white/5 p-12 text-center backdrop-blur-xl transition-all hover:bg-white/10 hover:border-purple-500/50 hover:shadow-[0_0_50px_rgba(168,85,247,0.2)] disabled:opacity-50"
           >
@@ -196,7 +185,6 @@ export function ModeSelection({ gameMode, isLoading, error, onSelectMode, playSo
         >
           <Link
             href="/"
-            onClick={() => handlePlaySound('click')}
             className="inline-flex items-center gap-2 text-sm font-medium text-zinc-500 transition-colors hover:text-white hover:underline underline-offset-4"
           >
             ← Voltar ao Menu

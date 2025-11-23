@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { WordPlacement } from '@/lib/wordsearch-generator'
 import { validateSelection } from '@/lib/wordsearch-generator'
@@ -22,7 +22,6 @@ interface WordSearchGridProps {
   words: WordPlacement[]
   onComplete?: (foundWords: string[]) => void
   hintRequest?: number
-  isMuted?: boolean
 }
 
 const getCellKey = (row: number, col: number) => `${row}-${col}`
@@ -46,41 +45,7 @@ function getSelectionCells(sel: Selection): { row: number; col: number }[] {
   return cells
 }
 
-// Sound Utility
-const useGridSounds = (isMuted: boolean = false) => {
-  const playTone = useCallback((freq: number, type: OscillatorType, duration: number, vol = 0.05) => {
-    if (isMuted) return
-    const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
-    if (!AudioCtx) return
-
-    const ctx = new AudioCtx()
-    const osc = ctx.createOscillator()
-    const gain = ctx.createGain()
-
-    osc.type = type
-    osc.frequency.setValueAtTime(freq, ctx.currentTime)
-
-    gain.gain.setValueAtTime(vol, ctx.currentTime)
-    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration)
-
-    osc.connect(gain)
-    gain.connect(ctx.destination)
-
-    osc.start()
-    osc.stop(ctx.currentTime + duration)
-  }, [isMuted])
-
-  return {
-    playSelect: () => playTone(800, 'sine', 0.05, 0.02),
-    playFound: () => {
-      playTone(600, 'sine', 0.1, 0.05)
-      setTimeout(() => !isMuted && playTone(800, 'sine', 0.2, 0.05), 100)
-    },
-    playError: () => playTone(200, 'sawtooth', 0.2, 0.02)
-  }
-}
-
-export default function WordSearchGrid({ grid, words, onComplete, hintRequest, isMuted = false }: WordSearchGridProps) {
+export default function WordSearchGrid({ grid, words, onComplete, hintRequest }: WordSearchGridProps) {
   const [selection, setSelection] = useState<Selection | null>(null)
   const [foundWords, setFoundWords] = useState<FoundWord[]>([])
   const [isSelecting, setIsSelecting] = useState(false)
@@ -90,7 +55,6 @@ export default function WordSearchGrid({ grid, words, onComplete, hintRequest, i
   const gridRef = useRef<HTMLDivElement>(null)
   const successTimeouts = useRef<number[]>([])
   const lastProcessedHintRef = useRef<number>(0)
-  const { playSelect, playFound, playError } = useGridSounds(isMuted)
 
   const selectedCells = useMemo(() => (selection ? getSelectionCells(selection) : []), [selection])
   const selectedCellKeys = useMemo(() => {
@@ -161,15 +125,11 @@ export default function WordSearchGrid({ grid, words, onComplete, hintRequest, i
       currentRow: row,
       currentCol: col
     })
-    playSelect()
   }
 
   const handleMouseEnter = (row: number, col: number) => {
     setHoveredCell({ row, col })
     if (isSelecting) {
-      if (selection?.currentRow !== row || selection?.currentCol !== col) {
-        playSelect()
-      }
       setSelection(prev =>
         prev
           ? {
@@ -205,12 +165,7 @@ export default function WordSearchGrid({ grid, words, onComplete, hintRequest, i
 
         // Animação de sucesso
         triggerSuccessAnimation(cells)
-        playFound()
-      } else {
-        playError()
       }
-    } else {
-      playError()
     }
 
     setIsSelecting(false)

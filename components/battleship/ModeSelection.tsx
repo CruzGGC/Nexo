@@ -2,10 +2,9 @@ import { motion } from 'framer-motion'
 
 interface ModeSelectionProps {
   onSelectMode: (mode: 'local' | 'online') => void
-  playSound: (type: 'hover' | 'click') => void
 }
 
-export function ModeSelection({ onSelectMode, playSound }: ModeSelectionProps) {
+export function ModeSelection({ onSelectMode }: ModeSelectionProps) {
   return (
     <div className="flex flex-col items-center justify-center gap-12 py-12">
       <div className="text-center space-y-4">
@@ -33,7 +32,6 @@ export function ModeSelection({ onSelectMode, playSound }: ModeSelectionProps) {
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.3 }}
           onClick={() => onSelectMode('local')}
-          onMouseEnter={() => playSound('hover')}
           className="group relative flex flex-col items-center gap-6 rounded-[2rem] border border-white/10 bg-white/5 p-12 text-center backdrop-blur-xl transition-all hover:bg-white/10 hover:border-cyan-400/50 hover:shadow-[0_0_50px_rgba(6,182,212,0.2)]"
         >
           <div className="absolute inset-0 rounded-[2rem] bg-gradient-to-br from-cyan-500/0 via-cyan-500/0 to-cyan-500/0 transition-all duration-500 group-hover:from-cyan-500/10 group-hover:to-blue-600/10" />
@@ -58,7 +56,6 @@ export function ModeSelection({ onSelectMode, playSound }: ModeSelectionProps) {
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.4 }}
           onClick={() => onSelectMode('online')}
-          onMouseEnter={() => playSound('hover')}
           className="group relative flex flex-col items-center gap-6 rounded-[2rem] border border-white/10 bg-white/5 p-12 text-center backdrop-blur-xl transition-all hover:bg-white/10 hover:border-purple-400/50 hover:shadow-[0_0_50px_rgba(168,85,247,0.2)]"
         >
           <div className="absolute inset-0 rounded-[2rem] bg-gradient-to-br from-purple-500/0 via-purple-500/0 to-purple-500/0 transition-all duration-500 group-hover:from-purple-500/10 group-hover:to-pink-600/10" />

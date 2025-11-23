@@ -18,7 +18,6 @@ import { GameResultModal } from '@/components/GameResultModal'
 import { apiFetch } from '@/lib/api-client'
 import type { CrosswordPuzzle } from '@/lib/types/games'
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser'
-import { useSound } from '@/hooks/useSound'
 import { motion, AnimatePresence } from 'framer-motion'
 
 const LISBON_DATE_FORMATTER = new Intl.DateTimeFormat('pt-PT', {
@@ -75,7 +74,6 @@ export default function CrosswordGameShell({ initialCategories }: CrosswordGameS
 
   const matchmaking = useMatchmaking('crossword_duel')
   const supabase = getSupabaseBrowserClient()
-  const { playSound, isMuted, toggleMute } = useSound()
 
   const { user, signInAsGuest, continueWithGoogle } = useAuth()
   const {
@@ -124,7 +122,6 @@ export default function CrosswordGameShell({ initialCategories }: CrosswordGameS
             })
             setPuzzle(data)
             handleStartGame()
-            playSound('start')
             return
           } catch {
             await new Promise(r => setTimeout(r, 1000))
@@ -135,7 +132,7 @@ export default function CrosswordGameShell({ initialCategories }: CrosswordGameS
       }
       void initDuel()
     }
-  }, [gameMode, matchmaking.status, matchmaking.room, puzzle, setPuzzle, handleStartGame, user?.id, playSound])
+  }, [gameMode, matchmaking.status, matchmaking.room, puzzle, setPuzzle, handleStartGame, user?.id])
 
   // Handle duel completion
   useEffect(() => {
@@ -165,8 +162,6 @@ export default function CrosswordGameShell({ initialCategories }: CrosswordGameS
           setDuelResult(prev => {
             if (prev) return prev
             const result = isMe ? 'victory' : 'defeat'
-            if (result === 'victory') playSound('win')
-            else playSound('lose')
 
             return {
               result,
@@ -176,14 +171,9 @@ export default function CrosswordGameShell({ initialCategories }: CrosswordGameS
         }, 0)
       }
     }
-  }, [gameMode, isComplete, matchmaking.room, user, supabase, duelResult, playSound])
+  }, [gameMode, isComplete, matchmaking.room, user, supabase, duelResult])
 
-  // Play win sound on single player completion
-  useEffect(() => {
-    if (isComplete && gameMode !== 'duel') {
-      playSound('win')
-    }
-  }, [isComplete, gameMode, playSound])
+
 
   const handleDailyScoreSubmit = useCallback(() => {
     if (!user?.id || !puzzle || finalTime <= 0) {
@@ -216,26 +206,21 @@ export default function CrosswordGameShell({ initialCategories }: CrosswordGameS
       <MatchmakingView
         status={matchmaking.status}
         onJoinPublic={() => {
-          playSound('click')
           matchmaking.joinQueue({ mode: 'public' })
         }}
         onCreatePrivate={(code) => {
-          playSound('click')
           matchmaking.joinQueue({ mode: 'private', matchCode: code, seat: 'host' })
         }}
         onJoinPrivate={(code) => {
-          playSound('click')
           matchmaking.joinQueue({ mode: 'private', matchCode: code, seat: 'guest' })
         }}
         onCancel={() => {
-          playSound('click')
           matchmaking.leaveQueue()
           handleChangeMode()
         }}
         roomCode={(matchmaking.room?.game_state as unknown as GameState)?.room_code}
         title="Duelo de Palavras Cruzadas"
         description="Encontra um oponente e resolve o mesmo puzzle em tempo real."
-        playSound={playSound}
       />
     )
   }
@@ -247,7 +232,6 @@ export default function CrosswordGameShell({ initialCategories }: CrosswordGameS
         result={duelResult.result}
         winnerName={duelResult.winnerName}
         onClose={() => {
-          playSound('click')
           setDuelResult(null)
           matchmaking.leaveQueue()
           handleChangeMode()
@@ -262,14 +246,11 @@ export default function CrosswordGameShell({ initialCategories }: CrosswordGameS
         categories={categories}
         isLoading={isLoading}
         onBack={() => {
-          playSound('click')
           handleBackToModeSelection()
         }}
         onSelectCategory={(cat) => {
-          playSound('click')
           handleSelectCategory(cat)
         }}
-        playSound={playSound}
       />
     )
   }
@@ -281,10 +262,8 @@ export default function CrosswordGameShell({ initialCategories }: CrosswordGameS
         isLoading={isLoading}
         error={error}
         onSelectMode={(mode) => {
-          playSound('click')
           handleSelectMode(mode)
         }}
-        playSound={playSound}
       />
     )
   }
@@ -316,7 +295,6 @@ export default function CrosswordGameShell({ initialCategories }: CrosswordGameS
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
           <button
             onClick={() => {
-              playSound('click')
               handleChangeMode()
             }}
             className="text-sm font-medium text-zinc-400 transition-colors hover:text-white flex items-center gap-2 group"
@@ -333,14 +311,6 @@ export default function CrosswordGameShell({ initialCategories }: CrosswordGameS
               <div className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Tempo</div>
               <Timer isRunning={isPlaying} onTimeUpdate={handleTimeUpdate} />
             </div>
-
-            <button
-              onClick={toggleMute}
-              className="p-2 rounded-full bg-white/5 hover:bg-white/10 transition-colors border border-white/10 ml-2"
-              title={isMuted ? "Unmute" : "Mute"}
-            >
-              {isMuted ? '🔇' : '🔊'}
-            </button>
           </div>
         </div>
       </header>
@@ -378,7 +348,6 @@ export default function CrosswordGameShell({ initialCategories }: CrosswordGameS
                 gameMode={gameMode}
                 puzzle={puzzle}
                 onStart={() => {
-                  playSound('start')
                   handleStartGame()
                 }}
               />
@@ -398,7 +367,6 @@ export default function CrosswordGameShell({ initialCategories }: CrosswordGameS
                 clues={puzzle.clues}
                 onComplete={handleGridComplete}
                 onCellChange={() => { }}
-                playSound={playSound}
               />
             </motion.div>
           )}
@@ -439,7 +407,6 @@ export default function CrosswordGameShell({ initialCategories }: CrosswordGameS
                       {crosswordScoreStatus === 'error' && (
                         <button
                           onClick={() => {
-                            playSound('click')
                             handleDailyScoreSubmit()
                           }}
                           className="mt-3 w-full rounded-xl bg-emerald-600 px-4 py-2 font-bold text-white transition hover:bg-emerald-500 shadow-lg shadow-emerald-900/20"
@@ -461,7 +428,6 @@ export default function CrosswordGameShell({ initialCategories }: CrosswordGameS
                       <div className="mt-4 flex flex-col gap-3 sm:flex-row">
                         <button
                           onClick={() => {
-                            playSound('click')
                             void signInAsGuest()
                           }}
                           className="flex-1 rounded-xl bg-white text-black px-4 py-3 font-bold transition hover:bg-zinc-200 shadow-[0_0_15px_rgba(255,255,255,0.3)]"
@@ -470,7 +436,6 @@ export default function CrosswordGameShell({ initialCategories }: CrosswordGameS
                         </button>
                         <button
                           onClick={() => {
-                            playSound('click')
                             void continueWithGoogle()
                           }}
                           className="flex-1 rounded-xl border border-white/20 bg-white/5 px-4 py-3 font-bold text-white transition hover:bg-white/10 hover:border-white/40"
@@ -486,7 +451,6 @@ export default function CrosswordGameShell({ initialCategories }: CrosswordGameS
               <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
                 <button
                   onClick={() => {
-                    playSound('click')
                     handleRestart()
                   }}
                   className="rounded-xl bg-[#00f3ff] px-6 py-4 font-bold text-black transition-all hover:-translate-y-1 hover:shadow-[0_0_20px_rgba(0,243,255,0.4)]"
@@ -500,7 +464,6 @@ export default function CrosswordGameShell({ initialCategories }: CrosswordGameS
                 {gameMode === 'daily' && (
                   <Link
                     href="/leaderboards"
-                    onClick={() => playSound('click')}
                     className="rounded-xl bg-[#bc13fe] px-6 py-4 font-bold text-white transition-all hover:-translate-y-1 hover:shadow-[0_0_20px_rgba(188,19,254,0.4)] text-center"
                   >
                     Ver Classificações
@@ -508,7 +471,6 @@ export default function CrosswordGameShell({ initialCategories }: CrosswordGameS
                 )}
                 <button
                   onClick={() => {
-                    playSound('click')
                     handleChangeMode()
                   }}
                   className="rounded-xl bg-transparent px-6 py-4 font-bold text-zinc-400 transition-colors hover:bg-white/5 hover:text-white border border-transparent hover:border-white/10"

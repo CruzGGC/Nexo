@@ -30,49 +30,6 @@ type GameState = {
 }
 
 // ============================================================================
-// Sound Utility (Web Audio API)
-// ============================================================================
-
-const useGameSounds = (isMuted: boolean = false) => {
-  const playTone = useCallback((freq: number, type: OscillatorType, duration: number, vol = 0.05) => {
-    if (isMuted) return
-    const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
-    if (!AudioCtx) return
-
-    const ctx = new AudioCtx()
-    const osc = ctx.createOscillator()
-    const gain = ctx.createGain()
-
-    osc.type = type
-    osc.frequency.setValueAtTime(freq, ctx.currentTime)
-
-    gain.gain.setValueAtTime(vol, ctx.currentTime)
-    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration)
-
-    osc.connect(gain)
-    gain.connect(ctx.destination)
-
-    osc.start()
-    osc.stop(ctx.currentTime + duration)
-  }, [isMuted])
-
-  return {
-    playHover: () => playTone(400, 'sine', 0.1, 0.05),
-    playClick: () => playTone(600, 'sine', 0.1, 0.05),
-    playSuccess: () => {
-      playTone(800, 'sine', 0.1, 0.05)
-      setTimeout(() => !isMuted && playTone(1200, 'sine', 0.2, 0.05), 100)
-    },
-    playWin: () => {
-      [400, 500, 600, 800, 1200].forEach((f, i) => {
-        setTimeout(() => !isMuted && playTone(f, 'square', 0.2, 0.05), i * 100)
-      })
-    },
-    playHint: () => playTone(1000, 'triangle', 0.3, 0.1)
-  }
-}
-
-// ============================================================================
 // Utility Functions
 // ============================================================================
 
@@ -90,8 +47,6 @@ const normalizeGridData = (gridData: WordSearchGridCell[][] | string[][]): strin
 
 export default function WordSearchPage() {
   const router = useRouter()
-  const [isMuted, setIsMuted] = useState(false)
-  const { playClick, playHover, playWin, playHint } = useGameSounds(isMuted)
 
   // Game state
   const [gameMode, setGameMode] = useState<GameModeState>(null)
@@ -281,7 +236,6 @@ export default function WordSearchPage() {
   // ============================================================================
 
   const handleSelectMode = useCallback((mode: GameMode) => {
-    playClick()
     setGameMode(mode)
 
     if (mode === 'daily') {
@@ -291,13 +245,12 @@ export default function WordSearchPage() {
     } else {
       setShowCategorySelection(true)
     }
-  }, [fetchPuzzle, playClick])
+  }, [fetchPuzzle])
 
   const handleSelectCategory = useCallback((categorySlug: string | null) => {
-    playClick()
     setSelectedCategory(categorySlug)
     fetchPuzzle('random', categorySlug)
-  }, [fetchPuzzle, playClick])
+  }, [fetchPuzzle])
 
   const attemptScoreSubmit = useCallback(() => {
     if (!user?.id || !puzzle || timeMs <= 0) {
@@ -316,15 +269,13 @@ export default function WordSearchPage() {
     setIsTimerRunning(false)
     setIsComplete(true)
     setShowConfetti(true)
-    playWin()
 
     if (gameMode === 'daily') {
       attemptScoreSubmit()
     }
-  }, [attemptScoreSubmit, gameMode, playWin])
+  }, [attemptScoreSubmit, gameMode])
 
   const handleRestart = useCallback(() => {
-    playClick()
     if (gameMode === 'random') {
       setPuzzle(null)
       setIsTimerRunning(false)
@@ -342,10 +293,9 @@ export default function WordSearchPage() {
       setPuzzle(null)
       setTimeout(() => setPuzzle(currentPuzzle), 10)
     }
-  }, [fetchPuzzle, gameMode, puzzle, resetScoreSubmission, selectedCategory, playClick])
+  }, [fetchPuzzle, gameMode, puzzle, resetScoreSubmission, selectedCategory])
 
   const handleChangeMode = useCallback(() => {
-    playClick()
     setGameMode(null)
     setPuzzle(null)
     setIsTimerRunning(false)
@@ -354,7 +304,7 @@ export default function WordSearchPage() {
     setShowCategorySelection(false)
     setSelectedCategory(null)
     resetScoreSubmission()
-  }, [resetScoreSubmission, playClick])
+  }, [resetScoreSubmission])
 
   const handleUseHint = useCallback(() => {
     if (!puzzle || hintUsed) return
@@ -372,11 +322,10 @@ export default function WordSearchPage() {
     // I will implement the hint logic in the Grid component itself 
     // and trigger it via a ref or prop.
 
-    playHint()
     setTimeMs(prev => prev + 15000) // +15s penalty
     setHintUsed(true)
     setHintRequest(prev => prev + 1)
-  }, [puzzle, hintUsed, playHint])
+  }, [puzzle, hintUsed])
 
   // ============================================================================
   // Render Screens
@@ -453,10 +402,6 @@ export default function WordSearchPage() {
         isLoading={loading}
         error={error}
         onSelectMode={handleSelectMode}
-        playSound={(type) => {
-          if (type === 'click') playClick()
-          if (type === 'hover') playHover()
-        }}
       />
     )
   }
@@ -550,8 +495,6 @@ export default function WordSearchPage() {
           onRestart={handleRestart}
           onTimeUpdate={setTimeMs}
           onHint={handleUseHint}
-          isMuted={isMuted}
-          onToggleMute={() => setIsMuted(!isMuted)}
         />
 
         {gameMode === 'daily' && puzzle.isFromPreviousDay && (
@@ -567,7 +510,6 @@ export default function WordSearchPage() {
           words={puzzle.words}
           onComplete={handleComplete}
           hintRequest={hintRequest}
-          isMuted={isMuted}
         />
 
         {isComplete && gameMode !== 'duel' && (
@@ -663,8 +605,6 @@ interface GameHeaderProps {
   onRestart: () => void
   onTimeUpdate: (time: number) => void
   onHint: () => void
-  isMuted: boolean
-  onToggleMute: () => void
 }
 
 function GameHeader({
@@ -673,9 +613,7 @@ function GameHeader({
   onChangeMode,
   onRestart,
   onTimeUpdate,
-  onHint,
-  isMuted,
-  onToggleMute
+  onHint
 }: GameHeaderProps) {
   return (
     <div className="flex flex-col sm:flex-row items-center justify-between mb-8 gap-4 animate-in fade-in slide-in-from-top-4 duration-500">
@@ -697,15 +635,6 @@ function GameHeader({
       </div>
 
       <div className="flex items-center gap-3">
-        {/* Mute Button */}
-        <button
-          onClick={onToggleMute}
-          className="p-3 bg-white/5 text-zinc-400 border border-white/10 rounded-xl hover:bg-white/10 hover:text-white transition-all"
-          title={isMuted ? 'Ligar Som' : 'Desligar Som'}
-        >
-          {isMuted ? '🔇' : '🔊'}
-        </button>
-
         {/* Hint Button */}
         <button
           onClick={onHint}

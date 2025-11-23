@@ -18,8 +18,6 @@ import { motion } from 'framer-motion';
 export type Cell = CrosswordCell;
 export type Clue = CrosswordClue;
 
-type SoundType = 'click' | 'hover' | 'start' | 'place' | 'rotate' | 'shoot' | 'hit' | 'miss' | 'sink' | 'win' | 'lose'
-
 interface CrosswordGridProps {
   grid: Cell[][];
   clues: {
@@ -28,25 +26,19 @@ interface CrosswordGridProps {
   };
   onComplete: () => void;
   onCellChange?: () => void;
-  playSound?: (type: SoundType) => void;
 }
 
 export default function CrosswordGrid({
   grid: initialGrid,
   clues,
   onComplete,
-  onCellChange,
-  playSound
+  onCellChange
 }: CrosswordGridProps) {
   const [grid, setGrid] = useState<Cell[][]>(initialGrid);
   const [selectedCell, setSelectedCell] = useState<{ row: number; col: number } | null>(null);
   const [direction, setDirection] = useState<'across' | 'down'>('across');
   const [showOnlyErrors, setShowOnlyErrors] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-
-  const handlePlaySound = (type: SoundType) => {
-    if (playSound) playSound(type)
-  }
 
   const errorCount = useMemo(() => {
     let errors = 0;
@@ -148,12 +140,9 @@ export default function CrosswordGrid({
     // Skip black cells AND structural empty cells (no correct answer)
     if (cell.isBlack || !cell.correct || cell.correct.trim() === '') return;
 
-    handlePlaySound('click')
-
     // Se clicar na mesma célula, muda a direção
     if (selectedCell?.row === row && selectedCell?.col === col) {
       setDirection((prev) => (prev === 'across' ? 'down' : 'across'));
-      handlePlaySound('rotate')
     } else {
       setSelectedCell({ row, col });
     }
@@ -171,7 +160,6 @@ export default function CrosswordGrid({
         newGrid[row][col] = { ...newGrid[row][col], value: '' };
         setGrid(newGrid);
         onCellChange?.();
-        handlePlaySound('shoot') // Using shoot as delete sound for now
       } else {
         // Move backwards if empty
         moveToNextCell(row, col, true);
@@ -182,7 +170,6 @@ export default function CrosswordGrid({
     if (e.key === 'Tab') {
       e.preventDefault();
       setDirection((prev) => (prev === 'across' ? 'down' : 'across'));
-      handlePlaySound('rotate')
       return;
     }
 
@@ -242,7 +229,6 @@ export default function CrosswordGrid({
     };
     setGrid(newGrid);
     onCellChange?.();
-    handlePlaySound('place')
 
     // Verifica se está completo com o novo grid
     const isComplete = checkIsComplete(newGrid);
@@ -292,7 +278,6 @@ export default function CrosswordGrid({
       if (!cell.isBlack && cell.correct && cell.correct.trim() !== '') {
         setSelectedCell({ row, col: newCol });
         setDirection('across');
-        handlePlaySound('hover')
         return;
       }
       newCol += delta;
@@ -307,7 +292,6 @@ export default function CrosswordGrid({
       if (!cell.isBlack && cell.correct && cell.correct.trim() !== '') {
         setSelectedCell({ row: newRow, col });
         setDirection('down');
-        handlePlaySound('hover')
         return;
       }
       newRow += delta;
@@ -359,7 +343,6 @@ export default function CrosswordGrid({
           </div>
           <button
             onClick={() => {
-              handlePlaySound('click')
               setShowOnlyErrors(!showOnlyErrors)
             }}
             className={`
@@ -470,7 +453,6 @@ export default function CrosswordGrid({
                   key={clue.number}
                   id={`clue-${clue.number}-across`}
                   onClick={() => {
-                    handlePlaySound('click')
                     setSelectedCell({ row: clue.startRow, col: clue.startCol });
                     setDirection('across');
                   }}
@@ -501,7 +483,6 @@ export default function CrosswordGrid({
                   key={clue.number}
                   id={`clue-${clue.number}-down`}
                   onClick={() => {
-                    handlePlaySound('click')
                     setSelectedCell({ row: clue.startRow, col: clue.startCol });
                     setDirection('down');
                   }}

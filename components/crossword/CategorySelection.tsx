@@ -1,20 +1,14 @@
 import type { Category } from '@/lib/types/games'
 import { motion } from 'framer-motion'
 
-type SoundType = 'click' | 'hover' | 'start' | 'place' | 'rotate' | 'shoot' | 'hit' | 'miss' | 'sink' | 'win' | 'lose'
-
 interface CategorySelectionProps {
   categories: Category[]
   isLoading: boolean
   onSelectCategory: (categorySlug: string | null) => void
   onBack: () => void
-  playSound?: (type: SoundType) => void
 }
 
-export function CategorySelection({ categories, isLoading, onSelectCategory, onBack, playSound }: CategorySelectionProps) {
-  const handlePlaySound = (type: SoundType) => {
-    if (playSound) playSound(type)
-  }
+export function CategorySelection({ categories, isLoading, onSelectCategory, onBack }: CategorySelectionProps) {
 
   return (
     <div className="flex min-h-screen flex-col bg-[#030014] overflow-hidden relative">
@@ -26,7 +20,6 @@ export function CategorySelection({ categories, isLoading, onSelectCategory, onB
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
           <button
             onClick={() => {
-              handlePlaySound('click')
               onBack()
             }}
             className="text-sm font-medium text-zinc-400 transition-colors hover:text-white flex items-center gap-2 group"
@@ -66,10 +59,8 @@ export function CategorySelection({ categories, isLoading, onSelectCategory, onB
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: 0.1 }}
               onClick={() => {
-                handlePlaySound('click')
                 onSelectCategory(null)
               }}
-              onMouseEnter={() => handlePlaySound('hover')}
               disabled={isLoading}
               className="group relative flex flex-col gap-4 rounded-3xl border border-white/10 bg-white/5 p-6 text-left transition-all hover:border-white/30 hover:bg-white/10 hover:shadow-[0_0_30px_rgba(255,255,255,0.1)] hover:-translate-y-1 disabled:opacity-50 backdrop-blur-md"
             >
@@ -89,10 +80,8 @@ export function CategorySelection({ categories, isLoading, onSelectCategory, onB
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: 0.1 + index * 0.05 }}
                 onClick={() => {
-                  handlePlaySound('click')
                   onSelectCategory(category.slug)
                 }}
-                onMouseEnter={() => handlePlaySound('hover')}
                 disabled={isLoading || category.word_count < 10}
                 className="group relative flex flex-col gap-4 rounded-3xl border border-white/10 bg-white/5 p-6 text-left transition-all hover:bg-white/10 hover:-translate-y-1 disabled:opacity-50 backdrop-blur-md"
                 style={{
