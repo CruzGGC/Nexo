@@ -91,7 +91,7 @@ const normalizeGridData = (gridData: WordSearchGridCell[][] | string[][]): strin
 export default function WordSearchPage() {
   const router = useRouter()
   const [isMuted, setIsMuted] = useState(false)
-  const { playClick, playWin, playHint } = useGameSounds(isMuted)
+  const { playClick, playHover, playWin, playHint } = useGameSounds(isMuted)
 
   // Game state
   const [gameMode, setGameMode] = useState<GameModeState>(null)
@@ -453,6 +453,10 @@ export default function WordSearchPage() {
         isLoading={loading}
         error={error}
         onSelectMode={handleSelectMode}
+        playSound={(type) => {
+          if (type === 'click') playClick()
+          if (type === 'hover') playHover()
+        }}
       />
     )
   }

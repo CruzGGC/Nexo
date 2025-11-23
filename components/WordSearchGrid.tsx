@@ -124,14 +124,20 @@ export default function WordSearchGrid({ grid, words, onComplete, hintRequest, i
 
       if (unFoundWord) {
         // Highlight the starting cell of the word
-        setHintedCell({ row: unFoundWord.startRow, col: unFoundWord.startCol })
+        // Wrap in setTimeout to avoid synchronous state update warning
+        const startTimeout = setTimeout(() => {
+          setHintedCell({ row: unFoundWord.startRow, col: unFoundWord.startCol })
+        }, 0)
 
         // Clear hint after 3 seconds
-        const timeout = setTimeout(() => {
+        const endTimeout = setTimeout(() => {
           setHintedCell(null)
         }, 3000)
 
-        return () => clearTimeout(timeout)
+        return () => {
+          clearTimeout(startTimeout)
+          clearTimeout(endTimeout)
+        }
       }
     }
   }, [hintRequest, words, foundWords])

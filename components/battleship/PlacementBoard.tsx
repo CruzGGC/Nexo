@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { BattleshipBoard, BattleshipCell, DEFAULT_FLEET, canPlaceShip } from '@/lib/games/battleship'
 
+
 interface PlacementBoardProps {
   board: BattleshipBoard
   placedShips: Array<{ code: BattleshipCell }>
@@ -10,6 +11,7 @@ interface PlacementBoardProps {
   onReset: () => void
   onConfirm: () => void
   isComplete: boolean
+  playSound: (type: 'hover' | 'click' | 'place' | 'rotate') => void
 }
 
 export function PlacementBoard({
@@ -20,7 +22,8 @@ export function PlacementBoard({
   onShuffle,
   onReset,
   onConfirm,
-  isComplete
+  isComplete,
+  playSound
 }: PlacementBoardProps) {
   const [selectedShipCode, setSelectedShipCode] = useState<BattleshipCell | null>(null)
   const [isHorizontal, setIsHorizontal] = useState(true)
@@ -31,11 +34,12 @@ export function PlacementBoard({
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'r' || e.key === 'R') {
         setIsHorizontal(prev => !prev)
+        playSound('rotate')
       }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [])
+  }, [playSound])
 
   const handleCellClick = (row: number, col: number) => {
     if (selectedShipCode) {
@@ -68,51 +72,59 @@ export function PlacementBoard({
   }
 
   const previewCells = getPreviewCells()
-  const isValidPlacement = selectedShipCode && hoverCell 
+  const isValidPlacement = selectedShipCode && hoverCell
     ? canPlaceShip(board, hoverCell.row, hoverCell.col, DEFAULT_FLEET.find(s => s.code === selectedShipCode)!.size, isHorizontal)
     : false
 
   return (
-    <div className="flex flex-col gap-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="flex flex-col gap-12">
       <div className="flex flex-col items-center gap-4 text-center">
-        <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Posiciona a tua Frota</h2>
-        <p className="text-slate-600 dark:text-slate-400">
-          Arrasta os navios para o tabuleiro. Pressiona <kbd className="rounded bg-slate-200 px-2 py-1 text-xs font-bold dark:bg-slate-700">R</kbd> para rodar.
+        <h2 className="text-3xl font-bold text-white">POSICIONA A TUA FROTA</h2>
+        <p className="text-slate-400">
+          Arrasta os navios para o tabuleiro. Pressiona <kbd className="rounded bg-white/10 px-2 py-1 text-xs font-bold text-white border border-white/20">R</kbd> para rodar.
         </p>
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-8 items-start justify-center">
+      <div className="flex flex-col lg:flex-row gap-12 items-start justify-center">
         {/* Grid */}
-        <div 
-          className="relative rounded-xl bg-blue-50 p-4 shadow-xl dark:bg-slate-800/50 border-2 border-blue-100 dark:border-slate-700"
+        <div
+          className="relative rounded-2xl bg-blue-900/20 p-6 shadow-[0_0_50px_rgba(0,0,0,0.5)] border border-blue-500/30 backdrop-blur-sm"
           onMouseLeave={() => setHoverCell(null)}
         >
-          <div className="grid grid-cols-10 gap-1">
+          {/* Grid Lines Overlay */}
+          <div className="absolute inset-0 pointer-events-none bg-[linear-gradient(rgba(59,130,246,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(59,130,246,0.1)_1px,transparent_1px)] bg-[size:10%_10%] rounded-2xl" />
+
+          <div className="grid grid-cols-10 gap-1 relative z-10">
             {board.map((row, rowIndex) =>
               row.map((cell, colIndex) => {
                 const isPreview = previewCells.some(p => p.row === rowIndex && p.col === colIndex)
                 const isShip = cell !== '~'
-                
-                let cellClass = "h-8 w-8 sm:h-10 sm:w-10 rounded transition-all duration-200 flex items-center justify-center text-xs font-bold cursor-pointer "
-                
+
+                let cellClass = "h-8 w-8 sm:h-10 sm:w-10 rounded-sm transition-all duration-200 flex items-center justify-center text-xs font-bold cursor-pointer border border-white/5 "
+
                 if (isPreview) {
-                  cellClass += isValidPlacement 
-                    ? "bg-green-400/60 ring-2 ring-green-500 " 
-                    : "bg-red-400/60 ring-2 ring-red-500 "
+                  cellClass += isValidPlacement
+                    ? "bg-green-500/50 border-green-400 shadow-[0_0_15px_rgba(34,197,94,0.5)] "
+                    : "bg-red-500/50 border-red-400 shadow-[0_0_15px_rgba(239,68,68,0.5)] "
                 } else if (isShip) {
-                  cellClass += "bg-slate-700 text-white shadow-lg scale-95 "
+                  cellClass += "bg-blue-600 border-blue-400 shadow-[0_0_10px_rgba(59,130,246,0.6)] text-white scale-95 "
                 } else {
-                  cellClass += "bg-white hover:bg-blue-100 dark:bg-slate-900 dark:hover:bg-slate-800 "
+                  cellClass += "hover:bg-white/10 hover:border-white/20 "
                 }
 
                 return (
                   <div
                     key={`${rowIndex}-${colIndex}`}
                     className={cellClass}
-                    onMouseEnter={() => setHoverCell({ row: rowIndex, col: colIndex })}
+                    onMouseEnter={() => {
+                      setHoverCell({ row: rowIndex, col: colIndex })
+                      if (selectedShipCode) playSound('hover')
+                    }}
                     onClick={() => handleCellClick(rowIndex, colIndex)}
                   >
-                    {isShip && cell}
+                    {isShip && (
+                      <div className="w-full h-full bg-gradient-to-br from-white/20 to-transparent" />
+                    )}
                   </div>
                 )
               })
@@ -122,17 +134,21 @@ export function PlacementBoard({
 
         {/* Dock */}
         <div className="flex flex-col gap-6 w-full max-w-xs">
-          <div className="flex flex-col gap-3 rounded-xl bg-slate-100 p-6 dark:bg-slate-900">
+          <div className="flex flex-col gap-4 rounded-2xl bg-white/5 p-6 border border-white/10 backdrop-blur-md">
             <div className="flex justify-between items-center mb-2">
-              <h3 className="font-bold text-slate-700 dark:text-slate-300">Estaleiro</h3>
+              <h3 className="font-bold text-white tracking-wider">ESTALEIRO</h3>
               <button
-                onClick={() => setIsHorizontal(!isHorizontal)}
-                className="text-xs font-bold text-indigo-600 hover:text-indigo-700 dark:text-indigo-400"
+                onClick={() => {
+                  setIsHorizontal(!isHorizontal)
+                  playSound('rotate')
+                }}
+                onMouseEnter={() => playSound('hover')}
+                className="text-xs font-bold text-cyan-400 hover:text-cyan-300 transition-colors uppercase tracking-wider"
               >
                 {isHorizontal ? '↔️ Horizontal' : '↕️ Vertical'}
               </button>
             </div>
-            
+
             {DEFAULT_FLEET.map((ship) => {
               const isPlaced = placedShips.some(s => s.code === ship.code)
               const isSelected = selectedShipCode === ship.code
@@ -140,24 +156,32 @@ export function PlacementBoard({
               return (
                 <button
                   key={ship.code}
-                  onClick={() => !isPlaced && setSelectedShipCode(ship.code as BattleshipCell)}
+                  onClick={() => {
+                    if (!isPlaced) {
+                      setSelectedShipCode(ship.code as BattleshipCell)
+                      playSound('click')
+                    }
+                  }}
+                  onMouseEnter={() => !isPlaced && playSound('hover')}
                   disabled={isPlaced}
                   className={`
-                    relative flex items-center gap-3 rounded-lg p-3 transition-all text-left
-                    ${isPlaced ? 'opacity-40 grayscale cursor-not-allowed bg-slate-200 dark:bg-slate-800' : 'hover:bg-white dark:hover:bg-slate-800 cursor-pointer'}
-                    ${isSelected ? 'ring-2 ring-indigo-500 bg-white shadow-md dark:bg-slate-800' : ''}
+                    relative flex items-center gap-4 rounded-xl p-3 transition-all text-left border
+                    ${isPlaced
+                      ? 'opacity-30 grayscale cursor-not-allowed bg-black/20 border-transparent'
+                      : 'hover:bg-white/10 cursor-pointer border-white/5 hover:border-white/20'}
+                    ${isSelected ? 'ring-2 ring-cyan-500 bg-cyan-500/10 border-cyan-500/50 shadow-[0_0_20px_rgba(6,182,212,0.2)]' : ''}
                   `}
                 >
                   <div className={`flex gap-1 ${!isHorizontal && isSelected ? 'flex-col' : ''}`}>
                     {Array.from({ length: ship.size }).map((_, i) => (
-                      <div key={i} className="h-4 w-4 rounded bg-slate-700"></div>
+                      <div key={i} className={`h-3 w-3 rounded-sm ${isPlaced ? 'bg-slate-500' : 'bg-blue-500 shadow-[0_0_5px_rgba(59,130,246,0.8)]'}`}></div>
                     ))}
                   </div>
                   <div className="flex-1">
-                    <div className="font-bold text-sm text-slate-900 dark:text-white">{ship.name}</div>
-                    <div className="text-xs text-slate-500">{ship.size} espaços</div>
+                    <div className="font-bold text-sm text-white">{ship.name}</div>
+                    <div className="text-xs text-slate-400">{ship.size} espaços</div>
                   </div>
-                  {isPlaced && <span className="text-green-600 font-bold">✓</span>}
+                  {isPlaced && <span className="text-green-400 font-bold text-lg">✓</span>}
                 </button>
               )
             })}
@@ -167,24 +191,24 @@ export function PlacementBoard({
             <div className="flex gap-3">
               <button
                 onClick={onShuffle}
-                className="flex-1 rounded-lg border border-slate-300 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                className="flex-1 rounded-xl border border-white/10 py-3 text-sm font-bold text-slate-300 hover:bg-white/5 hover:text-white transition-all"
               >
-                Aleatório
+                ALEATÓRIO
               </button>
               <button
                 onClick={onReset}
-                className="flex-1 rounded-lg border border-slate-300 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                className="flex-1 rounded-xl border border-white/10 py-3 text-sm font-bold text-slate-300 hover:bg-white/5 hover:text-white transition-all"
               >
-                Limpar
+                LIMPAR
               </button>
             </div>
-            
+
             <button
               onClick={onConfirm}
               disabled={!isComplete}
-              className="w-full rounded-xl bg-green-600 py-4 font-bold text-white shadow-lg transition hover:bg-green-700 hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full rounded-xl bg-gradient-to-r from-green-600 to-emerald-600 py-4 font-black text-white shadow-lg transition-all hover:scale-105 hover:shadow-[0_0_30px_rgba(16,185,129,0.4)] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:shadow-none"
             >
-              {isComplete ? 'Iniciar Batalha! 🚀' : 'Posiciona todos os navios'}
+              {isComplete ? 'INICIAR BATALHA 🚀' : 'POSICIONA A FROTA'}
             </button>
           </div>
         </div>
@@ -192,3 +216,4 @@ export function PlacementBoard({
     </div>
   )
 }
+

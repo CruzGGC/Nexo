@@ -38,6 +38,7 @@ export default function TicTacToeGame() {
   const [localWinner, setLocalWinner] = useState<CellValue | null>(null)
   const [localWinningLine, setLocalWinningLine] = useState<number[] | null>(null)
   const [localIsDraw, setLocalIsDraw] = useState(false)
+  const [score, setScore] = useState({ x: 0, o: 0, draws: 0 })
 
   const { status, room, joinQueue, leaveQueue, updateRoomState } = useMatchmaking('tic_tac_toe')
 
@@ -46,7 +47,7 @@ export default function TicTacToeGame() {
   const participants = useMemo(() => roomState.participants || [], [roomState.participants])
   const myId = user?.id
   const opponent = participants.find((p) => p.id !== myId)
-  
+
   // Determine if I am X or O (Host is usually X)
   const mySymbol = useMemo(() => {
     if (gameMode === 'local') return localCurrentPlayer // In local, I am whoever's turn it is
@@ -112,7 +113,7 @@ export default function TicTacToeGame() {
 
     const nextBoard = [...activeBoard]
     nextBoard[index] = activeCurrentPlayer
-    
+
     const winResult = checkWinner(nextBoard)
     const nextWinner = winResult?.winner || null
     const nextWinningLine = winResult?.line || null
@@ -125,6 +126,12 @@ export default function TicTacToeGame() {
       setLocalWinningLine(nextWinningLine)
       setLocalIsDraw(nextIsDraw)
       setLocalCurrentPlayer(nextPlayer)
+
+      if (nextWinner) {
+        setScore(prev => ({ ...prev, [nextWinner.toLowerCase()]: prev[nextWinner.toLowerCase() as 'x' | 'o'] + 1 }))
+      } else if (nextIsDraw) {
+        setScore(prev => ({ ...prev, draws: prev.draws + 1 }))
+      }
     } else {
       // Optimistic update not strictly needed for TTT but good for responsiveness
       // We'll just send to server
@@ -180,7 +187,7 @@ export default function TicTacToeGame() {
   const handleJoinPublic = () => joinQueue({ mode: 'public' })
   const handleCreatePrivate = (code: string) => joinQueue({ mode: 'private', matchCode: code, seat: 'host' })
   const handleJoinPrivate = (code: string) => joinQueue({ mode: 'private', matchCode: code, seat: 'guest' })
-  
+
   const handleCancelMatchmaking = () => {
     leaveQueue()
     setViewMode('selection')
@@ -189,9 +196,14 @@ export default function TicTacToeGame() {
   // --- Render ---
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-100 px-4 py-8 text-slate-900 dark:from-slate-950 dark:via-slate-900 dark:to-black dark:text-white">
-      <div className="mx-auto max-w-6xl">
-        
+    <div className="min-h-screen w-full bg-[#030014] relative overflow-hidden flex items-center justify-center p-4">
+      {/* Background Elements */}
+      <div className="absolute inset-0 bg-[url('/grid.svg')] bg-center [mask-image:linear-gradient(180deg,white,rgba(255,255,255,0))]" />
+      <div className="absolute top-0 left-1/4 h-96 w-96 rounded-full bg-blue-500/20 blur-[128px] animate-pulse" />
+      <div className="absolute bottom-0 right-1/4 h-96 w-96 rounded-full bg-purple-500/20 blur-[128px] animate-pulse delay-1000" />
+
+      <div className="relative z-10 w-full max-w-6xl">
+
         {viewMode === 'selection' && (
           <ModeSelection onSelectMode={handleSelectMode} />
         )}
@@ -218,7 +230,7 @@ export default function TicTacToeGame() {
             isDraw={activeIsDraw}
             onReset={handleReset}
             statusMessage={
-              activeWinner 
+              activeWinner
                 ? `Vencedor: ${activeWinner === 'X' ? 'Jogador X' : 'Jogador O'}!`
                 : activeIsDraw
                   ? 'Empate!'
@@ -229,6 +241,8 @@ export default function TicTacToeGame() {
                       : `Aguardando ${opponent?.display_name || 'adversário'}...`
             }
             opponentName={gameMode === 'local' ? (activeCurrentPlayer === 'X' ? 'Jogador O' : 'Jogador X') : opponent?.display_name}
+            score={score}
+            gameMode={gameMode}
           />
         )}
 

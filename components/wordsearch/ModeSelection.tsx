@@ -7,6 +7,7 @@ interface ModeSelectionProps {
   isLoading: boolean
   error: string | null
   onSelectMode: (mode: GameMode) => void | Promise<void>
+  playSound?: (type: 'hover' | 'click') => void
 }
 
 const loadingCopy: Record<GameMode, string> = {
@@ -37,7 +38,11 @@ const itemVariants: Variants = {
   }
 }
 
-export function ModeSelection({ gameMode, isLoading, error, onSelectMode }: ModeSelectionProps) {
+export function ModeSelection({ gameMode, isLoading, error, onSelectMode, playSound }: ModeSelectionProps) {
+  const handlePlaySound = (type: 'hover' | 'click') => {
+    if (playSound) playSound(type)
+  }
+
   return (
     <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-[#030014] py-12">
       {/* Background Elements */}
@@ -54,7 +59,7 @@ export function ModeSelection({ gameMode, isLoading, error, onSelectMode }: Mode
         <div className="mb-16 text-center space-y-4">
           <motion.h1
             variants={itemVariants}
-            className="text-5xl font-black tracking-tighter text-white sm:text-7xl md:text-8xl"
+            className="text-6xl font-black tracking-tighter text-white sm:text-8xl md:text-9xl drop-shadow-[0_0_30px_rgba(255,255,255,0.3)]"
           >
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-600">
               SOPA DE
@@ -64,7 +69,7 @@ export function ModeSelection({ gameMode, isLoading, error, onSelectMode }: Mode
           </motion.h1>
           <motion.p
             variants={itemVariants}
-            className="text-lg text-zinc-400 max-w-md mx-auto"
+            className="text-xl text-zinc-400 max-w-md mx-auto"
           >
             Encontra as palavras escondidas no caos.
             <br />
@@ -81,61 +86,98 @@ export function ModeSelection({ gameMode, isLoading, error, onSelectMode }: Mode
           </motion.div>
         )}
 
-        <motion.div
-          variants={itemVariants}
-          className="grid gap-6 w-full max-w-5xl mx-auto sm:grid-cols-3"
-        >
+        <div className="grid gap-8 w-full max-w-6xl mx-auto sm:grid-cols-3">
           {/* Daily Mode */}
-          <button
-            onClick={() => onSelectMode('daily')}
+          <motion.button
+            initial={{ opacity: 0, x: -50 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.1 }}
+            onClick={() => {
+              handlePlaySound('click')
+              onSelectMode('daily')
+            }}
+            onMouseEnter={() => handlePlaySound('hover')}
             disabled={isLoading}
-            className="group relative flex flex-col items-center gap-4 rounded-3xl border border-white/10 bg-white/5 p-8 text-center backdrop-blur-xl transition-all hover:scale-105 hover:border-yellow-500/50 hover:bg-white/10 hover:shadow-[0_0_30px_rgba(234,179,8,0.2)] disabled:opacity-50"
+            className="group relative flex flex-col items-center gap-6 rounded-[2rem] border border-white/10 bg-white/5 p-12 text-center backdrop-blur-xl transition-all hover:bg-white/10 hover:border-yellow-500/50 hover:shadow-[0_0_50px_rgba(234,179,8,0.2)] disabled:opacity-50"
           >
-            <div className="rounded-2xl bg-yellow-500/20 p-4 text-4xl shadow-[0_0_20px_rgba(234,179,8,0.3)] group-hover:scale-110 transition-transform duration-300">
-              📅
+            <div className="absolute inset-0 rounded-[2rem] bg-gradient-to-br from-yellow-500/0 via-yellow-500/0 to-yellow-500/0 transition-all duration-500 group-hover:from-yellow-500/10 group-hover:to-orange-600/10" />
+
+            <div className="relative h-24 w-24 rounded-2xl bg-gradient-to-br from-yellow-400 to-orange-600 p-[1px] shadow-lg group-hover:scale-110 transition-transform duration-300">
+              <div className="flex h-full w-full items-center justify-center rounded-2xl bg-black/50 backdrop-blur-md">
+                <span className="text-5xl">📅</span>
+              </div>
             </div>
-            <div>
-              <h3 className="text-xl font-bold text-white group-hover:text-yellow-400 transition-colors">Modo Diário</h3>
-              <p className="mt-2 text-sm text-zinc-400 group-hover:text-zinc-300">
+
+            <div className="relative">
+              <h3 className="text-3xl font-bold text-white mb-2 group-hover:text-yellow-400 transition-colors">Modo Diário</h3>
+              <p className="text-zinc-400 group-hover:text-zinc-200 transition-colors">
                 O mesmo puzzle para todos. Novo desafio à meia-noite.
               </p>
             </div>
-          </button>
+          </motion.button>
 
           {/* Random Mode */}
-          <button
-            onClick={() => onSelectMode('random')}
+          <motion.button
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            onClick={() => {
+              handlePlaySound('click')
+              onSelectMode('random')
+            }}
+            onMouseEnter={() => handlePlaySound('hover')}
             disabled={isLoading}
-            className="group relative flex flex-col items-center gap-4 rounded-3xl border border-white/10 bg-white/5 p-8 text-center backdrop-blur-xl transition-all hover:scale-105 hover:border-blue-500/50 hover:bg-white/10 hover:shadow-[0_0_30px_rgba(59,130,246,0.2)] disabled:opacity-50"
+            className="group relative flex flex-col items-center gap-6 rounded-[2rem] border border-white/10 bg-white/5 p-12 text-center backdrop-blur-xl transition-all hover:bg-white/10 hover:border-blue-500/50 hover:shadow-[0_0_50px_rgba(59,130,246,0.2)] disabled:opacity-50"
           >
-            <div className="rounded-2xl bg-blue-500/20 p-4 text-4xl shadow-[0_0_20px_rgba(59,130,246,0.3)] group-hover:scale-110 transition-transform duration-300">
-              🎲
+            <div className="absolute inset-0 rounded-[2rem] bg-gradient-to-br from-blue-500/0 via-blue-500/0 to-blue-500/0 transition-all duration-500 group-hover:from-blue-500/10 group-hover:to-cyan-600/10" />
+
+            <div className="relative h-24 w-24 rounded-2xl bg-gradient-to-br from-blue-400 to-cyan-600 p-[1px] shadow-lg group-hover:scale-110 transition-transform duration-300">
+              <div className="flex h-full w-full items-center justify-center rounded-2xl bg-black/50 backdrop-blur-md">
+                <span className="text-5xl">🎲</span>
+              </div>
             </div>
-            <div>
-              <h3 className="text-xl font-bold text-white group-hover:text-blue-400 transition-colors">Modo Aleatório</h3>
-              <p className="mt-2 text-sm text-zinc-400 group-hover:text-zinc-300">
+
+            <div className="relative">
+              <h3 className="text-3xl font-bold text-white mb-2 group-hover:text-blue-400 transition-colors">Modo Aleatório</h3>
+              <p className="text-zinc-400 group-hover:text-zinc-200 transition-colors">
                 Puzzle novo a cada jogo. Treino ilimitado!
               </p>
             </div>
-          </button>
+          </motion.button>
 
           {/* Duel Mode */}
-          <button
-            onClick={() => onSelectMode('duel')}
+          <motion.button
+            initial={{ opacity: 0, x: 50 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.3 }}
+            onClick={() => {
+              handlePlaySound('click')
+              onSelectMode('duel')
+            }}
+            onMouseEnter={() => handlePlaySound('hover')}
             disabled={isLoading}
-            className="group relative flex flex-col items-center gap-4 rounded-3xl border border-white/10 bg-white/5 p-8 text-center backdrop-blur-xl transition-all hover:scale-105 hover:border-purple-500/50 hover:bg-white/10 hover:shadow-[0_0_30px_rgba(168,85,247,0.2)] disabled:opacity-50"
+            className="group relative flex flex-col items-center gap-6 rounded-[2rem] border border-white/10 bg-white/5 p-12 text-center backdrop-blur-xl transition-all hover:bg-white/10 hover:border-purple-500/50 hover:shadow-[0_0_50px_rgba(168,85,247,0.2)] disabled:opacity-50"
           >
-            <div className="rounded-2xl bg-purple-500/20 p-4 text-4xl shadow-[0_0_20px_rgba(168,85,247,0.3)] group-hover:scale-110 transition-transform duration-300">
-              ⚔️
+            <div className="absolute inset-0 rounded-[2rem] bg-gradient-to-br from-purple-500/0 via-purple-500/0 to-purple-500/0 transition-all duration-500 group-hover:from-purple-500/10 group-hover:to-pink-600/10" />
+
+            <div className="relative h-24 w-24 rounded-2xl bg-gradient-to-br from-purple-400 to-pink-600 p-[1px] shadow-lg group-hover:scale-110 transition-transform duration-300">
+              <div className="flex h-full w-full items-center justify-center rounded-2xl bg-black/50 backdrop-blur-md">
+                <span className="text-5xl">⚔️</span>
+              </div>
             </div>
-            <div>
-              <h3 className="text-xl font-bold text-white group-hover:text-purple-400 transition-colors">Duelo</h3>
-              <p className="mt-2 text-sm text-zinc-400 group-hover:text-zinc-300">
+
+            <div className="relative">
+              <h3 className="text-3xl font-bold text-white mb-2 group-hover:text-purple-400 transition-colors">Duelo</h3>
+              <p className="text-zinc-400 group-hover:text-zinc-200 transition-colors">
                 Desafia um amigo para ver quem resolve mais rápido.
               </p>
             </div>
-          </button>
-        </motion.div>
+            <span className="absolute top-6 right-6 flex h-4 w-4">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-4 w-4 bg-green-500 shadow-[0_0_10px_#22c55e]"></span>
+            </span>
+          </motion.button>
+        </div>
 
         {isLoading && gameMode && (
           <motion.div
@@ -154,6 +196,7 @@ export function ModeSelection({ gameMode, isLoading, error, onSelectMode }: Mode
         >
           <Link
             href="/"
+            onClick={() => handlePlaySound('click')}
             className="inline-flex items-center gap-2 text-sm font-medium text-zinc-500 transition-colors hover:text-white hover:underline underline-offset-4"
           >
             ← Voltar ao Menu
