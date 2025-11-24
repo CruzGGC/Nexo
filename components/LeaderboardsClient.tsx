@@ -3,6 +3,8 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Trophy, Calendar, Medal, Filter, Search, Crown, Timer, Hash } from 'lucide-react'
 
 type LeaderboardType = 'crossword' | 'wordsearch' | 'ratings'
 
@@ -41,23 +43,27 @@ const leaderboardTabs: Array<{
   id: LeaderboardType
   title: string
   description: string
+  icon: any
 }> = [
-  {
-    id: 'crossword',
-    title: 'Diário de Palavras Cruzadas',
-    description: 'Top 10 tempos oficiais do puzzle diário'
-  },
-  {
-    id: 'wordsearch',
-    title: 'Sopa de Letras',
-    description: 'Melhores tempos na sopa diária'
-  },
-  {
-    id: 'ratings',
-    title: 'Multiplayer & Elo',
-    description: 'Ranking global baseado em Elo/Glicko'
-  }
-]
+    {
+      id: 'crossword',
+      title: 'Cruzadas',
+      description: 'Os mais rápidos a resolver o puzzle de hoje.',
+      icon: Timer
+    },
+    {
+      id: 'wordsearch',
+      title: 'Sopa de Letras',
+      description: 'Mestres da observação no desafio diário.',
+      icon: Search
+    },
+    {
+      id: 'ratings',
+      title: 'Ranking Global',
+      description: 'Os melhores jogadores em partidas competitivas.',
+      icon: Trophy
+    }
+  ]
 
 const formatTime = (value: number | null | undefined) => {
   if (!value && value !== 0) return '—'
@@ -95,14 +101,95 @@ const formatPuzzleDate = (value: string | null) => {
 
 type LeaderboardPayload =
   | {
-      type: 'ratings'
-      entries: RatingEntry[]
-    }
+    type: 'ratings'
+    entries: RatingEntry[]
+  }
   | {
-      type: 'crossword' | 'wordsearch'
-      entries: ScoreEntry[]
-      puzzle: { id: string; date: string }
-    }
+    type: 'crossword' | 'wordsearch'
+    entries: ScoreEntry[]
+    puzzle: { id: string; date: string }
+  }
+
+const Podium = ({ first, second, third, type }: { first?: any, second?: any, third?: any, type: 'score' | 'rating' }) => {
+  const getDisplayName = (entry: any) => entry?.display_name ?? entry?.username ?? 'Jogador'
+  const getValue = (entry: any) => type === 'score' ? formatTime(entry?.time_ms) : Math.round(entry?.rating ?? 0)
+
+  return (
+    <div className="flex items-end justify-center gap-4 mb-12 min-h-[280px]">
+      {/* 2nd Place */}
+      <motion.div
+        initial={{ opacity: 0, y: 50 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2 }}
+        className="flex flex-col items-center gap-3 w-1/3 max-w-[140px]"
+      >
+        <div className="relative">
+          <div className="w-20 h-20 rounded-full border-4 border-gray-300 bg-gray-900 overflow-hidden shadow-[0_0_30px_rgba(209,213,219,0.2)]">
+            <div className="w-full h-full flex items-center justify-center text-2xl font-bold text-gray-300 bg-gradient-to-br from-gray-800 to-black">
+              {second?.display_name?.[0]?.toUpperCase() ?? '?'}
+            </div>
+          </div>
+          <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 bg-gray-300 text-black text-xs font-bold px-2 py-0.5 rounded-full shadow-lg">
+            #2
+          </div>
+        </div>
+        <div className="text-center">
+          <p className="font-bold text-white truncate w-full text-sm">{second ? getDisplayName(second) : '—'}</p>
+          <p className="text-gray-400 font-mono text-sm">{second ? getValue(second) : '—'}</p>
+        </div>
+        <div className="w-full h-24 bg-gradient-to-t from-gray-500/20 to-transparent rounded-t-lg border-t border-gray-500/30" />
+      </motion.div>
+
+      {/* 1st Place */}
+      <motion.div
+        initial={{ opacity: 0, y: 50 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex flex-col items-center gap-3 w-1/3 max-w-[160px] -mt-8"
+      >
+        <div className="relative">
+          <Crown className="absolute -top-8 left-1/2 -translate-x-1/2 text-yellow-400 drop-shadow-[0_0_10px_rgba(250,204,21,0.5)]" size={32} />
+          <div className="w-24 h-24 rounded-full border-4 border-yellow-400 bg-yellow-900 overflow-hidden shadow-[0_0_40px_rgba(250,204,21,0.3)]">
+            <div className="w-full h-full flex items-center justify-center text-3xl font-bold text-yellow-400 bg-gradient-to-br from-yellow-900 to-black">
+              {first?.display_name?.[0]?.toUpperCase() ?? '?'}
+            </div>
+          </div>
+          <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 bg-yellow-400 text-black text-xs font-bold px-3 py-0.5 rounded-full shadow-lg">
+            #1
+          </div>
+        </div>
+        <div className="text-center">
+          <p className="font-bold text-white truncate w-full">{first ? getDisplayName(first) : '—'}</p>
+          <p className="text-yellow-400 font-mono font-bold">{first ? getValue(first) : '—'}</p>
+        </div>
+        <div className="w-full h-32 bg-gradient-to-t from-yellow-500/20 to-transparent rounded-t-lg border-t border-yellow-500/30 shadow-[0_0_50px_rgba(234,179,8,0.1)]" />
+      </motion.div>
+
+      {/* 3rd Place */}
+      <motion.div
+        initial={{ opacity: 0, y: 50 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.4 }}
+        className="flex flex-col items-center gap-3 w-1/3 max-w-[140px]"
+      >
+        <div className="relative">
+          <div className="w-20 h-20 rounded-full border-4 border-orange-400 bg-orange-900 overflow-hidden shadow-[0_0_30px_rgba(251,146,60,0.2)]">
+            <div className="w-full h-full flex items-center justify-center text-2xl font-bold text-orange-400 bg-gradient-to-br from-orange-900 to-black">
+              {third?.display_name?.[0]?.toUpperCase() ?? '?'}
+            </div>
+          </div>
+          <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 bg-orange-400 text-black text-xs font-bold px-2 py-0.5 rounded-full shadow-lg">
+            #3
+          </div>
+        </div>
+        <div className="text-center">
+          <p className="font-bold text-white truncate w-full text-sm">{third ? getDisplayName(third) : '—'}</p>
+          <p className="text-orange-400 font-mono text-sm">{third ? getValue(third) : '—'}</p>
+        </div>
+        <div className="w-full h-16 bg-gradient-to-t from-orange-500/20 to-transparent rounded-t-lg border-t border-orange-500/30" />
+      </motion.div>
+    </div>
+  )
+}
 
 export function LeaderboardsClient() {
   const [activeTab, setActiveTab] = useState<LeaderboardType>('crossword')
@@ -115,6 +202,7 @@ export function LeaderboardsClient() {
   })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
 
   const query = useMemo(() => {
     const params = new URLSearchParams()
@@ -141,7 +229,7 @@ export function LeaderboardsClient() {
           setRatings(data.entries)
         } else {
           setScores(data.entries)
-          setPuzzleMeta(data.puzzle)
+          setPuzzleMeta(data.puzzle || { id: null, date: null })
         }
       } catch (err) {
         if (err instanceof Error && err.name === 'AbortError') return
@@ -155,202 +243,314 @@ export function LeaderboardsClient() {
     return () => controller.abort()
   }, [activeTab, query])
 
+  const filteredScores = useMemo(() => {
+    return scores.filter(s =>
+      (s.display_name?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
+      (s.username?.toLowerCase() || '').includes(searchQuery.toLowerCase())
+    )
+  }, [scores, searchQuery])
+
+  const filteredRatings = useMemo(() => {
+    return ratings.filter(r =>
+      (r.display_name?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
+      (r.username?.toLowerCase() || '').includes(searchQuery.toLowerCase())
+    )
+  }, [ratings, searchQuery])
+
   const renderScores = () => (
-    <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="flex flex-col gap-2 rounded-2xl border border-amber-100 bg-amber-50/60 px-6 py-4 text-sm text-amber-900 shadow-sm dark:border-amber-500/30 dark:bg-amber-900/20 dark:text-amber-100 sm:flex-row sm:items-center sm:justify-between">
-        <p className="flex items-center gap-2">
-          <span className="text-xl">📅</span>
-          Puzzle diário:{' '}
-          <span className="font-bold">
-            {formatPuzzleDate(puzzleMeta.date) ?? 'A aguardar publicação'}
-          </span>
-        </p>
-        {puzzleMeta.id && <p className="font-mono text-xs text-amber-800/80 dark:text-amber-100/70">ID: {puzzleMeta.id}</p>}
-      </div>
-      <div className="overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-zinc-100 text-left text-sm dark:divide-zinc-800">
-            <thead className="bg-zinc-50 text-xs uppercase tracking-wider text-zinc-500 dark:bg-zinc-900/50 dark:text-zinc-400">
-              <tr>
-                <th className="px-6 py-4 font-bold">#</th>
-                <th className="px-6 py-4 font-bold">Jogador</th>
-                <th className="px-6 py-4 font-bold">Tempo</th>
-                <th className="px-6 py-4 font-bold">Terminado</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
-              {scores.map((entry, index) => (
-                <tr 
-                  key={`${entry.puzzle_id}-${entry.rank ?? 'x'}`} 
-                  className="bg-white transition-colors hover:bg-zinc-50 dark:bg-zinc-900 dark:hover:bg-zinc-800/50"
-                >
-                  <td className="px-6 py-4">
-                    <span className={`flex h-8 w-8 items-center justify-center rounded-full font-bold ${
-                      index === 0 ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' :
-                      index === 1 ? 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-400' :
-                      index === 2 ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' :
-                      'text-zinc-500 dark:text-zinc-400'
-                    }`}>
-                      {entry.rank ?? index + 1}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-100 text-lg font-bold text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
-                        {entry.display_name?.[0]?.toUpperCase() ?? '👤'}
-                      </div>
-                      <div>
-                        <p className="font-bold text-zinc-900 dark:text-zinc-50">{entry.display_name ?? entry.username ?? 'Jogador'}</p>
-                        <p className="text-xs text-zinc-500 dark:text-zinc-400">@{entry.username ?? 'anónimo'}</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 font-mono text-lg font-bold text-amber-600 dark:text-amber-400">{formatTime(entry.time_ms)}</td>
-                  <td className="px-6 py-4 text-zinc-500 dark:text-zinc-400">{formatDate(entry.completed_at)}</td>
-                </tr>
-              ))}
-              {!loading && scores.length === 0 && (
-                <tr>
-                  <td colSpan={4} className="px-6 py-12 text-center text-zinc-500 dark:text-zinc-400">
-                    <div className="flex flex-col items-center gap-2">
-                      <span className="text-4xl">🏆</span>
-                      <p className="font-medium">Ainda não há tempos registados hoje.</p>
-                      <p className="text-sm">Sê o primeiro a completar o puzzle!</p>
-                    </div>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="space-y-8"
+    >
+      {!loading && scores.length > 0 && !searchQuery && (
+        <Podium
+          first={scores[0]}
+          second={scores[1]}
+          third={scores[2]}
+          type="score"
+        />
+      )}
+
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-blue-500/20 rounded-lg text-blue-400 shadow-[0_0_15px_rgba(59,130,246,0.3)]">
+            <Calendar size={20} />
+          </div>
+          <div>
+            <p className="text-xs font-bold text-white/40 uppercase tracking-wider">Puzzle de Hoje</p>
+            <p className="text-white font-bold text-lg">{formatPuzzleDate(puzzleMeta?.date) ?? 'A aguardar publicação'}</p>
+          </div>
         </div>
+        {puzzleMeta?.id && (
+          <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10 text-xs font-mono text-white/60">
+            <Hash size={12} />
+            ID: {puzzleMeta.id}
+          </div>
+        )}
       </div>
-    </div>
+
+      <div className="space-y-2">
+        {filteredScores.map((entry, index) => (
+          <motion.div
+            key={`${entry.puzzle_id}-${entry.rank ?? 'x'}`}
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: index * 0.05 }}
+            className="group relative overflow-hidden rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/20 transition-all duration-300"
+          >
+            <div className="absolute inset-0 bg-gradient-to-r from-blue-600/0 via-blue-600/0 to-blue-600/0 group-hover:via-blue-600/5 group-hover:to-blue-600/10 transition-all duration-500" />
+
+            <div className="relative flex items-center gap-4 p-4">
+              <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-black text-lg ${(entry.rank ?? index + 1) === 1 ? 'text-yellow-400 bg-yellow-400/10' :
+                  (entry.rank ?? index + 1) === 2 ? 'text-gray-300 bg-gray-300/10' :
+                    (entry.rank ?? index + 1) === 3 ? 'text-orange-400 bg-orange-400/10' :
+                      'text-white/20 bg-white/5'
+                }`}>
+                {entry.rank ?? index + 1}
+              </div>
+
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500/20 to-purple-500/20 border border-white/10 flex items-center justify-center text-white font-bold">
+                {entry.display_name?.[0]?.toUpperCase() ?? '👤'}
+              </div>
+
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <p className="font-bold text-white truncate group-hover:text-blue-400 transition-colors">
+                    {entry.display_name ?? entry.username ?? 'Jogador'}
+                  </p>
+                  {(entry.rank ?? index + 1) <= 3 && (
+                    <Crown size={14} className={
+                      (entry.rank ?? index + 1) === 1 ? 'text-yellow-400' :
+                        (entry.rank ?? index + 1) === 2 ? 'text-gray-300' :
+                          'text-orange-400'
+                    } />
+                  )}
+                </div>
+                <p className="text-xs text-white/40 truncate">@{entry.username ?? 'anónimo'}</p>
+              </div>
+
+              <div className="text-right">
+                <p className="font-mono text-lg font-bold text-blue-400 group-hover:text-blue-300 transition-colors drop-shadow-[0_0_10px_rgba(59,130,246,0.3)]">
+                  {formatTime(entry.time_ms)}
+                </p>
+                <p className="text-xs text-white/30">
+                  {formatDate(entry.completed_at)}
+                </p>
+              </div>
+            </div>
+          </motion.div>
+        ))}
+
+        {!loading && filteredScores.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <div className="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center mb-4">
+              <Search className="text-white/20" size={32} />
+            </div>
+            <p className="font-bold text-white text-lg">Nenhum resultado encontrado</p>
+            <p className="text-white/40">Tenta ajustar a tua pesquisa.</p>
+          </div>
+        )}
+      </div>
+    </motion.div>
   )
 
   const renderRatings = () => (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="flex flex-wrap items-center gap-4 rounded-2xl bg-white p-4 shadow-sm dark:bg-zinc-900">
-        <p className="text-sm font-bold text-zinc-900 dark:text-zinc-100">Filtrar jogo:</p>
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="space-y-8"
+    >
+      {!loading && ratings.length > 0 && !searchQuery && (
+        <Podium
+          first={ratings[0]}
+          second={ratings[1]}
+          third={ratings[2]}
+          type="rating"
+        />
+      )}
+
+      <div className="flex flex-col gap-4 p-4 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm">
+        <div className="flex items-center gap-2 text-white/60 mb-2">
+          <Filter size={16} />
+          <span className="text-sm font-bold uppercase tracking-wider">Modo de Jogo:</span>
+        </div>
         <div className="flex flex-wrap gap-2">
           {ratingGameTypes.map(option => (
             <button
               key={option.id}
               onClick={() => setRatingFilter(option.id)}
-              className={`rounded-xl px-4 py-2 text-sm font-bold transition-all ${
-                ratingFilter === option.id
-                  ? 'bg-amber-500 text-white shadow-md scale-105'
-                  : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700'
-              }`}
+              className={`relative px-4 py-2 rounded-xl text-sm font-bold transition-all overflow-hidden ${ratingFilter === option.id
+                ? 'text-white shadow-[0_0_20px_rgba(59,130,246,0.4)]'
+                : 'text-white/40 hover:text-white hover:bg-white/5'
+                }`}
             >
-              {option.label}
+              {ratingFilter === option.id && (
+                <motion.div
+                  layoutId="activeFilter"
+                  className="absolute inset-0 bg-gradient-to-r from-blue-600 to-purple-600"
+                  initial={false}
+                  transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                />
+              )}
+              <span className="relative z-10">{option.label}</span>
             </button>
           ))}
         </div>
       </div>
-      <div className="overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-zinc-100 text-left text-sm dark:divide-zinc-800">
-            <thead className="bg-zinc-50 text-xs uppercase tracking-wider text-zinc-500 dark:bg-zinc-900/50 dark:text-zinc-400">
-              <tr>
-                <th className="px-6 py-4 font-bold">#</th>
-                <th className="px-6 py-4 font-bold">Jogador</th>
-                <th className="px-6 py-4 font-bold">Rating</th>
-                <th className="px-6 py-4 font-bold">Desvio</th>
-                <th className="px-6 py-4 font-bold">Jogos</th>
-                <th className="px-6 py-4 font-bold">Vitórias</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
-              {ratings.map((entry, index) => (
-                <tr 
-                  key={`${entry.game_type}-${entry.rank ?? 'x'}-${entry.username}`} 
-                  className="bg-white transition-colors hover:bg-zinc-50 dark:bg-zinc-900 dark:hover:bg-zinc-800/50"
-                >
-                  <td className="px-6 py-4">
-                    <span className={`flex h-8 w-8 items-center justify-center rounded-full font-bold ${
-                      index === 0 ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' :
-                      index === 1 ? 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-400' :
-                      index === 2 ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' :
-                      'text-zinc-500 dark:text-zinc-400'
-                    }`}>
-                      {entry.rank ?? index + 1}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-100 text-lg font-bold text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
-                        {entry.display_name?.[0]?.toUpperCase() ?? '👤'}
-                      </div>
-                      <div>
-                        <p className="font-bold text-zinc-900 dark:text-zinc-50">{entry.display_name ?? entry.username ?? 'Jogador'}</p>
-                        <p className="text-xs text-zinc-500 dark:text-zinc-400">@{entry.username ?? 'anónimo'}</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 font-black text-emerald-600 dark:text-emerald-400">{Math.round(entry.rating ?? 0)}</td>
-                  <td className="px-6 py-4 text-zinc-500 dark:text-zinc-400">±{Math.round(entry.deviation ?? 0)}</td>
-                  <td className="px-6 py-4 font-medium text-zinc-700 dark:text-zinc-300">{entry.matches_played ?? 0}</td>
-                  <td className="px-6 py-4 font-bold text-indigo-600 dark:text-indigo-400">{formatWinRate(entry.win_rate)}</td>
-                </tr>
-              ))}
-              {!loading && ratings.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-zinc-500 dark:text-zinc-400">
-                    <div className="flex flex-col items-center gap-2">
-                      <span className="text-4xl">🏅</span>
-                      <p className="font-medium">Ainda não existem partidas ranqueadas.</p>
-                      <p className="text-sm">Prepara-te para ser o primeiro campeão!</p>
-                    </div>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+
+      <div className="space-y-2">
+        {filteredRatings.map((entry, index) => (
+          <motion.div
+            key={`${entry.game_type}-${entry.rank ?? 'x'}-${entry.username}`}
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: index * 0.05 }}
+            className="group relative overflow-hidden rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/20 transition-all duration-300"
+          >
+            <div className="absolute inset-0 bg-gradient-to-r from-purple-600/0 via-purple-600/0 to-purple-600/0 group-hover:via-purple-600/5 group-hover:to-purple-600/10 transition-all duration-500" />
+
+            <div className="relative flex items-center gap-4 p-4">
+              <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-black text-lg ${(entry.rank ?? index + 1) === 1 ? 'text-yellow-400 bg-yellow-400/10' :
+                  (entry.rank ?? index + 1) === 2 ? 'text-gray-300 bg-gray-300/10' :
+                    (entry.rank ?? index + 1) === 3 ? 'text-orange-400 bg-orange-400/10' :
+                      'text-white/20 bg-white/5'
+                }`}>
+                {entry.rank ?? index + 1}
+              </div>
+
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500/20 to-purple-500/20 border border-white/10 flex items-center justify-center text-white font-bold">
+                {entry.display_name?.[0]?.toUpperCase() ?? '👤'}
+              </div>
+
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <p className="font-bold text-white truncate group-hover:text-purple-400 transition-colors">
+                    {entry.display_name ?? entry.username ?? 'Jogador'}
+                  </p>
+                  {(entry.rank ?? index + 1) <= 3 && (
+                    <Crown size={14} className={
+                      (entry.rank ?? index + 1) === 1 ? 'text-yellow-400' :
+                        (entry.rank ?? index + 1) === 2 ? 'text-gray-300' :
+                          'text-orange-400'
+                    } />
+                  )}
+                </div>
+                <div className="flex items-center gap-3 text-xs text-white/40">
+                  <span>@{entry.username ?? 'anónimo'}</span>
+                  <span>•</span>
+                  <span>{entry.matches_played ?? 0} jogos</span>
+                </div>
+              </div>
+
+              <div className="flex flex-col items-end gap-1">
+                <div className="flex items-center gap-2">
+                  <span className="font-black text-xl text-green-400 drop-shadow-[0_0_10px_rgba(74,222,128,0.3)]">
+                    {Math.round(entry.rating ?? 0)}
+                  </span>
+                  <span className="text-xs text-white/30 font-mono">
+                    ±{Math.round(entry.deviation ?? 0)}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 text-xs">
+                  <div className="w-16 h-1.5 bg-white/10 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-blue-500 to-purple-500"
+                      style={{ width: formatWinRate(entry.win_rate) }}
+                    />
+                  </div>
+                  <span className="text-white/60 font-bold">{formatWinRate(entry.win_rate)} WR</span>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        ))}
+
+        {!loading && filteredRatings.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <div className="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center mb-4">
+              <Search className="text-white/20" size={32} />
+            </div>
+            <p className="font-bold text-white text-lg">Nenhum resultado encontrado</p>
+            <p className="text-white/40">Tenta ajustar a tua pesquisa.</p>
+          </div>
+        )}
       </div>
-    </div>
+    </motion.div>
   )
 
   return (
-    <section className="space-y-8 animate-in fade-in zoom-in duration-500">
-      <div className="flex flex-wrap gap-3 rounded-3xl bg-white p-2 shadow-lg dark:bg-zinc-900">
-        {leaderboardTabs.map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`flex-1 rounded-2xl px-6 py-3 text-sm font-bold transition-all ${
-              activeTab === tab.id
-                ? 'bg-amber-500 text-white shadow-md scale-[1.02]'
-                : 'bg-transparent text-zinc-600 hover:bg-zinc-50 dark:text-zinc-400 dark:hover:bg-zinc-800'
-            }`}
-          >
-            {tab.title}
-          </button>
-        ))}
+    <section className="space-y-8">
+      <div className="flex flex-col md:flex-row gap-6 justify-between items-start md:items-center">
+        <div className="flex flex-wrap gap-2 p-1.5 rounded-2xl bg-black/40 border border-white/5 backdrop-blur-md">
+          {leaderboardTabs.map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-bold transition-all relative overflow-hidden ${activeTab === tab.id
+                ? 'text-white shadow-lg'
+                : 'text-white/40 hover:text-white hover:bg-white/5'
+                }`}
+            >
+              {activeTab === tab.id && (
+                <motion.div
+                  layoutId="activeTab"
+                  className="absolute inset-0 bg-gradient-to-r from-blue-600 to-purple-600"
+                  initial={false}
+                  transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                />
+              )}
+              <tab.icon size={16} className="relative z-10" />
+              <span className="relative z-10">{tab.title}</span>
+            </button>
+          ))}
+        </div>
+
+        <div className="relative w-full md:w-64">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-white/20" size={16} />
+          <input
+            type="text"
+            placeholder="Procurar jogador..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-3 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all"
+          />
+        </div>
       </div>
 
-      <div className="text-center">
-        <p className="text-lg font-medium text-zinc-600 dark:text-zinc-400">
-          {leaderboardTabs.find(tab => tab.id === activeTab)?.description}
-        </p>
+      <div className="text-center py-4">
+        <AnimatePresence mode="wait">
+          <motion.p
+            key={activeTab}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="text-lg font-medium text-white/60"
+          >
+            {leaderboardTabs.find(tab => tab.id === activeTab)?.description}
+          </motion.p>
+        </AnimatePresence>
       </div>
 
       {error && (
-        <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-center text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
+        <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-6 text-center text-red-400">
           <p className="font-bold">Erro</p>
           <p>{error}</p>
         </div>
       )}
 
-      {loading && (
-        <div className="flex flex-col items-center justify-center gap-4 rounded-3xl border border-zinc-200 bg-white/70 py-24 shadow-xl backdrop-blur dark:border-zinc-800 dark:bg-zinc-900/70">
-          <div className="h-12 w-12 animate-spin rounded-full border-4 border-zinc-200 border-t-amber-500 dark:border-zinc-800 dark:border-t-amber-500"></div>
-          <p className="font-bold text-zinc-500 dark:text-zinc-400">A carregar classificações...</p>
+      {loading ? (
+        <div className="flex flex-col items-center justify-center gap-4 py-24">
+          <div className="h-12 w-12 animate-spin rounded-full border-4 border-white/10 border-t-blue-500"></div>
+          <p className="font-bold text-white/40">A carregar classificações...</p>
+        </div>
+      ) : (
+        <div className="min-h-[400px]">
+          {activeTab !== 'ratings' ? renderScores() : renderRatings()}
         </div>
       )}
-
-      {!loading && activeTab !== 'ratings' && renderScores()}
-      {!loading && activeTab === 'ratings' && renderRatings()}
     </section>
   )
 }
