@@ -29,11 +29,18 @@ self.addEventListener('install', (event) => {
     caches.open(CACHE_NAME)
       .then((cache) => {
         console.log('[SW] Precaching app shell...');
-        return cache.addAll(PRECACHE_ASSETS);
+        // Use addAll with error handling for individual assets
+        return Promise.allSettled(
+          PRECACHE_ASSETS.map(url => 
+            cache.add(url).catch(err => {
+              console.warn(`[SW] Failed to cache ${url}:`, err);
+            })
+          )
+        );
       })
       .then(() => {
-        console.log('[SW] Precache complete, activating immediately...');
-        return self.skipWaiting();
+        console.log('[SW] Precache complete');
+        // Don't call skipWaiting automatically - let user decide via update prompt
       })
       .catch((error) => {
         console.error('[SW] Precache failed:', error);
@@ -58,8 +65,10 @@ self.addEventListener('activate', (event) => {
         );
       })
       .then(() => {
-        console.log('[SW] Claiming all clients...');
-        return self.clients.claim();
+        console.log('[SW] Activation complete');
+        // NOTE: We intentionally do NOT call clients.claim() here
+        // This prevents triggering controllerchange and potential refresh loops
+        // The service worker will take control on next navigation
       })
   );
 });

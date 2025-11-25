@@ -98,9 +98,18 @@ export function PWAProvider({ children }: PWAProviderProps) {
     registerSW();
 
     // Handle controller change (when skipWaiting is called)
+    // We track if a controller existed BEFORE the change to prevent refresh on first load
+    let refreshing = false;
+    const hadController = !!navigator.serviceWorker.controller;
+    
     navigator.serviceWorker.addEventListener('controllerchange', () => {
-      console.log('[PWA] New service worker activated, reloading...');
-      window.location.reload();
+      if (refreshing) return;
+      // Only reload if there was a controller before this event (not first load)
+      if (hadController) {
+        console.log('[PWA] New service worker activated, reloading...');
+        refreshing = true;
+        window.location.reload();
+      }
     });
   }, []);
 
