@@ -130,3 +130,280 @@ body::before {
   -webkit-text-fill-color: transparent;
   background-image: linear-gradient(135deg, var(--neon-blue) 0%, var(--neon-purple) 100%);
 }
+
+/* ==========================================================================
+   PWA & Mobile Optimizations
+   ========================================================================== */
+
+/* Safe area insets for notched devices */
+:root {
+  --safe-area-inset-top: env(safe-area-inset-top, 0px);
+  --safe-area-inset-right: env(safe-area-inset-right, 0px);
+  --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-area-inset-left: env(safe-area-inset-left, 0px);
+}
+
+/* Standalone mode styles (PWA installed) */
+@media (display-mode: standalone) {
+  body {
+    padding-top: var(--safe-area-inset-top);
+    padding-bottom: var(--safe-area-inset-bottom);
+    padding-left: var(--safe-area-inset-left);
+    padding-right: var(--safe-area-inset-right);
+  }
+  
+  /* Hide browser UI elements in standalone mode */
+  .browser-only {
+    display: none !important;
+  }
+}
+
+/* Touch-friendly utilities */
+.touch-target {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+.touch-target-lg {
+  min-height: 48px;
+  min-width: 48px;
+}
+
+/* Prevent text selection on game elements */
+.no-select {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* Prevent zoom on input focus (iOS) */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="number"],
+select,
+textarea {
+  font-size: 16px !important;
+}
+
+/* Disable tap highlight on mobile */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Enable smooth touch scrolling */
+.scroll-touch {
+  -webkit-overflow-scrolling: touch;
+  overflow-scrolling: touch;
+}
+
+/* Hide scrollbar but keep functionality */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Game grid touch handling */
+.game-grid {
+  touch-action: manipulation;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Prevent pull-to-refresh on game screens */
+.no-pull-refresh {
+  overscroll-behavior-y: contain;
+}
+
+/* Active state for touch feedback */
+.touch-feedback:active {
+  opacity: 0.8;
+  transform: scale(0.98);
+  transition: all 0.1s ease;
+}
+
+/* ==========================================================================
+   Mobile Responsive Utilities
+   ========================================================================== */
+
+/* Responsive padding with safe areas */
+.safe-padding {
+  padding-left: max(1rem, var(--safe-area-inset-left));
+  padding-right: max(1rem, var(--safe-area-inset-right));
+}
+
+.safe-padding-bottom {
+  padding-bottom: max(1rem, var(--safe-area-inset-bottom));
+}
+
+.safe-padding-top {
+  padding-top: max(1rem, var(--safe-area-inset-top));
+}
+
+/* Full height accounting for safe areas */
+.min-h-screen-safe {
+  min-height: calc(100vh - var(--safe-area-inset-top) - var(--safe-area-inset-bottom));
+}
+
+.h-screen-safe {
+  height: calc(100vh - var(--safe-area-inset-top) - var(--safe-area-inset-bottom));
+}
+
+/* Mobile-first container */
+.mobile-container {
+  width: 100%;
+  max-width: 100vw;
+  padding-left: max(1rem, var(--safe-area-inset-left));
+  padding-right: max(1rem, var(--safe-area-inset-right));
+}
+
+@media (min-width: 640px) {
+  .mobile-container {
+    max-width: 640px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+
+@media (min-width: 768px) {
+  .mobile-container {
+    max-width: 768px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .mobile-container {
+    max-width: 1024px;
+  }
+}
+
+/* ==========================================================================
+   Landscape Mode Utilities
+   ========================================================================== */
+
+/* Landscape-specific styles */
+@media (orientation: landscape) and (max-height: 500px) {
+  .landscape-compact {
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+  }
+  
+  .landscape-hide {
+    display: none !important;
+  }
+  
+  .landscape-smaller-text {
+    font-size: 0.875rem;
+  }
+}
+
+/* Portrait-specific styles */
+@media (orientation: portrait) {
+  .portrait-hide {
+    display: none !important;
+  }
+  
+  .portrait-full-width {
+    width: 100%;
+  }
+}
+
+/* ==========================================================================
+   Game-Specific Mobile Styles
+   ========================================================================== */
+
+/* Crossword grid mobile optimization */
+.crossword-cell {
+  touch-action: manipulation;
+  cursor: pointer;
+}
+
+.crossword-cell:focus {
+  outline: 2px solid var(--neon-blue);
+  outline-offset: -2px;
+}
+
+/* Word search mobile optimization */
+.wordsearch-grid {
+  touch-action: none; /* Prevent scrolling while selecting */
+}
+
+/* Battleship touch optimization */
+.battleship-cell {
+  touch-action: manipulation;
+}
+
+/* ==========================================================================
+   Virtual Keyboard Utilities
+   ========================================================================== */
+
+/* Adjust layout when virtual keyboard is visible */
+.keyboard-aware {
+  transition: padding-bottom 0.2s ease;
+}
+
+/* iOS keyboard detection */
+@supports (-webkit-touch-callout: none) {
+  .keyboard-aware:focus-within {
+    padding-bottom: 40vh;
+  }
+}
+
+/* ==========================================================================
+   Animation Utilities for Mobile
+   ========================================================================== */
+
+/* Reduce motion for users who prefer it */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Hardware-accelerated animations */
+.gpu-accelerated {
+  transform: translateZ(0);
+  will-change: transform;
+  backface-visibility: hidden;
+}
+
+/* ==========================================================================
+   PWA Install Banner Styles
+   ========================================================================== */
+
+/* Install prompt styling */
+.pwa-install-prompt {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 1rem;
+  padding-bottom: max(1rem, var(--safe-area-inset-bottom));
+  z-index: 9999;
+}
+
+/* Offline indicator */
+.offline-banner {
+  position: fixed;
+  top: var(--safe-area-inset-top, 0);
+  left: 0;
+  right: 0;
+  background: rgba(239, 68, 68, 0.9);
+  color: white;
+  text-align: center;
+  padding: 0.5rem;
+  font-size: 0.875rem;
+  z-index: 10000;
+}
