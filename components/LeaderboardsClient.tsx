@@ -30,6 +30,9 @@ type RatingEntry = {
   win_rate: number | null
 }
 
+// Union type para entries do Podium - elimina uso de 'any'
+type PodiumEntry = ScoreEntry | RatingEntry
+
 const ratingGameTypes = [
   { id: 'tic_tac_toe', label: 'Jogo do Galo' },
   { id: 'battleship', label: 'Batalha Naval' },
@@ -110,9 +113,18 @@ type LeaderboardPayload =
     puzzle: { id: string; date: string }
   }
 
-const Podium = ({ first, second, third, type }: { first?: any, second?: any, third?: any, type: 'score' | 'rating' }) => {
-  const getDisplayName = (entry: any) => entry?.display_name ?? entry?.username ?? 'Jogador'
-  const getValue = (entry: any) => type === 'score' ? formatTime(entry?.time_ms) : Math.round(entry?.rating ?? 0)
+const Podium = ({ first, second, third, type }: { first?: PodiumEntry, second?: PodiumEntry, third?: PodiumEntry, type: 'score' | 'rating' }) => {
+  const getDisplayName = (entry: PodiumEntry | undefined) => entry?.display_name ?? entry?.username ?? 'Jogador'
+  const getValue = (entry: PodiumEntry | undefined) => {
+    if (!entry) return '—'
+    if (type === 'score' && 'time_ms' in entry) {
+      return formatTime(entry.time_ms)
+    }
+    if (type === 'rating' && 'rating' in entry) {
+      return Math.round(entry.rating ?? 0)
+    }
+    return '—'
+  }
 
   return (
     <div className="flex items-end justify-center gap-4 mb-12 min-h-[280px]">

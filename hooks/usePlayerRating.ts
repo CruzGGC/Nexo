@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useCallback } from 'react'
-import { supabase } from '@/lib/supabase'
+import { useState, useCallback, useMemo } from 'react'
+import { getSupabaseBrowserClient } from '@/lib/supabase-browser'
 import { 
   calculateRating, 
   getRankTier, 
@@ -36,6 +36,7 @@ interface UsePlayerRatingReturn {
 export function usePlayerRating(): UsePlayerRatingReturn {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const supabase = useMemo(() => getSupabaseBrowserClient(), [])
 
   const fetchRating = useCallback(async (
     userId: string, 

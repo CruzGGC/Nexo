@@ -4,8 +4,8 @@ import { motion, useScroll, useMotionValueEvent } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { useEffect, useState, useMemo } from "react";
+import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { User } from "@supabase/supabase-js";
 import { User as UserIcon, LogIn } from "lucide-react";
 
@@ -18,8 +18,10 @@ const navLinks = [
 
 export default function Navbar() {
     const [user, setUser] = useState<User | null>(null);
+    const [authLoading, setAuthLoading] = useState(true);
     const [hidden, setHidden] = useState(false);
     const { scrollY } = useScroll();
+    const supabase = useMemo(() => getSupabaseBrowserClient(), []);
 
     useMotionValueEvent(scrollY, "change", (latest) => {
         const previous = scrollY.getPrevious() ?? 0;
@@ -33,16 +35,18 @@ export default function Navbar() {
     useEffect(() => {
         supabase.auth.getSession().then(({ data: { session } }) => {
             setUser(session?.user ?? null);
+            setAuthLoading(false);
         });
 
         const {
             data: { subscription },
         } = supabase.auth.onAuthStateChange((_event, session) => {
             setUser(session?.user ?? null);
+            setAuthLoading(false);
         });
 
         return () => subscription.unsubscribe();
-    }, []);
+    }, [supabase]);
 
     return (
         <motion.nav
@@ -84,7 +88,9 @@ export default function Navbar() {
             </div>
 
             <div className="flex items-center gap-4">
-                {user ? (
+                {authLoading ? (
+                    <div className="w-24 h-10 rounded-full bg-white/5 animate-pulse" />
+                ) : user ? (
                     <Link
                         href="/profile"
                         className="px-5 py-2.5 text-sm font-bold text-white bg-white/5 border border-white/10 rounded-full hover:bg-white/10 transition-all hover:scale-105 flex items-center gap-2 group"

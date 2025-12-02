@@ -11,6 +11,15 @@
 const CACHE_NAME = 'nexo-cache-v1';
 const OFFLINE_URL = '/offline';
 
+// Debug mode - only log in development (localhost)
+const DEBUG = self.location.hostname === 'localhost' || self.location.hostname === '127.0.0.1';
+
+// Conditional logging wrappers
+const log = (...args) => DEBUG && console.log('[SW]', ...args);
+const warn = (...args) => DEBUG && console.warn('[SW]', ...args);
+// Errors always logged regardless of environment
+const logError = (...args) => console.error('[SW]', ...args);
+
 // Assets to cache immediately on install
 const PRECACHE_ASSETS = [
   '/',
@@ -23,34 +32,34 @@ const PRECACHE_ASSETS = [
 
 // Install event - precache essential assets
 self.addEventListener('install', (event) => {
-  console.log('[SW] Installing service worker...');
+  log('Installing service worker...');
   
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
-        console.log('[SW] Precaching app shell...');
+        log('Precaching app shell...');
         // Use addAll with error handling for individual assets
         return Promise.allSettled(
           PRECACHE_ASSETS.map(url => 
             cache.add(url).catch(err => {
-              console.warn(`[SW] Failed to cache ${url}:`, err);
+              warn(`Failed to cache ${url}:`, err);
             })
           )
         );
       })
       .then(() => {
-        console.log('[SW] Precache complete');
+        log('Precache complete');
         // Don't call skipWaiting automatically - let user decide via update prompt
       })
       .catch((error) => {
-        console.error('[SW] Precache failed:', error);
+        logError('Precache failed:', error);
       })
   );
 });
 
 // Activate event - clean up old caches
 self.addEventListener('activate', (event) => {
-  console.log('[SW] Activating service worker...');
+  log('Activating service worker...');
   
   event.waitUntil(
     caches.keys()
@@ -58,14 +67,14 @@ self.addEventListener('activate', (event) => {
         return Promise.all(
           cacheNames.map((cacheName) => {
             if (cacheName !== CACHE_NAME) {
-              console.log('[SW] Removing old cache:', cacheName);
+              log('Removing old cache:', cacheName);
               return caches.delete(cacheName);
             }
           })
         );
       })
       .then(() => {
-        console.log('[SW] Activation complete');
+        log('Activation complete');
         // NOTE: We intentionally do NOT call clients.claim() here
         // This prevents triggering controllerchange and potential refresh loops
         // The service worker will take control on next navigation
@@ -185,10 +194,10 @@ self.addEventListener('fetch', (event) => {
 
 // Push notification handling
 self.addEventListener('push', (event) => {
-  console.log('[SW] Push notification received');
+  log('Push notification received');
   
   if (!event.data) {
-    console.log('[SW] Push event but no data');
+    log('Push event but no data');
     return;
   }
   
@@ -218,13 +227,13 @@ self.addEventListener('push', (event) => {
       self.registration.showNotification(data.title || 'Nexo', options)
     );
   } catch (error) {
-    console.error('[SW] Error handling push event:', error);
+    logError('Error handling push event:', error);
   }
 });
 
 // Notification click handling
 self.addEventListener('notificationclick', (event) => {
-  console.log('[SW] Notification clicked:', event.action);
+  log('Notification clicked:', event.action);
   
   event.notification.close();
   
@@ -254,7 +263,7 @@ self.addEventListener('notificationclick', (event) => {
 
 // Background sync for score submission
 self.addEventListener('sync', (event) => {
-  console.log('[SW] Background sync triggered:', event.tag);
+  log('Background sync triggered:', event.tag);
   
   if (event.tag === 'sync-scores') {
     event.waitUntil(syncPendingScores());
@@ -285,11 +294,11 @@ async function syncPendingScores() {
           await promisifyRequest(deleteTx);
         }
       } catch (error) {
-        console.error('[SW] Failed to sync score:', error);
+        logError('Failed to sync score:', error);
       }
     }
   } catch (error) {
-    console.error('[SW] Background sync failed:', error);
+    logError('Background sync failed:', error);
   }
 }
 
@@ -316,7 +325,7 @@ function promisifyRequest(request) {
 
 // Message handling from the app
 self.addEventListener('message', (event) => {
-  console.log('[SW] Message received:', event.data);
+  log('Message received:', event.data);
   
   if (event.data?.type === 'SKIP_WAITING') {
     self.skipWaiting();

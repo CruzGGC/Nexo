@@ -11,11 +11,12 @@
  * - Optimized state updates with Immer (structural sharing)
  */
 
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useImmer } from 'use-immer';
 import type { CrosswordCell, CrosswordClue } from '@/lib/types/crossword';
 import { equalsNormalized } from '@/lib/text';
 import { motion } from 'framer-motion';
+import { ClueList } from '@/components/crossword';
 
 export type Cell = CrosswordCell;
 export type Clue = CrosswordClue;
@@ -474,67 +475,15 @@ export default function CrosswordGrid({
         </div>
 
         {/* Pistas */}
-        <div className="w-full space-y-8 lg:w-80 lg:shrink-0">
-          <div className="bg-white/5 rounded-2xl p-6 shadow-sm border border-white/10 backdrop-blur-md">
-            <h3 className="mb-4 flex items-center gap-2 text-lg font-bold text-white">
-              <span className="text-xl">➡️</span> Horizontais
-            </h3>
-            <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
-              {clues.across.map((clue) => (
-                <button
-                  key={clue.number}
-                  id={`clue-${clue.number}-across`}
-                  onClick={() => {
-                    setSelectedCell({ row: clue.startRow, col: clue.startCol });
-                    setDirection('across');
-                  }}
-                  className={`
-                    w-full rounded-xl p-3 text-left text-sm transition-all duration-200 border
-                    ${selectedClue?.number === clue.number && direction === 'across'
-                      ? 'bg-[#00f3ff]/20 border-[#00f3ff]/50 text-white shadow-[0_0_10px_rgba(0,243,255,0.1)]'
-                      : 'bg-white/5 border-transparent text-zinc-400 hover:bg-white/10 hover:text-zinc-200'
-                    }
-                  `}
-                >
-                  <span className={`font-bold ${selectedClue?.number === clue.number && direction === 'across' ? 'text-[#00f3ff]' : 'text-zinc-500'}`}>
-                    {clue.number}.
-                  </span>{' '}
-                  <span>{clue.text}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="bg-white/5 rounded-2xl p-6 shadow-sm border border-white/10 backdrop-blur-md">
-            <h3 className="mb-4 flex items-center gap-2 text-lg font-bold text-white">
-              <span className="text-xl">⬇️</span> Verticais
-            </h3>
-            <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
-              {clues.down.map((clue) => (
-                <button
-                  key={clue.number}
-                  id={`clue-${clue.number}-down`}
-                  onClick={() => {
-                    setSelectedCell({ row: clue.startRow, col: clue.startCol });
-                    setDirection('down');
-                  }}
-                  className={`
-                    w-full rounded-xl p-3 text-left text-sm transition-all duration-200 border
-                    ${selectedClue?.number === clue.number && direction === 'down'
-                      ? 'bg-[#00f3ff]/20 border-[#00f3ff]/50 text-white shadow-[0_0_10px_rgba(0,243,255,0.1)]'
-                      : 'bg-white/5 border-transparent text-zinc-400 hover:bg-white/10 hover:text-zinc-200'
-                    }
-                  `}
-                >
-                  <span className={`font-bold ${selectedClue?.number === clue.number && direction === 'down' ? 'text-[#00f3ff]' : 'text-zinc-500'}`}>
-                    {clue.number}.
-                  </span>{' '}
-                  <span>{clue.text}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
+        <ClueList
+          clues={clues}
+          selectedClueNumber={selectedClue?.number}
+          selectedDirection={direction}
+          onClueClick={(clue, dir) => {
+            setSelectedCell({ row: clue.startRow, col: clue.startCol });
+            setDirection(dir);
+          }}
+        />
       </div>
     </div>
   );

@@ -3,8 +3,8 @@
 import { motion, useScroll, useTransform } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
-import { useState, useRef } from "react";
-import { supabase } from "@/lib/supabase";
+import { useState, useRef, useMemo } from "react";
+import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { useRouter } from "next/navigation";
 import { Loader2, User, Gamepad2 } from "lucide-react";
 
@@ -15,6 +15,7 @@ export default function Hero() {
     const { scrollY } = useScroll();
     const y1 = useTransform(scrollY, [0, 500], [0, 200]);
     const y2 = useTransform(scrollY, [0, 500], [0, -150]);
+    const supabase = useMemo(() => getSupabaseBrowserClient(), []);
 
     // Fun fact: This function is powered by caffeine and deadline panic.
     const handleGuestLogin = async () => {
