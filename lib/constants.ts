@@ -37,8 +37,8 @@ export const TIMING = {
   /** Delay entre tentativas de reconexão ao realtime */
   REALTIME_RETRY_DELAY_MS: 1500,
   
-  /** Intervalo de polling quando realtime falha */
-  QUEUE_POLL_INTERVAL_MS: 3500,
+  /** Intervalo de polling quando realtime falha (8s para reduzir carga do servidor) */
+  QUEUE_POLL_INTERVAL_MS: 8000,
   
   /** Delay antes de verificar match após join */
   MATCH_CHECK_DELAY_MS: 1200,

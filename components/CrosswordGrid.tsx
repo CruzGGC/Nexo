@@ -8,9 +8,11 @@
  * - Mobile: Touch input with virtual keyboard
  * - Error tracking and visual feedback
  * - Accessible color coding for different cell states
+ * - Optimized state updates with Immer (structural sharing)
  */
 
 import { useState, useEffect, useRef, useMemo } from 'react';
+import { useImmer } from 'use-immer';
 import type { CrosswordCell, CrosswordClue } from '@/lib/types/crossword';
 import { equalsNormalized } from '@/lib/text';
 import { motion } from 'framer-motion';
@@ -34,7 +36,7 @@ export default function CrosswordGrid({
   onComplete,
   onCellChange
 }: CrosswordGridProps) {
-  const [grid, setGrid] = useState<Cell[][]>(initialGrid);
+  const [grid, setGrid] = useImmer<Cell[][]>(initialGrid);
   const [selectedCell, setSelectedCell] = useState<{ row: number; col: number } | null>(null);
   const [direction, setDirection] = useState<'across' | 'down'>('across');
   const [showOnlyErrors, setShowOnlyErrors] = useState(false);
@@ -178,11 +180,15 @@ export default function CrosswordGrid({
 
     if (e.key === 'Backspace') {
       e.preventDefault();
-      const newGrid = grid.map((r) => [...r]); // Deep copy
-      if (newGrid[row][col].value !== '') {
-        newGrid[row][col] = { ...newGrid[row][col], value: '' };
-        setGrid(newGrid);
-        notifyCellChange(newGrid);
+      if (grid[row][col].value !== '') {
+        setGrid(draft => {
+          draft[row][col].value = '';
+        });
+        // Create updated grid for callbacks (structural sharing means this is cheap)
+        const updatedGrid = grid.map((r, ri) => 
+          r.map((c, ci) => ri === row && ci === col ? { ...c, value: '' } : c)
+        );
+        notifyCellChange(updatedGrid);
       } else {
         // Move backwards if empty
         moveToNextCell(row, col, true);
@@ -244,17 +250,20 @@ export default function CrosswordGrid({
     if (!selectedCell) return;
 
     const { row, col } = selectedCell;
-    const newGrid = grid.map((r) => [...r]); // Deep copy
-
-    newGrid[row][col] = {
-      ...newGrid[row][col],
-      value: letter,
-    };
-    setGrid(newGrid);
-    notifyCellChange(newGrid);
+    
+    // Update grid with Immer (structural sharing - only modified cell is copied)
+    setGrid(draft => {
+      draft[row][col].value = letter;
+    });
+    
+    // Create updated grid for callbacks and completion check
+    const updatedGrid = grid.map((r, ri) => 
+      r.map((c, ci) => ri === row && ci === col ? { ...c, value: letter } : c)
+    );
+    notifyCellChange(updatedGrid);
 
     // Verifica se está completo com o novo grid
-    const isComplete = checkIsComplete(newGrid);
+    const isComplete = checkIsComplete(updatedGrid);
     if (isComplete) {
       setTimeout(() => {
         onComplete();
