@@ -22,6 +22,13 @@ export function useScoreSubmission(gameType: ScoreGameType) {
       return
     }
 
+    // Don't submit scores for temporary puzzles
+    if (puzzleId.startsWith('temp-')) {
+      setStatus('error')
+      setError('Este puzzle não foi guardado no servidor. Pontuação não pode ser registada.')
+      return
+    }
+
     setStatus('saving')
     setError(null)
 

@@ -12,6 +12,7 @@ import { ModeSelection } from '@/components/wordsearch/ModeSelection'
 import { useMatchmaking } from '@/hooks/useMatchmaking'
 import { MatchmakingView } from '@/components/MatchmakingView'
 import { GameResultModal } from '@/components/GameResultModal'
+import { DuelGameLayout } from '@/components/DuelGameLayout'
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser'
 import type { SubmissionStatus } from '@/hooks/useScoreSubmission'
 import type { Category, GameMode, WordSearchGridCell, WordSearchPuzzle } from '@/lib/types/games'
@@ -78,8 +79,31 @@ export default function WordSearchPage() {
   const [duelResult, setDuelResult] = useState<{ result: 'victory' | 'defeat' | 'draw', winnerName?: string } | null>(null)
 
   // Hint System
-  const [hintUsed, setHintUsed] = useState(false)
   const [hintRequest, setHintRequest] = useState(0)
+  const [hintPenaltyMs, setHintPenaltyMs] = useState(0)
+
+  // Duel progress tracking
+  const [myProgress, setMyProgress] = useState(0)
+  const [foundWordsCount, setFoundWordsCount] = useState(0)
+
+  // Duel derived state
+  const duelRoomState = useMemo(() => {
+    if (gameMode !== 'duel' || !matchmaking.room) return null
+    return matchmaking.room.game_state as unknown as GameState
+  }, [gameMode, matchmaking.room])
+
+  const duelOpponent = useMemo(() => {
+    if (!duelRoomState || !user) return null
+    const participants = duelRoomState.participants || []
+    const opponentParticipant = participants.find(p => p.id !== user.id)
+    const opponentProgress = duelRoomState.progress?.[opponentParticipant?.id || ''] || 0
+    
+    return opponentParticipant ? {
+      id: opponentParticipant.id,
+      displayName: 'Oponente',
+      progress: opponentProgress
+    } : null
+  }, [duelRoomState, user])
 
   // ============================================================================
   // API Functions
@@ -115,7 +139,8 @@ export default function WordSearchPage() {
       resetScoreSubmission()
       setIsTimerRunning(true)
       setShowCategorySelection(false)
-      setHintUsed(false)
+      setHintRequest(0)
+      setHintPenaltyMs(0)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error occurred')
     } finally {
@@ -257,6 +282,12 @@ export default function WordSearchPage() {
       return
     }
 
+    // Don't submit scores for temporary puzzles
+    if (puzzle.id.startsWith('temp-')) {
+      console.warn('Cannot submit score for temporary puzzle')
+      return
+    }
+
     void submitDailyScore({
       userId: user.id,
       puzzleId: puzzle.id,
@@ -264,8 +295,32 @@ export default function WordSearchPage() {
     })
   }, [puzzle, submitDailyScore, timeMs, user?.id])
 
+  // Track word finding progress for duel mode
+  const handleWordFound = useCallback((foundWords: string[]) => {
+    if (!puzzle) return
+    
+    const totalWords = puzzle.words.length
+    const progress = (foundWords.length / totalWords) * 100
+    setFoundWordsCount(foundWords.length)
+    setMyProgress(progress)
+
+    // Sync progress to server in duel mode
+    if (gameMode === 'duel' && matchmaking.room && user) {
+      void matchmaking.updateRoomState((current) => {
+        const currentState = (current as unknown as GameState) || {}
+        return {
+          ...currentState,
+          progress: {
+            ...(currentState.progress || {}),
+            [user.id]: progress
+          }
+        } as unknown as import('@/lib/database.types').Json
+      })
+    }
+  }, [gameMode, matchmaking, puzzle, user])
+
   const handleComplete = useCallback(async (foundWords: string[]) => {
-    void foundWords
+    handleWordFound(foundWords)
     setIsTimerRunning(false)
     setIsComplete(true)
     setShowConfetti(true)
@@ -273,19 +328,21 @@ export default function WordSearchPage() {
     if (gameMode === 'daily') {
       attemptScoreSubmit()
     }
-  }, [attemptScoreSubmit, gameMode])
+  }, [attemptScoreSubmit, gameMode, handleWordFound])
 
   const handleRestart = useCallback(() => {
     if (gameMode === 'random') {
       setPuzzle(null)
       setIsTimerRunning(false)
       setTimeMs(0)
+      setHintPenaltyMs(0)
       setIsComplete(false)
       resetScoreSubmission()
       fetchPuzzle('random', selectedCategory)
     } else {
       setIsTimerRunning(true)
       setTimeMs(0)
+      setHintPenaltyMs(0)
       setIsComplete(false)
       resetScoreSubmission()
 
@@ -300,6 +357,7 @@ export default function WordSearchPage() {
     setPuzzle(null)
     setIsTimerRunning(false)
     setTimeMs(0)
+    setHintPenaltyMs(0)
     setIsComplete(false)
     setShowCategorySelection(false)
     setSelectedCategory(null)
@@ -307,25 +365,13 @@ export default function WordSearchPage() {
   }, [resetScoreSubmission])
 
   const handleUseHint = useCallback(() => {
-    if (!puzzle || hintUsed) return
+    if (!puzzle) return
 
-    // Find a word that hasn't been found yet
-    // This requires access to foundWords state which is in WordSearchGrid
-    // For now, we'll just emit an event or pass a prop to WordSearchGrid
-    // But since we can't easily access child state, we'll implement a simple hint
-    // that just highlights a random letter of the first word for now, 
-    // or ideally we lift the foundWords state up.
-    // For this refactor, I'll pass a "hintRequest" prop to Grid? 
-    // Actually, let's just penalty the time and play sound for now, 
-    // and let the Grid handle the visual if possible.
-    // Since I can't change Grid interface easily without breaking things, 
-    // I will implement the hint logic in the Grid component itself 
-    // and trigger it via a ref or prop.
-
-    setTimeMs(prev => prev + 15000) // +15s penalty
-    setHintUsed(true)
+    // Each hint adds 20 seconds penalty to the timer
+    // The hint request counter triggers the Grid to show the hint
+    setHintPenaltyMs(prev => prev + 20000) // +20s penalty per hint
     setHintRequest(prev => prev + 1)
-  }, [puzzle, hintUsed])
+  }, [puzzle])
 
   // ============================================================================
   // Render Screens
@@ -478,7 +524,43 @@ export default function WordSearchPage() {
 
   if (!puzzle) return null
 
-  // Game Screen
+  // Duel Game Screen
+  if (gameMode === 'duel') {
+    return (
+      <>
+        {showConfetti && <ConfettiEffect />}
+        <DuelGameLayout
+          myPlayer={{
+            id: user?.id || 'me',
+            displayName: user?.user_metadata?.display_name || 'Tu',
+            avatarUrl: user?.user_metadata?.avatar_url,
+            progress: myProgress
+          }}
+          opponent={duelOpponent || undefined}
+          timeMs={timeMs}
+          gameTitle="Sopa de Letras"
+          isComplete={isComplete}
+          winner={isComplete && myProgress >= 100 ? 'me' : isComplete ? 'opponent' : null}
+          onLeave={() => {
+            matchmaking.leaveQueue()
+            setGameMode(null)
+            setPuzzle(null)
+            setMyProgress(0)
+          }}
+        >
+          <Timer isRunning={isTimerRunning} onTimeUpdate={setTimeMs} penalty={hintPenaltyMs} />
+          <WordSearchGrid
+            grid={normalizedGrid}
+            words={puzzle.words}
+            onComplete={handleComplete}
+            hintRequest={hintRequest}
+          />
+        </DuelGameLayout>
+      </>
+    )
+  }
+
+  // Regular Game Screen (daily/random)
   return (
     <div className="min-h-screen bg-[#030014] p-4 sm:p-8 relative overflow-hidden">
       <div className="absolute inset-0 bg-[url('/grid.svg')] bg-center [mask-image:linear-gradient(180deg,white,rgba(255,255,255,0))]" />
@@ -495,6 +577,7 @@ export default function WordSearchPage() {
           onRestart={handleRestart}
           onTimeUpdate={setTimeMs}
           onHint={handleUseHint}
+          hintPenaltyMs={hintPenaltyMs}
         />
 
         {gameMode === 'daily' && puzzle.isFromPreviousDay && (
@@ -512,7 +595,7 @@ export default function WordSearchPage() {
           hintRequest={hintRequest}
         />
 
-        {isComplete && gameMode !== 'duel' && (
+        {isComplete && (
           <CompletionModal
             timeMs={timeMs}
             gameMode={gameMode}
@@ -605,6 +688,7 @@ interface GameHeaderProps {
   onRestart: () => void
   onTimeUpdate: (time: number) => void
   onHint: () => void
+  hintPenaltyMs: number
 }
 
 function GameHeader({
@@ -613,7 +697,8 @@ function GameHeader({
   onChangeMode,
   onRestart,
   onTimeUpdate,
-  onHint
+  onHint,
+  hintPenaltyMs
 }: GameHeaderProps) {
   return (
     <div className="flex flex-col sm:flex-row items-center justify-between mb-8 gap-4 animate-in fade-in slide-in-from-top-4 duration-500">
@@ -639,14 +724,14 @@ function GameHeader({
         <button
           onClick={onHint}
           className="p-3 bg-yellow-500/10 text-yellow-400 border border-yellow-500/30 rounded-xl hover:bg-yellow-500/20 hover:scale-105 transition-all shadow-[0_0_15px_rgba(234,179,8,0.1)]"
-          title="Dica (+15s)"
+          title="Dica (+20s)"
         >
           💡
         </button>
 
         <div className="bg-white/5 rounded-xl border border-white/10 px-4 py-2 backdrop-blur-md">
           <div className="font-mono text-xl text-cyan-400 font-bold tracking-wider shadow-cyan-500/50 drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]">
-            <Timer isRunning={isTimerRunning} onTimeUpdate={onTimeUpdate} />
+            <Timer isRunning={isTimerRunning} onTimeUpdate={onTimeUpdate} penalty={hintPenaltyMs} />
           </div>
         </div>
 

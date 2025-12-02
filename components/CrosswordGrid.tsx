@@ -25,7 +25,7 @@ interface CrosswordGridProps {
     down: Clue[];
   };
   onComplete: () => void;
-  onCellChange?: () => void;
+  onCellChange?: (filledCells: number, totalCells: number) => void;
 }
 
 export default function CrosswordGrid({
@@ -39,6 +39,29 @@ export default function CrosswordGrid({
   const [direction, setDirection] = useState<'across' | 'down'>('across');
   const [showOnlyErrors, setShowOnlyErrors] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Helper to compute cell counts for progress tracking
+  const getCellCounts = (currentGrid: Cell[][]) => {
+    let filled = 0;
+    let total = 0;
+    for (let row = 0; row < currentGrid.length; row++) {
+      for (let col = 0; col < currentGrid[row].length; col++) {
+        const cell = currentGrid[row][col];
+        if (cell.isBlack || !cell.correct || cell.correct.trim() === '') continue;
+        total++;
+        if (cell.value && cell.value.trim() !== '') filled++;
+      }
+    }
+    return { filled, total };
+  };
+
+  // Wrapper to call onCellChange with counts
+  const notifyCellChange = (currentGrid: Cell[][]) => {
+    if (onCellChange) {
+      const { filled, total } = getCellCounts(currentGrid);
+      onCellChange(filled, total);
+    }
+  };
 
   const errorCount = useMemo(() => {
     let errors = 0;
@@ -159,7 +182,7 @@ export default function CrosswordGrid({
       if (newGrid[row][col].value !== '') {
         newGrid[row][col] = { ...newGrid[row][col], value: '' };
         setGrid(newGrid);
-        onCellChange?.();
+        notifyCellChange(newGrid);
       } else {
         // Move backwards if empty
         moveToNextCell(row, col, true);
@@ -228,7 +251,7 @@ export default function CrosswordGrid({
       value: letter,
     };
     setGrid(newGrid);
-    onCellChange?.();
+    notifyCellChange(newGrid);
 
     // Verifica se está completo com o novo grid
     const isComplete = checkIsComplete(newGrid);

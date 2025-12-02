@@ -1,23 +1,66 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { User } from "@supabase/supabase-js";
 import { useRouter } from "next/navigation";
-import { motion } from "framer-motion";
-import { Loader2, Save, LogOut, User as UserIcon, Globe, Edit2, Trophy, Calendar, Sparkles, Shield } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Loader2, Save, LogOut, User as UserIcon, Globe, Edit2, Trophy, Calendar, Sparkles, Shield, X, Target, Clock, Percent, Swords } from "lucide-react";
 import BackgroundGrid from "@/components/BackgroundGrid";
 import Navbar from "@/components/Navbar";
 import Image from "next/image";
 import { Database } from "@/lib/database.types";
+import { getRankTier, RANK_TIERS } from "@/lib/rating-system";
 
 type Profile = Database["public"]["Tables"]["profiles"]["Row"];
+type PlayerRating = Database["public"]["Tables"]["player_ratings"]["Row"];
+
+// Available avatar options
+const AVATAR_OPTIONS = [
+    { id: 'default', emoji: '👤', name: 'Padrão' },
+    { id: 'ninja', emoji: '🥷', name: 'Ninja' },
+    { id: 'wizard', emoji: '🧙', name: 'Mago' },
+    { id: 'robot', emoji: '🤖', name: 'Robot' },
+    { id: 'alien', emoji: '👽', name: 'Alienígena' },
+    { id: 'ghost', emoji: '👻', name: 'Fantasma' },
+    { id: 'cat', emoji: '🐱', name: 'Gato' },
+    { id: 'dog', emoji: '🐶', name: 'Cão' },
+    { id: 'fox', emoji: '🦊', name: 'Raposa' },
+    { id: 'panda', emoji: '🐼', name: 'Panda' },
+    { id: 'unicorn', emoji: '🦄', name: 'Unicórnio' },
+    { id: 'dragon', emoji: '🐉', name: 'Dragão' },
+    { id: 'fire', emoji: '🔥', name: 'Fogo' },
+    { id: 'star', emoji: '⭐', name: 'Estrela' },
+    { id: 'crown', emoji: '👑', name: 'Coroa' },
+    { id: 'skull', emoji: '💀', name: 'Caveira' },
+];
+
+// Game type labels
+const GAME_LABELS: Record<string, { name: string; icon: string; color: string }> = {
+    'crossword': { name: 'Palavras Cruzadas', icon: '📝', color: 'text-blue-400' },
+    'wordsearch': { name: 'Sopa de Letras', icon: '🔍', color: 'text-green-400' },
+    'crossword_duel': { name: 'Duelo Cruzadas', icon: '⚔️', color: 'text-purple-400' },
+    'wordsearch_duel': { name: 'Duelo Sopa', icon: '🎯', color: 'text-pink-400' },
+    'tic_tac_toe': { name: 'Jogo do Galo', icon: '⭕', color: 'text-cyan-400' },
+    'battleship': { name: 'Batalha Naval', icon: '🚢', color: 'text-orange-400' },
+};
+
+interface GameStats {
+    gameType: string;
+    rating: number;
+    deviation: number;
+    matchesPlayed: number;
+    winRate: number;
+    rankTier: ReturnType<typeof getRankTier>;
+}
 
 export default function ProfilePage() {
     const [user, setUser] = useState<User | null>(null);
     const [profile, setProfile] = useState<Profile | null>(null);
     const [loading, setLoading] = useState(true);
     const [updating, setUpdating] = useState(false);
+    const [gameStats, setGameStats] = useState<GameStats[]>([]);
+    const [statsLoading, setStatsLoading] = useState(false);
 
     // Conversion form state
     const [email, setEmail] = useState("");
@@ -30,8 +73,43 @@ export default function ProfilePage() {
     const [editUsername, setEditUsername] = useState("");
     const [isEditing, setIsEditing] = useState(false);
 
+    // Avatar picker state
+    const [showAvatarPicker, setShowAvatarPicker] = useState(false);
+    const [selectedAvatar, setSelectedAvatar] = useState<string | null>(null);
+
     const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
     const router = useRouter();
+
+    const fetchGameStats = useCallback(async (userId: string) => {
+        setStatsLoading(true);
+        try {
+            const { data: ratings, error } = await supabase
+                .from('player_ratings')
+                .select('*')
+                .eq('user_id', userId);
+
+            if (error) {
+                console.error('Error fetching ratings:', error);
+                return;
+            }
+
+            if (ratings && ratings.length > 0) {
+                const stats: GameStats[] = ratings.map((r: PlayerRating) => ({
+                    gameType: r.game_type,
+                    rating: Number(r.rating),
+                    deviation: Number(r.deviation),
+                    matchesPlayed: r.matches_played,
+                    winRate: Number(r.win_rate),
+                    rankTier: getRankTier(Number(r.rating))
+                }));
+                setGameStats(stats);
+            }
+        } catch (err) {
+            console.error('Error fetching game stats:', err);
+        } finally {
+            setStatsLoading(false);
+        }
+    }, []);
 
     useEffect(() => {
         const getData = async () => {
@@ -54,12 +132,54 @@ export default function ProfilePage() {
                 setDisplayName(profileData.display_name || "");
                 setEditCountry(profileData.country_code || "");
                 setEditUsername(profileData.username || "");
+                
+                // Parse avatar from avatar_url or preferences
+                const prefs = profileData.preferences as { avatar?: string } | null;
+                if (prefs?.avatar) {
+                    setSelectedAvatar(prefs.avatar);
+                }
             }
+
+            // Fetch game stats
+            await fetchGameStats(session.user.id);
 
             setLoading(false);
         };
         getData();
-    }, [router]);
+    }, [router, fetchGameStats]);
+
+    const handleAvatarSelect = async (avatarId: string) => {
+        if (!user) return;
+        
+        setUpdating(true);
+        try {
+            const newPrefs = { 
+                ...(profile?.preferences as Record<string, unknown> || {}),
+                avatar: avatarId 
+            };
+            
+            const { error } = await supabase
+                .from("profiles")
+                .update({
+                    preferences: newPrefs,
+                    updated_at: new Date().toISOString(),
+                })
+                .eq("user_id", user.id);
+
+            if (error) throw error;
+
+            setSelectedAvatar(avatarId);
+            setProfile(prev => prev ? { ...prev, preferences: newPrefs } : null);
+            setShowAvatarPicker(false);
+            setMessage({ type: "success", text: "Avatar atualizado!" });
+            
+            setTimeout(() => setMessage(null), 3000);
+        } catch (err) {
+            setMessage({ type: "error", text: (err as Error).message });
+        } finally {
+            setUpdating(false);
+        }
+    };
 
     const handleConvertAccount = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -185,8 +305,12 @@ export default function ProfilePage() {
                     <div className="flex flex-col md:flex-row items-center gap-8 relative z-10">
                         <div className="relative group">
                             <div className="w-32 h-32 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 p-1">
-                                <div className="w-full h-full rounded-full bg-black overflow-hidden relative">
-                                    {profile?.avatar_url ? (
+                                <div className="w-full h-full rounded-full bg-black overflow-hidden relative flex items-center justify-center">
+                                    {selectedAvatar && selectedAvatar !== 'default' ? (
+                                        <span className="text-6xl">
+                                            {AVATAR_OPTIONS.find(a => a.id === selectedAvatar)?.emoji || '👤'}
+                                        </span>
+                                    ) : profile?.avatar_url ? (
                                         <Image
                                             src={profile.avatar_url}
                                             alt={profile.display_name || 'Avatar'}
@@ -201,7 +325,10 @@ export default function ProfilePage() {
                                     )}
                                 </div>
                             </div>
-                            <button className="absolute bottom-0 right-0 p-2 rounded-full bg-blue-600 text-white shadow-lg hover:bg-blue-500 transition-colors">
+                            <button 
+                                onClick={() => setShowAvatarPicker(true)}
+                                className="absolute bottom-0 right-0 p-2 rounded-full bg-blue-600 text-white shadow-lg hover:bg-blue-500 transition-colors"
+                            >
                                 <Edit2 size={16} />
                             </button>
                         </div>
@@ -422,26 +549,167 @@ export default function ProfilePage() {
                             )}
                         </div>
 
-                        {/* Recent Activity / Stats Placeholder */}
+                        {/* Recent Activity / Stats Section */}
                         <div className="glass-card rounded-3xl p-8 border border-white/10">
                             <div className="flex items-center justify-between mb-6">
                                 <h2 className="text-xl font-bold text-white flex items-center gap-2">
                                     <Sparkles size={20} className="text-purple-400" />
-                                    Estatísticas Recentes
+                                    Estatísticas por Jogo
                                 </h2>
                             </div>
 
-                            <div className="text-center py-12">
-                                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-white/5 mb-4">
-                                    <Trophy className="text-white/20" size={32} />
+                            {statsLoading ? (
+                                <div className="flex items-center justify-center py-12">
+                                    <Loader2 className="animate-spin text-white/40" size={32} />
                                 </div>
-                                <p className="text-white/40 font-medium">Ainda não tens estatísticas suficientes.</p>
-                                <p className="text-white/20 text-sm mt-1">Joga para desbloquear insights detalhados.</p>
-                            </div>
+                            ) : gameStats.length > 0 ? (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {gameStats.map((stat) => {
+                                        const gameInfo = GAME_LABELS[stat.gameType] || { name: stat.gameType, icon: '🎮', color: 'text-white' };
+                                        return (
+                                            <motion.div
+                                                key={stat.gameType}
+                                                initial={{ opacity: 0, y: 10 }}
+                                                animate={{ opacity: 1, y: 0 }}
+                                                className="p-4 rounded-2xl bg-white/5 border border-white/5 hover:bg-white/10 transition-colors"
+                                            >
+                                                <div className="flex items-center gap-3 mb-3">
+                                                    <span className="text-2xl">{gameInfo.icon}</span>
+                                                    <div className="flex-1">
+                                                        <h3 className={`font-bold ${gameInfo.color}`}>{gameInfo.name}</h3>
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-lg">{stat.rankTier.icon}</span>
+                                                            <span 
+                                                                className="text-sm font-medium"
+                                                                style={{ color: stat.rankTier.color }}
+                                                            >
+                                                                {stat.rankTier.name}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <div className="text-2xl font-mono font-bold text-white">{Math.round(stat.rating)}</div>
+                                                        <div className="text-xs text-white/40">Rating</div>
+                                                    </div>
+                                                </div>
+                                                
+                                                <div className="grid grid-cols-3 gap-2 text-center">
+                                                    <div className="p-2 rounded-lg bg-black/20">
+                                                        <div className="flex items-center justify-center gap-1 text-white/60 mb-1">
+                                                            <Swords size={12} />
+                                                        </div>
+                                                        <div className="text-lg font-bold text-white">{stat.matchesPlayed}</div>
+                                                        <div className="text-[10px] text-white/40">Jogos</div>
+                                                    </div>
+                                                    <div className="p-2 rounded-lg bg-black/20">
+                                                        <div className="flex items-center justify-center gap-1 text-white/60 mb-1">
+                                                            <Percent size={12} />
+                                                        </div>
+                                                        <div className="text-lg font-bold text-green-400">{(stat.winRate * 100).toFixed(0)}%</div>
+                                                        <div className="text-[10px] text-white/40">Vitórias</div>
+                                                    </div>
+                                                    <div className="p-2 rounded-lg bg-black/20">
+                                                        <div className="flex items-center justify-center gap-1 text-white/60 mb-1">
+                                                            <Target size={12} />
+                                                        </div>
+                                                        <div className="text-lg font-bold text-cyan-400">±{Math.round(stat.deviation)}</div>
+                                                        <div className="text-[10px] text-white/40">Desvio</div>
+                                                    </div>
+                                                </div>
+                                            </motion.div>
+                                        );
+                                    })}
+                                </div>
+                            ) : (
+                                <div className="text-center py-12">
+                                    <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-white/5 mb-4">
+                                        <Trophy className="text-white/20" size={32} />
+                                    </div>
+                                    <p className="text-white/40 font-medium">Ainda não tens estatísticas.</p>
+                                    <p className="text-white/20 text-sm mt-1">Joga para desbloquear insights detalhados.</p>
+                                </div>
+                            )}
+
+                            {/* Rank Tiers Legend */}
+                            {gameStats.length > 0 && (
+                                <div className="mt-6 pt-6 border-t border-white/5">
+                                    <p className="text-xs text-white/40 mb-3 uppercase tracking-wider font-bold">Tiers de Rank</p>
+                                    <div className="flex flex-wrap gap-2">
+                                        {RANK_TIERS.map((tier) => (
+                                            <div 
+                                                key={tier.name}
+                                                className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white/5 text-xs"
+                                            >
+                                                <span>{tier.icon}</span>
+                                                <span style={{ color: tier.color }}>{tier.name}</span>
+                                                <span className="text-white/30">({tier.minRating}+)</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
             </div>
+
+            {/* Avatar Picker Modal */}
+            <AnimatePresence>
+                {showAvatarPicker && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4"
+                        onClick={() => setShowAvatarPicker(false)}
+                    >
+                        <motion.div
+                            initial={{ scale: 0.9, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.9, opacity: 0 }}
+                            className="w-full max-w-md bg-[#0a0a0a] border border-white/10 rounded-3xl p-6 relative"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <button
+                                onClick={() => setShowAvatarPicker(false)}
+                                className="absolute top-4 right-4 p-2 rounded-full hover:bg-white/10 transition-colors"
+                            >
+                                <X size={20} className="text-white/60" />
+                            </button>
+
+                            <h2 className="text-xl font-bold text-white mb-6">Escolher Avatar</h2>
+
+                            <div className="grid grid-cols-4 gap-3">
+                                {AVATAR_OPTIONS.map((avatar) => (
+                                    <button
+                                        key={avatar.id}
+                                        onClick={() => handleAvatarSelect(avatar.id)}
+                                        disabled={updating}
+                                        className={`
+                                            aspect-square rounded-2xl flex flex-col items-center justify-center gap-1 transition-all
+                                            ${selectedAvatar === avatar.id 
+                                                ? 'bg-blue-500/20 border-2 border-blue-500 scale-105' 
+                                                : 'bg-white/5 border border-white/10 hover:bg-white/10 hover:scale-105'
+                                            }
+                                            disabled:opacity-50
+                                        `}
+                                    >
+                                        <span className="text-3xl">{avatar.emoji}</span>
+                                        <span className="text-[10px] text-white/60">{avatar.name}</span>
+                                    </button>
+                                ))}
+                            </div>
+
+                            {updating && (
+                                <div className="mt-4 flex items-center justify-center gap-2 text-white/60">
+                                    <Loader2 className="animate-spin" size={16} />
+                                    <span className="text-sm">A guardar...</span>
+                                </div>
+                            )}
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </main>
     );
 }

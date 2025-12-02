@@ -117,9 +117,9 @@ Este projeto está pronto para deployment na **Vercel** (plano gratuito). Para i
 
 3. **Environment Variables Necessárias**
    ```env
-   NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
-   NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
-    SUPABASE_SERVICE_ROLE_KEY=eyJ... (guardar apenas no servidor)
+    NEXT_PUBLIC_SUPABASE_URL=
+    NEXT_PUBLIC_SUPABASE_ANON_KEY=
+    SUPABASE_SERVICE_ROLE_KEY=
    ```
 
 Ver **[DEPLOYMENT.md](./DEPLOYMENT.md)** para o guia completo de deployment, incluindo configuração de Edge Functions, cron jobs, e troubleshooting.

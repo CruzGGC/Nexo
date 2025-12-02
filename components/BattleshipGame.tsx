@@ -64,7 +64,7 @@ export default function BattleshipGame() {
     incomingAttacks
   } = activeBoards
 
-  const { status, room, joinQueue, leaveQueue, updateRoomState } = useMatchmaking('battleship')
+  const { status, room, joinQueue, leaveQueue, updateRoomState, resetMatch } = useMatchmaking('battleship')
 
   // --- Game State Management ---
   const roomState = useMemo(() => (room?.game_state as unknown as RoomState) || {}, [room?.game_state])
@@ -139,7 +139,8 @@ export default function BattleshipGame() {
   }
 
   const handleCancelMatchmaking = () => {
-    leaveQueue()
+    // Use resetMatch to fully clear all matchmaking state
+    resetMatch()
     setViewMode('selection')
   }
 
@@ -213,26 +214,32 @@ export default function BattleshipGame() {
 
     if (!isMyTurn || !room) return
 
-    // Optimistic update
-    handleTargetClick(row, col)
+    // Prevent double clicks - check if we've already shot here
+    if (targetBoard[row][col] !== '') return
 
     // Send move to server
     await updateRoomState((current) => {
       const currentState = (current as unknown as RoomState) || {}
-      // Check hit on opponent fleet
-      const opponentFleet = (opponent?.fleet as Record<string, unknown> | undefined)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const isHit = (opponentFleet as any)?.[row]?.[col] !== '~'
-
-      // Update history/board state
-      // This is a simplified logic. Ideally we'd have a robust move validation.
+      
+      // Get opponent's fleet (stored as 2D array during placement)
+      const opponentParticipant = currentState.participants?.find((p) => p.id !== myId)
+      const opponentFleet = opponentParticipant?.fleet as string[][] | undefined
+      
+      // Check if hit - fleet is a 2D array where '~' means water
+      let isHit = false
+      if (opponentFleet && Array.isArray(opponentFleet) && Array.isArray(opponentFleet[row])) {
+        isHit = opponentFleet[row][col] !== '~'
+      }
 
       return {
         ...currentState,
-        currentPlayer: opponent?.id, // Switch turn
+        currentPlayer: opponentParticipant?.id || currentState.currentPlayer, // Switch turn
         lastMove: { row, col, result: isHit ? 'hit' : 'miss', by: myId }
       } as unknown as Json
     })
+
+    // Update local target board after sending
+    handleTargetClick(row, col)
   }
 
   const handleTransitionComplete = () => {
@@ -250,7 +257,10 @@ export default function BattleshipGame() {
       <div className="fixed inset-0 pointer-events-none">
         <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-blue-600/20 blur-[120px] rounded-full mix-blend-screen animate-pulse-slow" />
         <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-purple-600/20 blur-[120px] rounded-full mix-blend-screen animate-pulse-slow delay-1000" />
-        <div className="absolute inset-0 bg-[url('/grid.svg')] bg-center [mask-image:linear-gradient(180deg,white,rgba(255,255,255,0))]" />
+        {/* Hide grid pattern during battle to avoid visual confusion with game grid */}
+        {viewMode !== 'battle' && (
+          <div className="absolute inset-0 bg-[url('/grid.svg')] bg-center [mask-image:linear-gradient(180deg,white,rgba(255,255,255,0))]" />
+        )}
       </div>
 
       <div className="relative z-10 mx-auto max-w-7xl px-4 py-8">

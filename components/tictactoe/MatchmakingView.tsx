@@ -158,7 +158,7 @@ export function MatchmakingView({
             </button>
             <button
               onClick={() => onJoinPrivate(inviteCode)}
-              disabled={inviteCode.length < 4}
+              disabled={inviteCode.length < 6}
               className="flex-1 rounded-xl bg-emerald-600 py-3 font-bold text-white shadow-[0_0_20px_rgba(5,150,105,0.3)] transition hover:bg-emerald-500 hover:scale-105 disabled:opacity-50 disabled:hover:scale-100 disabled:cursor-not-allowed"
             >
               ENTRAR

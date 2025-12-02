@@ -199,9 +199,9 @@ export function MatchmakingView({
             type="text"
             value={inviteCode}
             onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
-            placeholder="A1B2"
+            placeholder="ABC123"
             className="w-full rounded-2xl border-2 border-white/10 bg-black/30 p-6 text-center text-4xl font-bold tracking-[0.2em] text-white outline-none focus:border-emerald-500/50 focus:shadow-[0_0_30px_rgba(16,185,129,0.2)] transition-all placeholder:text-white/10"
-            maxLength={4}
+            maxLength={6}
           />
 
           <div className="flex gap-4">
@@ -217,7 +217,7 @@ export function MatchmakingView({
               onClick={() => {
                 onJoinPrivate(inviteCode)
               }}
-              disabled={inviteCode.length < 4}
+              disabled={inviteCode.length < 6}
               className="flex-1 rounded-xl bg-emerald-600 py-4 font-bold text-white hover:bg-emerald-500 hover:shadow-[0_0_20px_rgba(16,185,129,0.4)] disabled:opacity-50 disabled:cursor-not-allowed transition-all"
             >
               Entrar

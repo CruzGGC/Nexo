@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useCallback, useEffect, useState } from 'react'
+import { useMemo, useCallback, useEffect, useState, useRef } from 'react'
 import Link from 'next/link'
 import CrosswordGrid from '@/components/CrosswordGrid'
 import Timer from '@/components/Timer'
@@ -15,10 +15,12 @@ import { useScoreSubmission } from '@/hooks/useScoreSubmission'
 import { useMatchmaking } from '@/hooks/useMatchmaking'
 import { MatchmakingView } from '@/components/MatchmakingView'
 import { GameResultModal } from '@/components/GameResultModal'
+import { DuelGameLayout } from '@/components/DuelGameLayout'
 import { apiFetch } from '@/lib/api-client'
 import type { CrosswordPuzzle } from '@/lib/types/games'
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser'
 import { motion, AnimatePresence } from 'framer-motion'
+import type { Json } from '@/lib/database.types'
 
 const LISBON_DATE_FORMATTER = new Intl.DateTimeFormat('pt-PT', {
   day: 'numeric',
@@ -88,6 +90,35 @@ export default function CrosswordGameShell({ initialCategories }: CrosswordGameS
   const servedDateLabel = useMemo(() => formatLisbonDate(puzzle?.servedForDate), [puzzle?.servedForDate])
 
   const [duelResult, setDuelResult] = useState<{ result: 'victory' | 'defeat' | 'draw', winnerName?: string } | null>(null)
+  const hasReportedCompleteRef = useRef(false)
+
+  // Duel progress tracking
+  const [myProgress, setMyProgress] = useState(0)
+
+  // Duel derived state
+  const duelRoomState = useMemo(() => {
+    if (gameMode !== 'duel' || !matchmaking.room) return null
+    return matchmaking.room.game_state as unknown as GameState
+  }, [gameMode, matchmaking.room])
+
+  const duelOpponent = useMemo(() => {
+    if (!duelRoomState || !user) return null
+    const participants = duelRoomState.participants || []
+    const opponentParticipant = participants.find(p => p.id !== user.id)
+    const opponentProgress = duelRoomState.progress?.[opponentParticipant?.id || ''] || 0
+    
+    return opponentParticipant ? {
+      id: opponentParticipant.id,
+      displayName: 'Oponente',
+      progress: opponentProgress
+    } : null
+  }, [duelRoomState, user])
+
+  // Reset completion guard when puzzle changes
+  useEffect(() => {
+    hasReportedCompleteRef.current = false
+    setMyProgress(0)
+  }, [puzzle?.id])
 
   useEffect(() => {
     resetCrosswordScore()
@@ -173,10 +204,36 @@ export default function CrosswordGameShell({ initialCategories }: CrosswordGameS
     }
   }, [gameMode, isComplete, matchmaking.room, user, supabase, duelResult])
 
+  // Track cell progress for duel mode
+  const handleCellProgressChange = useCallback((filledCells: number, totalCells: number) => {
+    if (!puzzle) return
+    
+    const progress = totalCells > 0 ? (filledCells / totalCells) * 100 : 0
+    setMyProgress(progress)
 
+    // Sync progress to server in duel mode
+    if (gameMode === 'duel' && matchmaking.room && user) {
+      void matchmaking.updateRoomState((current) => {
+        const currentState = (current as unknown as GameState) || {}
+        return {
+          ...currentState,
+          progress: {
+            ...(currentState.progress || {}),
+            [user.id]: progress
+          }
+        } as unknown as Json
+      })
+    }
+  }, [gameMode, matchmaking, puzzle, user])
 
   const handleDailyScoreSubmit = useCallback(() => {
     if (!user?.id || !puzzle || finalTime <= 0) {
+      return
+    }
+
+    // Don't submit scores for temporary puzzles (those that failed to save)
+    if (puzzle.id.startsWith('temp-')) {
+      console.warn('Cannot submit score for temporary puzzle')
       return
     }
 
@@ -188,6 +245,10 @@ export default function CrosswordGameShell({ initialCategories }: CrosswordGameS
   }, [finalTime, puzzle, submitCrosswordScore, user])
 
   const handleGridComplete = useCallback(() => {
+    // Prevent double-firing of completion
+    if (hasReportedCompleteRef.current) return
+    hasReportedCompleteRef.current = true
+    
     handleComplete()
     if (gameMode === 'daily') {
       handleDailyScoreSubmit()
@@ -215,7 +276,7 @@ export default function CrosswordGameShell({ initialCategories }: CrosswordGameS
           matchmaking.joinQueue({ mode: 'private', matchCode: code, seat: 'guest' })
         }}
         onCancel={() => {
-          matchmaking.leaveQueue()
+          void matchmaking.resetMatch()
           handleChangeMode()
         }}
         roomCode={(matchmaking.room?.game_state as unknown as GameState)?.room_code}
@@ -233,10 +294,41 @@ export default function CrosswordGameShell({ initialCategories }: CrosswordGameS
         winnerName={duelResult.winnerName}
         onClose={() => {
           setDuelResult(null)
-          matchmaking.leaveQueue()
+          void matchmaking.resetMatch()
           handleChangeMode()
         }}
       />
+    )
+  }
+
+  // Duel Game Screen with DuelGameLayout
+  if (gameMode === 'duel' && puzzle && isPlaying) {
+    return (
+      <DuelGameLayout
+        myPlayer={{
+          id: user?.id || 'me',
+          displayName: user?.user_metadata?.display_name || 'Tu',
+          avatarUrl: user?.user_metadata?.avatar_url,
+          progress: myProgress
+        }}
+        opponent={duelOpponent || undefined}
+        timeMs={finalTime}
+        gameTitle="Palavras Cruzadas"
+        isComplete={isComplete}
+        winner={isComplete && myProgress >= 100 ? 'me' : isComplete ? 'opponent' : null}
+        onLeave={() => {
+          void matchmaking.resetMatch()
+          handleChangeMode()
+        }}
+      >
+        <Timer isRunning={isPlaying && !isComplete} onTimeUpdate={handleTimeUpdate} />
+        <CrosswordGrid
+          grid={puzzle.grid_data}
+          clues={puzzle.clues}
+          onComplete={handleGridComplete}
+          onCellChange={handleCellProgressChange}
+        />
+      </DuelGameLayout>
     )
   }
 

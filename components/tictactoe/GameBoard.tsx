@@ -13,6 +13,7 @@ interface GameBoardProps {
   isDraw?: boolean
   score: { x: number; o: number; draws: number }
   gameMode: 'local' | 'online'
+  resetLabel?: string
 }
 
 export function GameBoard({
@@ -27,7 +28,8 @@ export function GameBoard({
   opponentName,
   isDraw,
   score,
-  gameMode
+  gameMode,
+  resetLabel
 }: GameBoardProps) {
   return (
     <div className="flex flex-col items-center gap-8 animate-in fade-in duration-700 w-full max-w-lg mx-auto">
@@ -118,7 +120,7 @@ export function GameBoard({
             onClick={onReset}
             className="rounded-full bg-white px-8 py-3 text-sm font-black text-black shadow-[0_0_20px_rgba(255,255,255,0.3)] transition hover:bg-slate-200 hover:scale-105 hover:shadow-[0_0_30px_rgba(255,255,255,0.5)]"
           >
-            JOGAR NOVAMENTE
+            {resetLabel || 'JOGAR NOVAMENTE'}
           </button>
         )}
 

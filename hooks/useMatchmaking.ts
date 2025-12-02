@@ -579,12 +579,25 @@ export function useMatchmaking(gameType: SupportedMatchGame) {
       syncPresence({ status: nextStatus, queue_entry_id: queuePayload.id, mode: options.mode })
       return queuePayload
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Falha ao entrar na fila'
+      let message = 'Falha ao entrar na fila'
+      if (err instanceof Error) {
+        message = err.message
+      } else if (typeof err === 'object' && err !== null) {
+        // Handle Supabase PostgrestError objects
+        const errorObj = err as Record<string, unknown>
+        if (typeof errorObj.message === 'string') {
+          message = errorObj.message
+        } else if (typeof errorObj.error === 'string') {
+          message = errorObj.error
+        } else if (typeof errorObj.details === 'string') {
+          message = errorObj.details
+        }
+      }
       logDebug('joinQueue:error', message, err)
       setError(message)
       setStatus('error')
       syncPresence({ status: 'error', queue_entry_id: null })
-      throw err
+      throw new Error(message)
     }
   }, [gameType, logDebug, profile, signInAsGuest, subscribeToQueue, subscribeToRoom, supabase, syncPresence, user])
 
@@ -636,14 +649,28 @@ export function useMatchmaking(gameType: SupportedMatchGame) {
     [logDebug, room, supabase]
   )
 
-  const resetMatch = useCallback(() => {
+  const resetMatch = useCallback(async () => {
     logDebug('resetMatch: clearing state')
+    
+    // Delete queue entry from database if it exists
+    if (queueEntry?.id) {
+      try {
+        await supabase
+          .from('matchmaking_queue')
+          .delete()
+          .eq('id', queueEntry.id)
+        logDebug('resetMatch: deleted queue entry from database')
+      } catch (err) {
+        logDebug('resetMatch: failed to delete queue entry', err)
+      }
+    }
+    
     setRoom(null)
     setQueueEntry(null)
     setStatus('idle')
     cleanupChannels()
     syncPresence({ status: 'idle', queue_entry_id: null })
-  }, [cleanupChannels, logDebug, syncPresence])
+  }, [cleanupChannels, logDebug, queueEntry?.id, supabase, syncPresence])
 
   return {
     status,
