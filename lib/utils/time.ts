@@ -18,3 +18,20 @@ export function formatChronometer(ms: number, options: FormatOptions = {}): stri
     fraction,
   ].join(':')
 }
+
+/**
+ * Format time in milliseconds to mm:ss format
+ * Alias for simpler usage
+ */
+export function formatTime(ms: number): string {
+  const minutes = Math.floor(ms / 60000)
+  const seconds = Math.floor((ms % 60000) / 1000)
+  return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
+}
+
+/**
+ * Format time with centiseconds (mm:ss:cc)
+ */
+export function formatTimeWithCentiseconds(ms: number): string {
+  return formatChronometer(ms, { precision: 'centiseconds' })
+}
