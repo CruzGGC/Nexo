@@ -6,6 +6,7 @@ import type { Database, Json } from '@/lib/database.types'
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser'
 import { useAuth } from '@/components/AuthProvider'
 import { deriveRating, deriveSkillBracket, normalizeRegion, type SupportedMatchGame } from '@/lib/matchmaking'
+import { MATCHMAKING, TIMING } from '@/lib/constants'
 
 type MatchmakingQueueRow = Database['public']['Tables']['matchmaking_queue']['Row']
 type GameRoomRow = Database['public']['Tables']['game_rooms']['Row']
@@ -42,8 +43,6 @@ type LobbyPresenceMeta = {
   mode?: JoinMode
   updated_at: string
 }
-
-const MATCHMAKING_RPC_TIMEOUT_MS = 10000
 
 export function useMatchmaking(gameType: SupportedMatchGame) {
   const supabase = useMemo(() => getSupabaseBrowserClient(), [])
@@ -254,7 +253,7 @@ export function useMatchmaking(gameType: SupportedMatchGame) {
             lobbyChannelRef.current = null
             setupLobbyChannel()
           }
-        }, 1500)
+        }, TIMING.REALTIME_RETRY_DELAY_MS)
       }
     })
 
@@ -383,7 +382,7 @@ export function useMatchmaking(gameType: SupportedMatchGame) {
     queuePollEntryIdRef.current = entryId
     queuePollIntervalRef.current = setInterval(() => {
       void pollQueueSnapshot(entryId)
-    }, 3500)
+    }, TIMING.QUEUE_POLL_INTERVAL_MS)
     logDebug('queue polling activated', entryId)
   }, [pollQueueSnapshot, stopQueuePolling, logDebug])
 
@@ -444,7 +443,7 @@ export function useMatchmaking(gameType: SupportedMatchGame) {
             } else {
               logDebug('queue channel retry skipped (entry changed)')
             }
-          }, 1200)
+          }, TIMING.MATCH_CHECK_DELAY_MS)
         }
       })
 
@@ -519,7 +518,7 @@ export function useMatchmaking(gameType: SupportedMatchGame) {
           logDebug('joinQueue:rpc timeout reached')
           abortController.abort()
         }
-      }, MATCHMAKING_RPC_TIMEOUT_MS)
+      }, MATCHMAKING.RPC_TIMEOUT_MS)
 
       let payload: MatchmakingJoinResult | null = null
       try {
