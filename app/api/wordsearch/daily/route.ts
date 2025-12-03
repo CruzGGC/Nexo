@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { createServiceSupabaseClient } from '@/lib/supabase-server'
 import { WordSearchGenerator } from '@/lib/wordsearch-generator'
+import { checkRateLimit, RateLimiters } from '@/lib/rate-limit'
 import type { Database } from '@/lib/database.types'
 
 export const dynamic = 'force-dynamic'
@@ -22,8 +23,26 @@ type WordsearchRow = {
  * - Se não existir, tenta gerar um novo automaticamente
  * - Portugal timezone (Europe/Lisbon)
  */
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    // Rate limiting: 120 requests per minute for read operations
+    const { rateLimited, resetTime } = await checkRateLimit(
+      request,
+      { ...RateLimiters.lenient, identifier: 'wordsearch-daily' }
+    )
+
+    if (rateLimited) {
+      return NextResponse.json(
+        { error: 'Demasiados pedidos. Por favor, aguarde um momento.' },
+        { 
+          status: 429,
+          headers: {
+            'Retry-After': Math.ceil((resetTime - Date.now()) / 1000).toString()
+          }
+        }
+      )
+    }
+
     // Data atual em Portugal (Europe/Lisbon)
     const today = new Date().toLocaleDateString('en-CA', {
       timeZone: 'Europe/Lisbon'

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { createServiceSupabaseClient } from '@/lib/supabase-server'
+import { checkRateLimit, RateLimiters } from '@/lib/rate-limit'
 import type { Database } from '@/lib/database.types'
 import type { ScoreGameType } from '@/lib/types/games'
 
@@ -8,11 +9,17 @@ export const dynamic = 'force-dynamic'
 
 const gameTypes: ScoreGameType[] = ['crossword', 'wordsearch']
 
+// Maximum reasonable time for completing a puzzle (2 hours in ms)
+const MAX_TIME_MS = 2 * 60 * 60 * 1000
+// Minimum reasonable time (1 second - prevents impossible scores)
+const MIN_TIME_MS = 1000
+
 const isValidGameType = (value: unknown): value is ScoreGameType =>
   typeof value === 'string' && (gameTypes as readonly string[]).includes(value)
 
 export async function POST(request: Request) {
   try {
+    // First validate auth to determine if user is guest
     const accessToken = extractBearerToken(request)
 
     if (!accessToken) {
@@ -33,29 +40,57 @@ export async function POST(request: Request) {
       )
     }
 
-    const body = await request.json()
-    const { user_id, puzzle_id, time_ms, game_type } = body
+    // Rate limiting: stricter for guests
+    const isGuest = authData.user.is_anonymous === true
+    const rateLimitConfig = isGuest 
+      ? RateLimiters.guestScoreSubmission 
+      : RateLimiters.scoreSubmission
 
-    if (user_id && user_id !== authData.user.id) {
+    const { rateLimited, remaining, resetTime } = await checkRateLimit(
+      request,
+      rateLimitConfig
+    )
+
+    if (rateLimited) {
       return NextResponse.json(
-        { error: 'Não é permitido registar pontuações para outro utilizador.' },
-        { status: 403 }
+        { error: 'Demasiados pedidos. Por favor, aguarde um momento.' },
+        { 
+          status: 429,
+          headers: {
+            'X-RateLimit-Remaining': remaining.toString(),
+            'X-RateLimit-Reset': resetTime.toString(),
+            'Retry-After': Math.ceil((resetTime - Date.now()) / 1000).toString()
+          }
+        }
       )
     }
 
+    const body = await request.json()
+    const { puzzle_id, time_ms, game_type } = body
+
+    // SECURITY: Always use the authenticated user ID, never trust body.user_id
+    const userId = authData.user.id
+
     // Validação básica
-    if (!user_id || !puzzle_id || !time_ms || !game_type) {
+    if (!puzzle_id || !time_ms || !game_type) {
       return NextResponse.json(
-        { error: 'Dados incompletos. Required: user_id, puzzle_id, time_ms, game_type' },
+        { error: 'Dados incompletos. Required: puzzle_id, time_ms, game_type' },
         { status: 400 }
       )
     }
 
     const parsedTime = Number.parseInt(time_ms, 10)
 
-    if (!Number.isFinite(parsedTime) || parsedTime <= 0) {
+    if (!Number.isFinite(parsedTime) || parsedTime < MIN_TIME_MS) {
       return NextResponse.json(
-        { error: 'Tempo inválido' },
+        { error: 'Tempo inválido - valor demasiado baixo' },
+        { status: 400 }
+      )
+    }
+
+    if (parsedTime > MAX_TIME_MS) {
+      return NextResponse.json(
+        { error: 'Tempo inválido - valor excede o máximo permitido' },
         { status: 400 }
       )
     }
@@ -68,12 +103,45 @@ export async function POST(request: Request) {
     }
 
     const normalizedGameType: ScoreGameType = game_type
+    const puzzleIdStr = String(puzzle_id)
+
+    // SECURITY: Validate puzzle_id exists in database (skip for random/temp puzzles)
+    // Random puzzles use format: random-{timestamp}
+    const isRandomPuzzle = puzzleIdStr.startsWith('random-')
+    const isTempPuzzle = puzzleIdStr.startsWith('temp-')
+    
+    if (isTempPuzzle) {
+      return NextResponse.json(
+        { error: 'Este puzzle temporário não pode ter pontuações guardadas.' },
+        { status: 400 }
+      )
+    }
+
+    if (!isRandomPuzzle) {
+      // Validate that the puzzle exists in the appropriate table
+      const tableName = normalizedGameType === 'crossword' ? 'crosswords' : 'wordsearches'
+      const { data: puzzleExists, error: puzzleError } = await serviceClient
+        .from(tableName)
+        .select('id')
+        .eq('id', puzzleIdStr)
+        .maybeSingle()
+
+      if (puzzleError) {
+        console.error('Error validating puzzle:', puzzleError)
+        // Don't block score submission on validation errors, just log
+      } else if (!puzzleExists) {
+        return NextResponse.json(
+          { error: 'Puzzle não encontrado. Não é possível guardar a pontuação.' },
+          { status: 404 }
+        )
+      }
+    }
 
     // Insere a pontuação
     const payload: Database['public']['Tables']['scores']['Insert'] = {
-      user_id: authData.user.id,
+      user_id: userId,
       game_type: normalizedGameType,
-      puzzle_id: String(puzzle_id),
+      puzzle_id: puzzleIdStr,
       time_ms: parsedTime,
     }
 

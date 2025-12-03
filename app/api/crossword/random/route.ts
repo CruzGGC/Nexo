@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase'
 import { NextResponse } from 'next/server'
 import { CrosswordGenerator } from '@/lib/crossword/generator'
+import { checkRateLimit, RateLimiters } from '@/lib/rate-limit'
 
 type DictionaryEntry = { word: string; definition: string }
 type CategorizedDictionaryRow = {
@@ -84,6 +85,24 @@ async function generatePuzzleFromWords(
  */
 export async function GET(request: Request) {
   try {
+    // Rate limiting: 10 puzzle generations per minute (expensive operation)
+    const { rateLimited, resetTime } = await checkRateLimit(
+      request,
+      RateLimiters.puzzleGeneration
+    )
+
+    if (rateLimited) {
+      return NextResponse.json(
+        { error: 'Demasiados pedidos de geração. Por favor, aguarde um momento.' },
+        { 
+          status: 429,
+          headers: {
+            'Retry-After': Math.ceil((resetTime - Date.now()) / 1000).toString()
+          }
+        }
+      )
+    }
+
     // Parse query params for category filter
     const { searchParams } = new URL(request.url)
     const category = searchParams.get('category')

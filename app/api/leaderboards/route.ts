@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
+import { checkRateLimit, RateLimiters } from '@/lib/rate-limit'
 import type { Database } from '@/lib/database.types'
 
 export const dynamic = 'force-dynamic'
@@ -33,6 +34,19 @@ const isRatingGameType = (value: unknown): value is typeof RATING_GAME_TYPES[num
 
 export async function GET(request: Request) {
   try {
+    // Rate limiting
+    const { rateLimited, remaining } = await checkRateLimit(request, RateLimiters.leaderboard)
+    
+    if (rateLimited) {
+      return NextResponse.json(
+        { error: 'Too many requests' },
+        { 
+          status: 429,
+          headers: { 'X-RateLimit-Remaining': remaining.toString() }
+        }
+      )
+    }
+
     const { searchParams } = new URL(request.url)
     const typeParam = searchParams.get('type') ?? 'crossword'
 

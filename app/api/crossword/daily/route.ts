@@ -2,6 +2,7 @@ import { supabase } from '@/lib/supabase'
 import { createServiceSupabaseClient } from '@/lib/supabase-server'
 import { NextResponse } from 'next/server'
 import { CrosswordGenerator } from '@/lib/crossword/generator'
+import { checkRateLimit, RateLimiters } from '@/lib/rate-limit'
 import type { Database } from '@/lib/database.types'
 
 export const revalidate = 3600 // cache daily puzzle for one hour as recommended by Next.js caching docs
@@ -12,8 +13,26 @@ export const revalidate = 3600 // cache daily puzzle for one hour as recommended
  * All players get the same puzzle for the day
  * Falls back to generating a new puzzle if none exists
  */
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    // Rate limiting: 120 requests per minute for read operations
+    const { rateLimited, resetTime } = await checkRateLimit(
+      request,
+      { ...RateLimiters.lenient, identifier: 'crossword-daily' }
+    )
+
+    if (rateLimited) {
+      return NextResponse.json(
+        { error: 'Demasiados pedidos. Por favor, aguarde um momento.' },
+        { 
+          status: 429,
+          headers: {
+            'Retry-After': Math.ceil((resetTime - Date.now()) / 1000).toString()
+          }
+        }
+      )
+    }
+
     const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Lisbon' })
 
     // First try to get today's puzzle

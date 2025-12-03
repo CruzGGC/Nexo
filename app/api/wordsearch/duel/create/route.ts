@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createServiceSupabaseClient } from '@/lib/supabase-server'
 import { WordSearchGenerator } from '@/lib/wordsearch-generator'
+import { checkRateLimit, RateLimiters } from '@/lib/rate-limit'
 import type { Json } from '@/lib/database.types'
 
 export const dynamic = 'force-dynamic'
@@ -8,6 +9,41 @@ export const dynamic = 'force-dynamic'
 export async function POST(request: Request) {
   try {
     const supabase = createServiceSupabaseClient()
+    
+    // Verify user has a valid session (guest or permanent)
+    const authHeader = request.headers.get('authorization')
+    const token = authHeader?.replace('Bearer ', '')
+    
+    let isGuest = false
+    if (token) {
+      const { data: { user }, error: authError } = await supabase.auth.getUser(token)
+      if (authError || !user) {
+        return NextResponse.json({ error: 'Invalid session' }, { status: 401 })
+      }
+      isGuest = user.is_anonymous === true
+    } else {
+      // Try to get session from cookie-based auth
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+      }
+      isGuest = user.is_anonymous === true
+    }
+
+    // Apply rate limiting (stricter for guests)
+    const rateLimitConfig = isGuest ? RateLimiters.guestDuelCreation : RateLimiters.duelCreation
+    const { rateLimited, remaining } = await checkRateLimit(request, rateLimitConfig)
+    
+    if (rateLimited) {
+      return NextResponse.json(
+        { error: 'Too many requests. Please try again later.' },
+        { 
+          status: 429,
+          headers: { 'X-RateLimit-Remaining': remaining.toString() }
+        }
+      )
+    }
+
     const body = await request.json()
     const { id } = body
 
