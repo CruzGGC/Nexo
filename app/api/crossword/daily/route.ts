@@ -1,9 +1,9 @@
 import { supabase } from '@/lib/supabase'
-import { createServiceSupabaseClient } from '@/lib/supabase-server'
+import { createServiceSupabaseClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
-import { CrosswordGenerator } from '@/lib/crossword/generator'
+import { CrosswordGenerator } from '@/lib/games/crossword'
 import { checkRateLimit, RateLimiters } from '@/lib/rate-limit'
-import type { Database } from '@/lib/database.types'
+import type { Database } from '@/lib/supabase'
 
 export const revalidate = 3600 // cache daily puzzle for one hour as recommended by Next.js caching docs
 

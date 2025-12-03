@@ -44,8 +44,15 @@ interface PWAProviderProps {
 export function PWAProvider({ children }: PWAProviderProps) {
   const [isInstalled, setIsInstalled] = useState(false);
   const [isInstallable, setIsInstallable] = useState(false);
-  const [isOnline, setIsOnline] = useState(true);
-  const [isIOS, setIsIOS] = useState(false);
+  // Initialize with actual value to avoid sync setState in effect
+  const [isOnline, setIsOnline] = useState(() => 
+    typeof window !== 'undefined' ? navigator.onLine : true
+  );
+  // iOS detection (constant - detected once at mount)
+  const isIOS = typeof window !== 'undefined' 
+    ? /iPad|iPhone|iPod/.test(navigator.userAgent) && 
+      !(window as unknown as { MSStream?: unknown }).MSStream
+    : false;
   const [isStandalone, setIsStandalone] = useState(false);
   const [registration, setRegistration] = useState<ServiceWorkerRegistration | null>(null);
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
@@ -113,14 +120,7 @@ export function PWAProvider({ children }: PWAProviderProps) {
     });
   }, []);
 
-  // Detect iOS
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    
-    const isIOSDevice = /iPad|iPhone|iPod/.test(navigator.userAgent) && 
-                        !(window as unknown as { MSStream?: unknown }).MSStream;
-    setIsIOS(isIOSDevice);
-  }, []);
+  // iOS detection is handled via lazy useState initialization above
 
   // Detect standalone mode
   useEffect(() => {
@@ -158,12 +158,11 @@ export function PWAProvider({ children }: PWAProviderProps) {
     };
   }, []);
 
-  // Handle online/offline status
+  // Handle online/offline status - initial value set via lazy useState
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    setIsOnline(navigator.onLine);
-
+    // Subscribe to online/offline events (no sync setState needed, initial value is set via useState)
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
 

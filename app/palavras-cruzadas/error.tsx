@@ -1,6 +1,6 @@
 'use client'
 
-import ErrorFallback from '@/components/ErrorFallback'
+import { ErrorFallback } from '@/components/common'
 
 export default function CrosswordError({
   error,

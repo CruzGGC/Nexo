@@ -2,8 +2,7 @@
 
 import { useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { useLocalBattleship } from '@/hooks/useLocalBattleship'
-import { useOnlineBattleship } from '@/hooks/useOnlineBattleship'
+import { useLocalBattleship, useOnlineBattleship } from '@/hooks/battleship'
 import { ModeSelection } from '@/components/battleship/ModeSelection'
 import { MatchmakingView } from '@/components/battleship/MatchmakingView'
 import { PlacementBoard } from '@/components/battleship/PlacementBoard'
@@ -75,8 +74,12 @@ export default function BattleshipGame() {
   if (gameMode === 'local' && 
       (local.phase === 'p1-turn' || local.phase === 'p2-turn') && 
       viewMode === 'placement') {
+    console.log('[BattleshipGame] Transitioning to battle, phase:', local.phase)
     setTimeout(() => setViewMode('battle'), 0)
   }
+
+  // Debug: log current state
+  console.log('[BattleshipGame] Render state:', { gameMode, viewMode, phase: local.phase, isTransitioning: local.isTransitioning })
 
   // Get current active boards based on mode and phase
   const getCurrentBoards = () => {
@@ -99,7 +102,9 @@ export default function BattleshipGame() {
 
   // Handle battle click
   const handleBattleClick = useCallback(async (row: number, col: number) => {
+    console.log('[BattleshipGame.handleBattleClick] Called:', { row, col, gameMode })
     if (gameMode === 'local') {
+      console.log('[BattleshipGame.handleBattleClick] Calling local.handleBattleClick')
       local.handleBattleClick(row, col)
     } else {
       await online.handleAttack(row, col)
@@ -261,10 +266,9 @@ function BackgroundAmbience({ showGrid }: { showGrid: boolean }) {
   )
 }
 
-function FadeIn({ children, key }: { children: React.ReactNode; key: string }) {
+function FadeIn({ children }: { children: React.ReactNode }) {
   return (
     <motion.div
-      key={key}
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
@@ -275,10 +279,9 @@ function FadeIn({ children, key }: { children: React.ReactNode; key: string }) {
   )
 }
 
-function ScaleIn({ children, key }: { children: React.ReactNode; key: string }) {
+function ScaleIn({ children }: { children: React.ReactNode }) {
   return (
     <motion.div
-      key={key}
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 1.05 }}

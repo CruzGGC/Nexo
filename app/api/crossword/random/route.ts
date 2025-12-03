@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import { NextResponse } from 'next/server'
-import { CrosswordGenerator } from '@/lib/crossword/generator'
+import { CrosswordGenerator } from '@/lib/games/crossword'
 import { checkRateLimit, RateLimiters } from '@/lib/rate-limit'
 
 type DictionaryEntry = { word: string; definition: string }

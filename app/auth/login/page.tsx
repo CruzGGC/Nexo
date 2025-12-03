@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { ArrowLeft, Loader2, Mail, Lock, User, Sparkles } from "lucide-react";
-import BackgroundGrid from "@/components/BackgroundGrid";
+import { BackgroundGrid } from '@/components/common';
 
 export default function LoginPage() {
     const [email, setEmail] = useState("");

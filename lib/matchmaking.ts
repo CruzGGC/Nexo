@@ -9,5 +9,5 @@
 export * from './matchmaking/index'
 
 // Keep the old imports working - import Profile from AuthProvider for the utils
-import type { Profile } from '@/components/AuthProvider'
+import type { Profile } from '@/components/auth'
 export type { Profile }

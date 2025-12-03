@@ -1,12 +1,11 @@
 'use client'
 
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { useLocalTicTacToe } from '@/hooks/useLocalTicTacToe'
-import { useOnlineTicTacToe } from '@/hooks/useOnlineTicTacToe'
+import { useLocalTicTacToe, useOnlineTicTacToe } from '@/hooks/tictactoe'
 import { ModeSelection } from '@/components/tictactoe/ModeSelection'
 import { MatchmakingView } from '@/components/tictactoe/MatchmakingView'
 import { GameBoard } from '@/components/tictactoe/GameBoard'
-import { GameResultModal } from '@/components/GameResultModal'
+import { GameResultModal } from '@/components/common'
 
 type ViewMode = 'selection' | 'matchmaking' | 'game'
 type GameMode = 'local' | 'online'
@@ -84,7 +83,9 @@ export default function TicTacToeGame() {
   useEffect(() => {
     if (gameMode === 'online' && onlineGame.seriesState.isSeriesComplete && !seriesResultCheckedRef.current) {
       seriesResultCheckedRef.current = true
-      setShowSeriesResult(true)
+      // Use timeout to schedule state update rather than calling synchronously
+      const timer = setTimeout(() => setShowSeriesResult(true), 0)
+      return () => clearTimeout(timer)
     }
   }, [gameMode, onlineGame.seriesState.isSeriesComplete])
   

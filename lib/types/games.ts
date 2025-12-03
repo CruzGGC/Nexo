@@ -1,5 +1,5 @@
 import type { CrosswordCell, CrosswordClue } from '@/lib/types/crossword'
-import type { WordPlacement } from '@/lib/wordsearch-generator'
+import type { WordPlacement } from '@/lib/games/wordsearch'
 
 export type GameMode = 'daily' | 'random' | 'duel'
 export type ScoreGameType = 'crossword' | 'wordsearch'

@@ -11,10 +11,10 @@
  * - Optimized state updates with Immer (structural sharing)
  */
 
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useImmer } from 'use-immer';
 import type { CrosswordCell, CrosswordClue } from '@/lib/types/crossword';
-import { equalsNormalized } from '@/lib/text';
+import { equalsNormalized } from '@/lib/utils/text';
 import { motion } from 'framer-motion';
 import { ClueList } from '@/components/crossword';
 

@@ -3,25 +3,34 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { usePWA } from './PWAProvider';
 import { WifiOff, Wifi } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 export function OfflineIndicator() {
   const { isOnline } = usePWA();
   const [showReconnected, setShowReconnected] = useState(false);
-  const [wasOffline, setWasOffline] = useState(false);
+  const wasOfflineRef = useRef(false);
 
   useEffect(() => {
     if (!isOnline) {
-      setWasOffline(true);
-    } else if (wasOffline) {
-      setShowReconnected(true);
-      const timer = setTimeout(() => {
-        setShowReconnected(false);
-        setWasOffline(false);
-      }, 3000);
-      return () => clearTimeout(timer);
+      wasOfflineRef.current = true;
+      return; // No cleanup needed when going offline
     }
-  }, [isOnline, wasOffline]);
+    
+    // We're online now - check if we were previously offline
+    if (!wasOfflineRef.current) return;
+    
+    // Schedule showing reconnected message to avoid sync setState
+    const showTimer = setTimeout(() => setShowReconnected(true), 0);
+    const hideTimer = setTimeout(() => {
+      setShowReconnected(false);
+      wasOfflineRef.current = false;
+    }, 3000);
+    
+    return () => {
+      clearTimeout(showTimer);
+      clearTimeout(hideTimer);
+    };
+  }, [isOnline]);
 
   return (
     <AnimatePresence>

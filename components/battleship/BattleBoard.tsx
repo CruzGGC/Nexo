@@ -1,5 +1,5 @@
 import { BattleshipBoard } from '@/lib/games/battleship'
-import { TargetCell } from '@/hooks/useBattleshipBoards'
+import { TargetCell } from '@/hooks/battleship/useBattleshipBoards'
 import { motion } from 'framer-motion'
 
 interface BattleBoardProps {
@@ -62,7 +62,10 @@ export function BattleBoard({
                     <button
                       key={`${rowIndex}-${colIndex}`}
                       className={cellClass}
-                      onClick={() => onTargetClick(rowIndex, colIndex)}
+                      onClick={() => {
+                        console.log('[BattleBoard] Click at:', { rowIndex, colIndex, cell, isMyTurn, disabled: !isMyTurn || cell !== '' })
+                        onTargetClick(rowIndex, colIndex)
+                      }}
                       disabled={!isMyTurn || cell !== ''}
                     >
                       {cellContent}

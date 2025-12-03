@@ -48,10 +48,19 @@ export function SkeletonText({ className, lines = 1 }: SkeletonProps & { lines?:
   );
 }
 
+// Deterministic pseudo-random function based on index (for skeleton patterns)
+const isPseudoRandomDark = (index: number, total: number): boolean => {
+  // Use a simple hash-like function to create a deterministic pattern
+  const hash = (index * 2654435761) % total;
+  return hash < total * 0.15; // ~15% dark cells
+};
+
 /**
  * Skeleton for crossword grid
  */
 export function CrosswordSkeleton({ size = 10 }: { size?: number }) {
+  const totalCells = size * size;
+  
   return (
     <div className="flex flex-col items-center gap-6">
       {/* Grid skeleton */}
@@ -61,12 +70,12 @@ export function CrosswordSkeleton({ size = 10 }: { size?: number }) {
           gridTemplateColumns: `repeat(${size}, minmax(0, 1fr))` 
         }}
       >
-        {Array.from({ length: size * size }).map((_, i) => (
+        {Array.from({ length: totalCells }).map((_, i) => (
           <Skeleton
             key={i}
             className={cn(
               'aspect-square w-8 sm:w-10 rounded-sm',
-              Math.random() > 0.85 ? 'bg-zinc-900' : 'bg-white/10'
+              isPseudoRandomDark(i, totalCells) ? 'bg-zinc-900' : 'bg-white/10'
             )}
           />
         ))}
@@ -86,6 +95,9 @@ export function CrosswordSkeleton({ size = 10 }: { size?: number }) {
     </div>
   );
 }
+
+// Deterministic widths for word tag skeletons
+const WORD_TAG_WIDTHS = [72, 88, 64, 96, 80, 68, 92, 76];
 
 /**
  * Skeleton for word search grid
@@ -110,11 +122,11 @@ export function WordSearchSkeleton({ size = 12 }: { size?: number }) {
       
       {/* Word list skeleton */}
       <div className="flex flex-wrap justify-center gap-2 max-w-md">
-        {Array.from({ length: 8 }).map((_, i) => (
+        {WORD_TAG_WIDTHS.map((width, i) => (
           <Skeleton 
             key={i} 
             className="h-8 rounded-full"
-            style={{ width: `${60 + Math.random() * 40}px` }}
+            style={{ width: `${width}px` }}
           />
         ))}
       </div>

@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { ArrowLeft, Loader2, Mail, Lock, User, Sparkles, CheckCircle2 } from "lucide-react";
-import BackgroundGrid from "@/components/BackgroundGrid";
+import { BackgroundGrid } from '@/components/common';
 
 export default function RegisterPage() {
     const [email, setEmail] = useState("");

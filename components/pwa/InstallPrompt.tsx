@@ -8,21 +8,17 @@ import { X, Download, Share, Plus, Smartphone } from 'lucide-react';
 export function InstallPrompt() {
   const { isInstallable, isInstalled, isIOS, isStandalone, promptInstall } = usePWA();
   const [showPrompt, setShowPrompt] = useState(false);
-  const [isDismissed, setIsDismissed] = useState(false);
-
-  // Check if user has dismissed the prompt before
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    
+  const [isDismissed, setIsDismissed] = useState(() => {
+    // Initialize from localStorage if available (client-side only via SSR safety)
+    if (typeof window === 'undefined') return false;
     const dismissed = localStorage.getItem('pwa-prompt-dismissed');
     if (dismissed) {
       const dismissedTime = parseInt(dismissed, 10);
       // Show again after 7 days
-      if (Date.now() - dismissedTime < 7 * 24 * 60 * 60 * 1000) {
-        setIsDismissed(true);
-      }
+      return Date.now() - dismissedTime < 7 * 24 * 60 * 60 * 1000;
     }
-  }, []);
+    return false;
+  });
 
   // Show prompt after a delay if installable
   useEffect(() => {
@@ -117,7 +113,7 @@ export function InstallPrompt() {
                           2
                         </span>
                         <span className="flex items-center gap-2">
-                          Seleciona <Plus className="w-4 h-4 text-blue-400" /> "Ecrã principal"
+                          Seleciona <Plus className="w-4 h-4 text-blue-400" /> &quot;Ecrã principal&quot;
                         </span>
                       </div>
                       <button

@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
-import { createServiceSupabaseClient } from '@/lib/supabase-server'
-import { WordSearchGenerator } from '@/lib/wordsearch-generator'
+import { createServiceSupabaseClient } from '@/lib/supabase/server'
+import { WordSearchGenerator } from '@/lib/games/wordsearch'
 import { checkRateLimit, RateLimiters } from '@/lib/rate-limit'
-import type { Json } from '@/lib/database.types'
+import type { Json } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
 

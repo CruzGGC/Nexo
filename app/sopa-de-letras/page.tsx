@@ -3,18 +3,18 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import WordSearchGrid from '@/components/WordSearchGrid'
-import Timer from '@/components/Timer'
+import { Timer } from '@/components/common'
 import { apiFetch } from '@/lib/api-client'
 import { formatChronometer } from '@/lib/utils/time'
-import { useAuth } from '@/components/AuthProvider'
-import { useScoreSubmission } from '@/hooks/useScoreSubmission'
+import { useAuth } from '@/components/auth'
+import { useScoreSubmission } from '@/hooks/common'
 import { ModeSelection } from '@/components/wordsearch/ModeSelection'
-import { useMatchmaking } from '@/hooks/useMatchmaking'
+import { useMatchmaking } from '@/hooks/matchmaking'
 import { MatchmakingView } from '@/components/MatchmakingView'
-import { GameResultModal } from '@/components/GameResultModal'
+import { GameResultModal } from '@/components/common'
 import { DuelGameLayout } from '@/components/DuelGameLayout'
-import { getSupabaseBrowserClient } from '@/lib/supabase-browser'
-import type { SubmissionStatus } from '@/hooks/useScoreSubmission'
+import { getSupabaseBrowserClient } from '@/lib/supabase'
+import type { SubmissionStatus } from '@/hooks/common/useScoreSubmission'
 import type { Category, GameMode, WordSearchGridCell, WordSearchPuzzle } from '@/lib/types/games'
 
 // ============================================================================
@@ -84,7 +84,6 @@ export default function WordSearchPage() {
 
   // Duel progress tracking
   const [myProgress, setMyProgress] = useState(0)
-  const [foundWordsCount, setFoundWordsCount] = useState(0)
 
   // Duel derived state
   const duelRoomState = useMemo(() => {
@@ -301,7 +300,6 @@ export default function WordSearchPage() {
     
     const totalWords = puzzle.words.length
     const progress = (foundWords.length / totalWords) * 100
-    setFoundWordsCount(foundWords.length)
     setMyProgress(progress)
 
     // Sync progress to server in duel mode
@@ -314,7 +312,7 @@ export default function WordSearchPage() {
             ...(currentState.progress || {}),
             [user.id]: progress
           }
-        } as unknown as import('@/lib/database.types').Json
+        } as unknown as import('@/lib/supabase').Json
       })
     }
   }, [gameMode, matchmaking, puzzle, user])

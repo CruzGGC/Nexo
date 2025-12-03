@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
-import { WordSearchGenerator } from '@/lib/wordsearch-generator'
+import { WordSearchGenerator } from '@/lib/games/wordsearch'
 import { checkRateLimit, RateLimiters } from '@/lib/rate-limit'
 
 type DictionaryEntry = { word: string; definition: string }

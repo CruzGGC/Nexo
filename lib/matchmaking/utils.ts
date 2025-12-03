@@ -4,7 +4,7 @@
  * Funções puras para cálculos de matchmaking
  */
 
-import type { Profile } from '@/components/AuthProvider'
+import type { Profile } from '@/components/auth'
 import type { LobbyStats, LobbyPresenceMeta, PresenceState, QueueStatus, SupportedMatchGame } from './types'
 import { MATCHMAKING } from '@/lib/constants'
 

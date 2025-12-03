@@ -2,6 +2,7 @@
 
 import { motion } from 'framer-motion'
 import { formatChronometer } from '@/lib/utils/time'
+import Image from 'next/image'
 
 interface Player {
   id: string
@@ -163,10 +164,11 @@ function PlayerCard({ player, isMe, isWinner, isComplete }: PlayerCardProps) {
           style={{ boxShadow: `0 0 15px ${glowColor}` }}
         >
           {player.avatarUrl ? (
-            <img
+            <Image
               src={player.avatarUrl}
               alt={player.displayName}
-              className="w-full h-full rounded-full object-cover"
+              fill
+              className="rounded-full object-cover"
             />
           ) : (
             <span className="text-xl">{isMe ? '🎮' : '🎯'}</span>

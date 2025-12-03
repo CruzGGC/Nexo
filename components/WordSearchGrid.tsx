@@ -2,8 +2,8 @@
 
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import type { WordPlacement } from '@/lib/wordsearch-generator'
-import { validateSelection } from '@/lib/wordsearch-generator'
+import type { WordPlacement } from '@/lib/games/wordsearch'
+import { validateSelection } from '@/lib/games/wordsearch'
 
 interface Selection {
   startRow: number

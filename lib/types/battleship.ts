@@ -5,7 +5,7 @@
  * secure game state that doesn't expose fleet positions.
  */
 
-import type { Json } from '@/lib/database.types'
+import type { Json } from '@/lib/supabase'
 
 // Re-export from lib/games/battleship for convenience
 export type { BattleshipCell, BattleshipBoard, FleetPlacement } from '@/lib/games/battleship'

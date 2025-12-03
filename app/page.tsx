@@ -1,8 +1,8 @@
-import Navbar from "@/components/Navbar";
-import Hero from "@/components/Hero";
-import GameCard from "@/components/GameCard";
-import Features from "@/components/Features";
-import BackgroundGrid from "@/components/BackgroundGrid";
+import { Navbar } from '@/components/layout';
+import { Hero } from '@/components/home';
+import { GameCard } from '@/components/common';
+import { Features } from '@/components/home';
+import { BackgroundGrid } from '@/components/common';
 
 export default function Home() {
   return (

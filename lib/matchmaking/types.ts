@@ -5,7 +5,7 @@
  */
 
 import type { RealtimePresenceState } from '@supabase/supabase-js'
-import type { Database, Json } from '@/lib/database.types'
+import type { Database, Json } from '@/lib/supabase'
 
 // Database row types
 export type MatchmakingQueueRow = Database['public']['Tables']['matchmaking_queue']['Row']

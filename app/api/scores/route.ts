@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
-import { createServiceSupabaseClient } from '@/lib/supabase-server'
+import { createServiceSupabaseClient } from '@/lib/supabase/server'
 import { checkRateLimit, RateLimiters } from '@/lib/rate-limit'
-import type { Database } from '@/lib/database.types'
+import type { Database } from '@/lib/supabase'
 import type { ScoreGameType } from '@/lib/types/games'
 
 export const dynamic = 'force-dynamic'

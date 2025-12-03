@@ -4,7 +4,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Trophy, Calendar, Medal, Filter, Search, Crown, Timer, Hash } from 'lucide-react'
+import { Trophy, Calendar, Filter, Search, Crown, Timer, Hash } from 'lucide-react'
 
 type LeaderboardType = 'crossword' | 'wordsearch' | 'ratings'
 
@@ -46,7 +46,7 @@ const leaderboardTabs: Array<{
   id: LeaderboardType
   title: string
   description: string
-  icon: any
+  icon: React.FC<{ className?: string; size?: number }>
 }> = [
     {
       id: 'crossword',

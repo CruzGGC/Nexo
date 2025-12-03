@@ -5,12 +5,12 @@ import { supabase } from "@/lib/supabase";
 import { User } from "@supabase/supabase-js";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Loader2, Save, LogOut, User as UserIcon, Globe, Edit2, Trophy, Calendar, Sparkles, Shield, X, Target, Clock, Percent, Swords } from "lucide-react";
-import BackgroundGrid from "@/components/BackgroundGrid";
-import Navbar from "@/components/Navbar";
+import { Loader2, Save, LogOut, User as UserIcon, Globe, Edit2, Trophy, Calendar, Sparkles, Shield, X, Target, Percent, Swords } from "lucide-react";
+import { BackgroundGrid } from '@/components/common';
+import { Navbar } from '@/components/layout';
 import Image from "next/image";
-import { Database } from "@/lib/database.types";
-import { getRankTier, RANK_TIERS } from "@/lib/rating-system";
+import { Database } from "@/lib/supabase";
+import { getRankTier, RANK_TIERS } from '@/lib/auth/rating-system';
 
 type Profile = Database["public"]["Tables"]["profiles"]["Row"];
 type PlayerRating = Database["public"]["Tables"]["player_ratings"]["Row"];

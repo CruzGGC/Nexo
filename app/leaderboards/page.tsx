@@ -1,7 +1,7 @@
 import { LeaderboardsClient } from '@/components/LeaderboardsClient'
 
-import BackgroundGrid from '@/components/BackgroundGrid'
-import Navbar from '@/components/Navbar'
+import { BackgroundGrid } from '@/components/common'
+import { Navbar } from '@/components/layout'
 import { Trophy, Shield, Users, Crown } from 'lucide-react'
 
 export default function LeaderboardsPage() {

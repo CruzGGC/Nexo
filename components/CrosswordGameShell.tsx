@@ -2,21 +2,21 @@
 
 import { useMemo, useCallback, useEffect, useState, useRef } from 'react'
 import CrosswordGrid from '@/components/CrosswordGrid'
-import Timer from '@/components/Timer'
+import { Timer } from '@/components/common'
 import type { Category } from '@/lib/types/games'
 import { ModeSelection, CategorySelection, HowToPlay, CompletionModal } from '@/components/crossword'
-import { useCrosswordGame } from '@/hooks/useCrosswordGame'
-import { useAuth } from '@/components/AuthProvider'
-import { useScoreSubmission } from '@/hooks/useScoreSubmission'
-import { useMatchmaking } from '@/hooks/useMatchmaking'
+import { useCrosswordGame } from '@/hooks/crossword'
+import { useAuth } from '@/components/auth'
+import { useScoreSubmission } from '@/hooks/common'
+import { useMatchmaking } from '@/hooks/matchmaking'
 import { MatchmakingView } from '@/components/MatchmakingView'
-import { GameResultModal } from '@/components/GameResultModal'
+import { GameResultModal } from '@/components/common'
 import { DuelGameLayout } from '@/components/DuelGameLayout'
 import { apiFetch } from '@/lib/api-client'
 import type { CrosswordPuzzle } from '@/lib/types/games'
-import { getSupabaseBrowserClient } from '@/lib/supabase-browser'
+import { getSupabaseBrowserClient } from '@/lib/supabase'
 import { motion, AnimatePresence } from 'framer-motion'
-import type { Json } from '@/lib/database.types'
+import type { Json } from '@/lib/supabase'
 
 const LISBON_DATE_FORMATTER = new Intl.DateTimeFormat('pt-PT', {
   day: 'numeric',
@@ -112,9 +112,16 @@ export default function CrosswordGameShell({ initialCategories }: CrosswordGameS
   }, [duelRoomState, user])
 
   // Reset completion guard when puzzle changes
+  // Progress is reset via key-based remount or derived state
+  const puzzleIdRef = useRef(puzzle?.id)
   useEffect(() => {
-    hasReportedCompleteRef.current = false
-    setMyProgress(0)
+    if (puzzleIdRef.current !== puzzle?.id) {
+      hasReportedCompleteRef.current = false
+      puzzleIdRef.current = puzzle?.id
+      // Use timeout to avoid sync setState in effect body
+      const timer = setTimeout(() => setMyProgress(0), 0)
+      return () => clearTimeout(timer)
+    }
   }, [puzzle?.id])
 
   useEffect(() => {

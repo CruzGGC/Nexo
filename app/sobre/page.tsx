@@ -2,8 +2,8 @@
 
 import { motion } from "framer-motion";
 import { Gamepad2, Users, Rocket, Sparkles, Brain, Globe } from "lucide-react";
-import BackgroundGrid from "@/components/BackgroundGrid";
-import Navbar from "@/components/Navbar";
+import { BackgroundGrid } from '@/components/common';
+import { Navbar } from '@/components/layout';
 
 export default function SobrePage() {
   const features = [
