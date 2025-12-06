@@ -5,7 +5,7 @@ import { CrosswordGenerator } from '@/lib/games/crossword'
 import { checkRateLimit, RateLimiters } from '@/lib/rate-limit'
 import type { Database } from '@/lib/supabase'
 
-export const revalidate = 3600 // cache daily puzzle for one hour as recommended by Next.js caching docs
+export const dynamic = 'force-dynamic'
 
 /**
  * GET /api/crossword/daily
