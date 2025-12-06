@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
 import { createServiceSupabaseClient } from '@/lib/supabase/server'
 import { WordSearchGenerator } from '@/lib/games/wordsearch'
 import { checkRateLimit, RateLimiters } from '@/lib/rate-limit'
@@ -47,6 +46,8 @@ export async function GET(request: Request) {
     const today = new Date().toLocaleDateString('en-CA', {
       timeZone: 'Europe/Lisbon'
     }) // Formato: YYYY-MM-DD
+
+    const supabase = createServiceSupabaseClient()
 
     // Buscar puzzle do dia
     const { data: puzzle, error } = await supabase
@@ -124,9 +125,8 @@ export async function GET(request: Request) {
           }))
         )
 
-        // Try to save the generated puzzle using service role client (bypasses RLS)
-        const serviceClient = createServiceSupabaseClient()
-        const { data: inserted, error: insertError } = await serviceClient
+        // Try to save the generated puzzle (already using service role client)
+        const { data: inserted, error: insertError } = await supabase
           .from('wordsearches')
           .insert({
             type: 'daily' as const,

@@ -54,6 +54,9 @@ export function BattleBoard({
                   } else if (cell === 'miss') {
                     cellClass += "bg-white/10 text-slate-400 border-white/10 "
                     cellContent = <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }}>🌊</motion.span>
+                  } else if (cell === 'pending') {
+                    cellClass += "bg-yellow-500/30 border-yellow-400/50 animate-pulse "
+                    cellContent = <motion.span initial={{ scale: 0 }} animate={{ scale: 1, rotate: 360 }} transition={{ duration: 1, repeat: Infinity }}>⏳</motion.span>
                   } else {
                     cellClass += "hover:bg-red-500/20 hover:border-red-400/50 "
                   }
@@ -62,10 +65,7 @@ export function BattleBoard({
                     <button
                       key={`${rowIndex}-${colIndex}`}
                       className={cellClass}
-                      onClick={() => {
-                        console.log('[BattleBoard] Click at:', { rowIndex, colIndex, cell, isMyTurn, disabled: !isMyTurn || cell !== '' })
-                        onTargetClick(rowIndex, colIndex)
-                      }}
+                      onClick={() => onTargetClick(rowIndex, colIndex)}
                       disabled={!isMyTurn || cell !== ''}
                     >
                       {cellContent}

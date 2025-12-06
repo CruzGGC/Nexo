@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { createServiceSupabaseClient } from '@/lib/supabase/server'
 import { WordSearchGenerator } from '@/lib/games/wordsearch'
 import { checkRateLimit, RateLimiters } from '@/lib/rate-limit'
 
@@ -104,6 +104,8 @@ export async function GET(request: Request) {
         }
       )
     }
+
+    const supabase = createServiceSupabaseClient()
 
     // Parse query params for category filter
     const { searchParams } = new URL(request.url)

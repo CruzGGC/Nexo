@@ -113,28 +113,15 @@ export function useLocalBattleship(): UseLocalBattleshipReturn {
    * Handle attack during battle phase
    */
   const handleBattleClick = useCallback((row: number, col: number) => {
-    console.log('[handleBattleClick] Called with:', { row, col, phase, winner })
-    
-    if (phase !== 'p1-turn' && phase !== 'p2-turn') {
-      console.log('[handleBattleClick] Exiting: wrong phase', phase)
-      return
-    }
-    if (winner) {
-      console.log('[handleBattleClick] Exiting: game has winner', winner)
-      return
-    }
+    if (phase !== 'p1-turn' && phase !== 'p2-turn') return
+    if (winner) return
 
     const isP1Turn = phase === 'p1-turn'
     const attacker = isP1Turn ? p1Boards : p2Boards
     const defender = isP1Turn ? p2Boards : p1Boards
 
     // Prevent double clicks on same cell
-    if (attacker.targetBoard[row][col] !== '') {
-      console.log('[handleBattleClick] Exiting: cell already attacked', attacker.targetBoard[row][col])
-      return
-    }
-    
-    console.log('[handleBattleClick] Processing attack...')
+    if (attacker.targetBoard[row][col] !== '') return
 
     // Check if hit on defender's ocean
     const isHit = defender.ocean[row][col] !== '~'

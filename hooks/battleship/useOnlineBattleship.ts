@@ -101,13 +101,15 @@ export function useOnlineBattleship(): UseOnlineBattleshipReturn {
 
     const { row, col, result, by, timestamp } = roomState.lastMove
     
-    // Create a unique key for this move to prevent reprocessing
-    const moveKey = `${row}-${col}-${timestamp}`
+    // Create a unique key for this move INCLUDING the result
+    // This allows re-processing when result changes from 'pending' to 'hit'/'miss'
+    const moveKey = `${row}-${col}-${timestamp}-${result}`
     if (processedMoveRef.current === moveKey) return
     processedMoveRef.current = moveKey
 
     if (by === myId) {
       // My move - update my target board with the result
+      // This handles both the initial 'pending' and the confirmed 'hit'/'miss'
       boards.markTargetResult(row, col, result)
     } else {
       // Opponent's move - update my incoming attacks display
@@ -253,7 +255,7 @@ export function useOnlineBattleship(): UseOnlineBattleshipReturn {
       .eq('id', room.id)
 
     // Mark as pending on our board until confirmed
-    boards.markTargetResult(row, col, 'pending' as 'hit' | 'miss')
+    boards.markTargetResult(row, col, 'pending')
 
   }, [room, myId, isMyTurn, phase, boards, getSupabase, opponent?.id])
 

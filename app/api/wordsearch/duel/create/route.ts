@@ -8,31 +8,8 @@ export const dynamic = 'force-dynamic'
 
 export async function POST(request: Request) {
   try {
-    const supabase = createServiceSupabaseClient()
-    
-    // Verify user has a valid session (guest or permanent)
-    const authHeader = request.headers.get('authorization')
-    const token = authHeader?.replace('Bearer ', '')
-    
-    let isGuest = false
-    if (token) {
-      const { data: { user }, error: authError } = await supabase.auth.getUser(token)
-      if (authError || !user) {
-        return NextResponse.json({ error: 'Invalid session' }, { status: 401 })
-      }
-      isGuest = user.is_anonymous === true
-    } else {
-      // Try to get session from cookie-based auth
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
-      }
-      isGuest = user.is_anonymous === true
-    }
-
-    // Apply rate limiting (stricter for guests)
-    const rateLimitConfig = isGuest ? RateLimiters.guestDuelCreation : RateLimiters.duelCreation
-    const { rateLimited, remaining } = await checkRateLimit(request, rateLimitConfig)
+    // Apply rate limiting based on IP (since this is called after matchmaking auth)
+    const { rateLimited, remaining } = await checkRateLimit(request, RateLimiters.duelCreation)
     
     if (rateLimited) {
       return NextResponse.json(
@@ -50,6 +27,8 @@ export async function POST(request: Request) {
     if (!id) {
       return NextResponse.json({ error: 'ID is required' }, { status: 400 })
     }
+
+    const supabase = createServiceSupabaseClient()
 
     // Check if puzzle already exists
     const { data: existing } = await supabase

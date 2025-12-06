@@ -142,6 +142,18 @@ export function useMatchmaking(gameType: SupportedMatchGame): UseMatchmakingRetu
       setStatus('joining')
       presenceHook.syncPresence({ status: 'joining', mode: options.mode })
 
+      // Clean up any stale queue entries for this user before joining
+      try {
+        await supabase
+          .from('matchmaking_queue')
+          .delete()
+          .eq('user_id', currentUser.id)
+          .eq('game_type', gameType)
+        logDebug('joinQueue: cleaned up stale queue entries')
+      } catch (cleanupErr) {
+        logDebug('joinQueue: cleanup error (non-fatal)', cleanupErr)
+      }
+
       // Prepare RPC parameters
       const rating = options.ratingSnapshot ?? deriveRating(profile)
       const skillBracket = options.skillBracket ?? deriveSkillBracket(rating)

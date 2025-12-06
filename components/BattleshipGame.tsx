@@ -78,9 +78,6 @@ export default function BattleshipGame() {
     setTimeout(() => setViewMode('battle'), 0)
   }
 
-  // Debug: log current state
-  console.log('[BattleshipGame] Render state:', { gameMode, viewMode, phase: local.phase, isTransitioning: local.isTransitioning })
-
   // Get current active boards based on mode and phase
   const getCurrentBoards = () => {
     if (gameMode === 'online') {
@@ -102,9 +99,7 @@ export default function BattleshipGame() {
 
   // Handle battle click
   const handleBattleClick = useCallback(async (row: number, col: number) => {
-    console.log('[BattleshipGame.handleBattleClick] Called:', { row, col, gameMode })
     if (gameMode === 'local') {
-      console.log('[BattleshipGame.handleBattleClick] Calling local.handleBattleClick')
       local.handleBattleClick(row, col)
     } else {
       await online.handleAttack(row, col)

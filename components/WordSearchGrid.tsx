@@ -21,6 +21,7 @@ interface WordSearchGridProps {
   grid: string[][]
   words: WordPlacement[]
   onComplete?: (foundWords: string[]) => void
+  onWordFound?: (foundWords: string[], totalWords: number) => void
   hintRequest?: number
 }
 
@@ -45,7 +46,7 @@ function getSelectionCells(sel: Selection): { row: number; col: number }[] {
   return cells
 }
 
-export default function WordSearchGrid({ grid, words, onComplete, hintRequest }: WordSearchGridProps) {
+export default function WordSearchGrid({ grid, words, onComplete, onWordFound, hintRequest }: WordSearchGridProps) {
   const [selection, setSelection] = useState<Selection | null>(null)
   const [foundWords, setFoundWords] = useState<FoundWord[]>([])
   const [isSelecting, setIsSelecting] = useState(false)
@@ -77,6 +78,24 @@ export default function WordSearchGrid({ grid, words, onComplete, hintRequest }:
       timeoutsRef.forEach(timeoutId => window.clearTimeout(timeoutId))
     }
   }, [])
+
+  // DEBUG: Press 'D' to show all word locations in console
+  // TODO: REMOVE THIS BEFORE PRODUCTION
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'd' || e.key === 'D') {
+        console.log('🔍 CHEAT MODE - Word Locations:')
+        words.forEach(w => {
+          const isFound = foundWords.some(fw => fw.word === w.word)
+          console.log(
+            `${isFound ? '✅' : '❌'} ${w.word}: start(${w.startRow},${w.startCol}) → ${w.direction}`
+          )
+        })
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [words, foundWords])
 
   // Handle Hint Request
   useEffect(() => {
@@ -161,7 +180,13 @@ export default function WordSearchGrid({ grid, words, onComplete, hintRequest }:
       if (foundWord && !foundWords.some(fw => fw.word === word)) {
         // Adicionar palavra encontrada
         const cells = getSelectionCells(selection)
-        setFoundWords([...foundWords, { word, cells }])
+        const newFoundWords = [...foundWords, { word, cells }]
+        setFoundWords(newFoundWords)
+
+        // Notify progress
+        if (onWordFound) {
+          onWordFound(newFoundWords.map(fw => fw.word), words.length)
+        }
 
         // Animação de sucesso
         triggerSuccessAnimation(cells)

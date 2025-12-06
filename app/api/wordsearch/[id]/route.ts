@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase'
+import { createServiceSupabaseClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { checkRateLimit, RateLimiters } from '@/lib/rate-limit'
 
@@ -35,6 +35,9 @@ export async function GET(
         { status: 400 }
       )
     }
+
+    // Use service client to bypass RLS for puzzle fetching
+    const supabase = createServiceSupabaseClient()
 
     const { data: puzzle, error } = await supabase
       .from('wordsearches')

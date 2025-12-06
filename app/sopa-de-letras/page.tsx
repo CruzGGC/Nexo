@@ -88,7 +88,9 @@ export default function WordSearchPage() {
   // Duel derived state
   const duelRoomState = useMemo(() => {
     if (gameMode !== 'duel' || !matchmaking.room) return null
-    return matchmaking.room.game_state as unknown as GameState
+    const state = matchmaking.room.game_state as unknown as GameState
+    console.log('[wordsearch] duelRoomState updated:', state)
+    return state
   }, [gameMode, matchmaking.room])
 
   const duelOpponent = useMemo(() => {
@@ -96,6 +98,14 @@ export default function WordSearchPage() {
     const participants = duelRoomState.participants || []
     const opponentParticipant = participants.find(p => p.id !== user.id)
     const opponentProgress = duelRoomState.progress?.[opponentParticipant?.id || ''] || 0
+    
+    console.log('[wordsearch] duelOpponent calc:', {
+      myId: user.id,
+      participants,
+      opponentId: opponentParticipant?.id,
+      progressMap: duelRoomState.progress,
+      opponentProgress
+    })
     
     return opponentParticipant ? {
       id: opponentParticipant.id,
@@ -223,35 +233,43 @@ export default function WordSearchPage() {
 
   // Handle duel completion and winner detection
   useEffect(() => {
-    if (gameMode === 'duel' && matchmaking.room) {
-      const gameState = matchmaking.room.game_state as unknown as GameState
-      const winnerId = gameState?.winner_id
+    if (gameMode !== 'duel' || !matchmaking.room) return
+    
+    const gameState = matchmaking.room.game_state as unknown as GameState
+    const winnerId = gameState?.winner_id as string | undefined
+    
+    console.log('[wordsearch] winner check:', { 
+      winnerId, 
+      isComplete, 
+      myId: user?.id,
+      hasDuelResult: !!duelResult 
+    })
 
-      if (isComplete && !winnerId && user) {
-        const reportWin = async () => {
-          const { error } = await supabase.rpc('claim_victory', {
-            p_room_id: matchmaking.room!.id
-          })
+    // If I completed and no winner yet, claim victory
+    if (isComplete && !winnerId && user) {
+      console.log('[wordsearch] claiming victory...')
+      const reportWin = async () => {
+        const { error } = await supabase.rpc('claim_victory', {
+          p_room_id: matchmaking.room!.id
+        })
 
-          if (error) {
-            console.error('Failed to report win:', error)
-          }
+        if (error) {
+          console.error('Failed to report win:', error)
+        } else {
+          console.log('[wordsearch] victory claimed successfully')
         }
-        void reportWin()
       }
+      void reportWin()
+    }
 
-      if (winnerId && !duelResult) {
-        const isMe = winnerId === user?.id
-        setTimeout(() => {
-          setDuelResult(prev => {
-            if (prev) return prev
-            return {
-              result: isMe ? 'victory' : 'defeat',
-              winnerName: isMe ? undefined : 'Oponente'
-            }
-          })
-        }, 0)
-      }
+    // If there's a winner and we haven't shown result yet, show it
+    if (winnerId && !duelResult) {
+      const isMe = winnerId === user?.id
+      console.log('[wordsearch] showing result:', { winnerId, isMe })
+      setDuelResult({
+        result: isMe ? 'victory' : 'defeat',
+        winnerName: isMe ? undefined : 'Oponente'
+      })
     }
   }, [gameMode, isComplete, matchmaking.room, user, supabase, duelResult])
 
@@ -295,30 +313,35 @@ export default function WordSearchPage() {
   }, [puzzle, submitDailyScore, timeMs, user?.id])
 
   // Track word finding progress for duel mode
-  const handleWordFound = useCallback((foundWords: string[]) => {
+  const handleWordFound = useCallback((foundWords: string[], totalWords: number) => {
     if (!puzzle) return
     
-    const totalWords = puzzle.words.length
     const progress = (foundWords.length / totalWords) * 100
+    console.log('[wordsearch] handleWordFound:', { foundWords: foundWords.length, totalWords, progress })
     setMyProgress(progress)
 
     // Sync progress to server in duel mode
     if (gameMode === 'duel' && matchmaking.room && user) {
+      console.log('[wordsearch] syncing progress to server:', progress)
       void matchmaking.updateRoomState((current) => {
         const currentState = (current as unknown as GameState) || {}
-        return {
+        const newState = {
           ...currentState,
           progress: {
             ...(currentState.progress || {}),
             [user.id]: progress
           }
-        } as unknown as import('@/lib/supabase').Json
+        }
+        console.log('[wordsearch] new room state:', newState)
+        return newState as unknown as import('@/lib/supabase').Json
       })
     }
   }, [gameMode, matchmaking, puzzle, user])
 
   const handleComplete = useCallback(async (foundWords: string[]) => {
-    handleWordFound(foundWords)
+    if (puzzle) {
+      handleWordFound(foundWords, puzzle.words.length)
+    }
     setIsTimerRunning(false)
     setIsComplete(true)
     setShowConfetti(true)
@@ -326,7 +349,7 @@ export default function WordSearchPage() {
     if (gameMode === 'daily') {
       attemptScoreSubmit()
     }
-  }, [attemptScoreSubmit, gameMode, handleWordFound])
+  }, [attemptScoreSubmit, gameMode, handleWordFound, puzzle])
 
   const handleRestart = useCallback(() => {
     if (gameMode === 'random') {
@@ -551,6 +574,7 @@ export default function WordSearchPage() {
             grid={normalizedGrid}
             words={puzzle.words}
             onComplete={handleComplete}
+            onWordFound={handleWordFound}
             hintRequest={hintRequest}
           />
         </DuelGameLayout>

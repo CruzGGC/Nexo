@@ -135,10 +135,12 @@ export function useBattleshipBoards() {
     })
   }, [placement.ocean])
 
-  const markTargetResult = useCallback((row: number, col: number, result: 'hit' | 'miss') => {
+  const markTargetResult = useCallback((row: number, col: number, result: 'pending' | 'hit' | 'miss') => {
     setTargetBoard(prev => {
-      // Skip if already processed
+      // Skip if already processed (but allow updating pending to hit/miss)
       if (prev[row][col] === result) return prev
+      // Don't overwrite hit/miss with pending
+      if (prev[row][col] !== '' && prev[row][col] !== 'pending' && result === 'pending') return prev
       const snapshot = prev.map(line => [...line]) as TargetCell[][]
       snapshot[row][col] = result
       return snapshot
