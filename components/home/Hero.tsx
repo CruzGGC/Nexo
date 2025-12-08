@@ -55,7 +55,7 @@ export default function Hero() {
                     <div className="relative w-32 h-32 md:w-48 md:h-48 glass rounded-3xl flex items-center justify-center border border-white/10 shadow-2xl overflow-hidden">
                         <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-50" />
                         <Image
-                            src="/icon.png"
+                            src="/nexo.svg"
                             alt="Nexo Logo"
                             width={140}
                             height={140}

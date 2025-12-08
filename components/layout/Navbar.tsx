@@ -66,7 +66,7 @@ export default function Navbar() {
         >
             <Link href="/" className="relative w-28 h-8 hover:opacity-80 transition-opacity group">
                 <Image
-                    src="/icon.png"
+                    src="/nexo.svg"
                     alt="Nexo Logo"
                     fill
                     sizes="112px"
