@@ -8,7 +8,7 @@
  * - Background sync for game scores
  */
 
-const CACHE_NAME = 'nexo-cache-v1';
+const CACHE_NAME = 'nexo-cache-v2';
 const OFFLINE_URL = '/offline';
 
 // Debug mode - only log in development (localhost)
@@ -98,8 +98,9 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Skip Vercel internal paths
+  // Allow Vercel analytics/insights scripts to pass through (network only, no caching)
   if (url.pathname.startsWith('/_vercel/')) {
+    event.respondWith(fetch(request));
     return;
   }
   
