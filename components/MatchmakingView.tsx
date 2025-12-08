@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { generateMatchCode } from '@/lib/matchmaking'
+import { motion } from 'framer-motion'
 
 interface MatchmakingViewProps {
   onJoinPublic: () => void
@@ -19,178 +20,222 @@ export function MatchmakingView({
   onCancel,
   status,
   roomCode,
-  title = 'Modo Online',
-  description = 'Escolhe como queres encontrar o teu oponente.'
+  title = 'MODO ONLINE',
+  description = 'Escolhe o teu método de conexão.'
 }: MatchmakingViewProps) {
   const [inviteCode, setInviteCode] = useState('')
-  const [generatedCode] = useState(generateMatchCode())
+  const [generatedCode, setGeneratedCode] = useState(generateMatchCode())
   const [view, setView] = useState<'menu' | 'create' | 'join'>('menu')
 
   const isSearching = status === 'queued' || status === 'joining' || status === 'matched'
 
-  if (isSearching) {
-    return (
-      <div className="flex min-h-[400px] flex-col items-center justify-center rounded-3xl border border-white/10 bg-white/5 p-12 text-center shadow-[0_0_30px_rgba(0,0,0,0.3)] backdrop-blur-md animate-in fade-in zoom-in duration-500">
-        <div className="space-y-8 animate-in fade-in duration-700">
-          <div className="relative mx-auto h-24 w-24">
-            <div className="absolute inset-0 animate-ping rounded-full bg-[#00f3ff] opacity-20"></div>
-            <div className="relative flex h-full w-full items-center justify-center rounded-full bg-[#00f3ff]/10 border border-[#00f3ff]/30 text-4xl shadow-[0_0_20px_rgba(0,243,255,0.2)]">
-              {status === 'matched' ? '✨' : '🔍'}
+  return (
+    <div className="relative min-h-screen w-full overflow-hidden bg-[#030014] text-white selection:bg-cyan-500/30 flex flex-col items-center justify-center">
+      {/* Background Elements */}
+      <div className="absolute inset-0 bg-[url('/grid.svg')] bg-center [mask-image:linear-gradient(180deg,white,rgba(255,255,255,0))]" />
+      <div className="absolute -left-40 -top-40 h-[500px] w-[500px] rounded-full bg-purple-500/20 blur-[120px]" />
+      <div className="absolute -right-40 bottom-0 h-[500px] w-[500px] rounded-full bg-cyan-500/20 blur-[120px]" />
+
+      <div className="relative z-10 w-full max-w-4xl flex flex-col items-center">
+        {isSearching ? (
+          <div className="flex flex-col items-center justify-center gap-12 py-12">
+            <div className="text-center space-y-8">
+              <div className="relative mx-auto h-48 w-48">
+                <div className="absolute inset-0 animate-ping rounded-full bg-cyan-500/20"></div>
+                <div className="absolute inset-0 animate-[spin_4s_linear_infinite] rounded-full border-t-2 border-cyan-500/50"></div>
+                <div className="absolute inset-4 animate-[spin_3s_linear_infinite_reverse] rounded-full border-b-2 border-purple-500/50"></div>
+                <div className="relative flex h-full w-full items-center justify-center rounded-full bg-black/40 backdrop-blur-md border border-white/10">
+                  <span className="text-6xl animate-pulse">📡</span>
+                </div>
+              </div>
+
+              <div>
+                <h2 className="text-3xl font-bold text-white mb-2">
+                  {status === 'matched' ? 'ALVO LOCALIZADO!' : 'A RASTREAR...'}
+                </h2>
+                <p className="text-slate-400">
+                  {status === 'matched'
+                    ? 'A iniciar protocolos de combate...'
+                    : 'A procurar sinal de frota inimiga...'}
+                </p>
+              </div>
+
+              {roomCode && (
+                <div className="inline-block rounded-xl bg-white/5 px-6 py-3 font-mono text-xl tracking-widest border border-white/10 text-cyan-400">
+                  CANAL: {roomCode}
+                </div>
+              )}
             </div>
+
+            <button
+              onClick={() => {
+                onCancel()
+              }}
+              className="rounded-full border border-white/10 px-8 py-3 text-sm font-bold tracking-wider text-slate-400 transition-all hover:bg-white/10 hover:text-white hover:border-white/20"
+            >
+              CANCELAR RASTREIO
+            </button>
           </div>
-          <div className="space-y-2">
-            <h3 className="text-2xl font-black tracking-tight text-white">
-              {status === 'matched' ? 'Adversário Encontrado!' : 'A procurar adversário...'}
-            </h3>
-            <p className="text-zinc-400">
-              {status === 'matched'
-                ? 'A preparar o jogo...'
-                : 'Aguardando conexão...'}
-            </p>
-            {roomCode && (
-              <div className="mt-4 inline-block rounded-lg bg-white/5 border border-white/10 px-4 py-2 font-mono text-sm font-bold text-zinc-300">
-                Sala: {roomCode}
+        ) : (
+          <div className="flex flex-col items-center justify-center gap-12 py-12">
+            <div className="text-center space-y-4">
+              <h2 className="text-4xl font-black text-white tracking-tight">{title}</h2>
+              <p className="text-slate-400">
+                {description}
+              </p>
+            </div>
+
+            {view === 'menu' && (
+              <div className="grid gap-6 w-full max-w-md">
+                <motion.button
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  onClick={() => {
+                    onJoinPublic()
+                  }}
+                  className="group flex items-center gap-6 rounded-2xl border border-white/10 bg-white/5 p-6 text-left backdrop-blur-md transition-all hover:bg-white/10 hover:border-cyan-500/50 hover:shadow-[0_0_30px_rgba(6,182,212,0.15)]"
+                >
+                  <div className="rounded-xl bg-cyan-500/10 p-4 text-3xl group-hover:scale-110 transition-transform">🌍</div>
+                  <div>
+                    <h3 className="font-bold text-white text-lg group-hover:text-cyan-400 transition-colors">Procurar Jogo</h3>
+                    <p className="text-sm text-slate-400">Matchmaking global rápido.</p>
+                  </div>
+                </motion.button>
+
+                <motion.button
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.1 }}
+                  onClick={() => {
+                    setView('create')
+                  }}
+                  className="group flex items-center gap-6 rounded-2xl border border-white/10 bg-white/5 p-6 text-left backdrop-blur-md transition-all hover:bg-white/10 hover:border-purple-500/50 hover:shadow-[0_0_30px_rgba(168,85,247,0.15)]"
+                >
+                  <div className="rounded-xl bg-purple-500/10 p-4 text-3xl group-hover:scale-110 transition-transform">🔑</div>
+                  <div>
+                    <h3 className="font-bold text-white text-lg group-hover:text-purple-400 transition-colors">Criar Sala Privada</h3>
+                    <p className="text-sm text-slate-400">Gera um código de acesso.</p>
+                  </div>
+                </motion.button>
+
+                <motion.button
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.2 }}
+                  onClick={() => {
+                    setView('join')
+                  }}
+                  className="group flex items-center gap-6 rounded-2xl border border-white/10 bg-white/5 p-6 text-left backdrop-blur-md transition-all hover:bg-white/10 hover:border-emerald-500/50 hover:shadow-[0_0_30px_rgba(16,185,129,0.15)]"
+                >
+                  <div className="rounded-xl bg-emerald-500/10 p-4 text-3xl group-hover:scale-110 transition-transform">👋</div>
+                  <div>
+                    <h3 className="font-bold text-white text-lg group-hover:text-emerald-400 transition-colors">Entrar com Código</h3>
+                    <p className="text-sm text-slate-400">Usa um código de convite.</p>
+                  </div>
+                </motion.button>
+
+                <button
+                  onClick={() => {
+                    onCancel()
+                  }}
+                  className="mt-4 text-sm font-bold text-slate-500 hover:text-white transition-colors"
+                >
+                  VOLTAR AO MENU PRINCIPAL
+                </button>
               </div>
             )}
+
+            {view === 'create' && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="w-full max-w-md space-y-8 rounded-3xl border border-white/10 bg-white/5 p-8 backdrop-blur-xl"
+              >
+                <div className="text-center">
+                  <h3 className="text-2xl font-bold text-white">Sala Privada</h3>
+                  <p className="mt-2 text-sm text-slate-400">Partilha este código com o teu oponente.</p>
+                </div>
+
+                <div className="flex items-center justify-center gap-4 rounded-2xl bg-black/30 p-6 border border-white/5">
+                  <code className="text-4xl font-mono font-bold tracking-[0.2em] text-purple-400 drop-shadow-[0_0_10px_rgba(168,85,247,0.5)]">
+                    {generatedCode}
+                  </code>
+                  <button
+                    onClick={() => {
+                      setGeneratedCode(generateMatchCode())
+                    }}
+                    className="rounded-lg p-2 hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
+                    title="Gerar novo código"
+                  >
+                    🔄
+                  </button>
+                </div>
+
+                <div className="flex gap-4">
+                  <button
+                    onClick={() => {
+                      setView('menu')
+                    }}
+                    className="flex-1 rounded-xl border border-white/10 py-4 font-bold text-slate-400 hover:bg-white/5 hover:text-white transition-all"
+                  >
+                    Voltar
+                  </button>
+                  <button
+                    onClick={() => {
+                      onCreatePrivate(generatedCode)
+                    }}
+                    className="flex-1 rounded-xl bg-purple-600 py-4 font-bold text-white hover:bg-purple-500 hover:shadow-[0_0_20px_rgba(168,85,247,0.4)] transition-all"
+                  >
+                    Criar Sala
+                  </button>
+                </div>
+              </motion.div>
+            )}
+
+            {view === 'join' && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="w-full max-w-md space-y-8 rounded-3xl border border-white/10 bg-white/5 p-8 backdrop-blur-xl"
+              >
+                <div className="text-center">
+                  <h3 className="text-2xl font-bold text-white">Entrar em Sala</h3>
+                  <p className="mt-2 text-sm text-slate-400">Insere o código de acesso.</p>
+                </div>
+
+                <input
+                  type="text"
+                  value={inviteCode}
+                  onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
+                  placeholder="ABC123"
+                  className="w-full rounded-2xl border-2 border-white/10 bg-black/30 p-6 text-center text-4xl font-bold tracking-[0.2em] text-white outline-none focus:border-emerald-500/50 focus:shadow-[0_0_30px_rgba(16,185,129,0.2)] transition-all placeholder:text-white/10"
+                  maxLength={6}
+                />
+
+                <div className="flex gap-4">
+                  <button
+                    onClick={() => {
+                      setView('menu')
+                    }}
+                    className="flex-1 rounded-xl border border-white/10 py-4 font-bold text-slate-400 hover:bg-white/5 hover:text-white transition-all"
+                  >
+                    Voltar
+                  </button>
+                  <button
+                    onClick={() => {
+                      onJoinPrivate(inviteCode)
+                    }}
+                    disabled={inviteCode.length < 6}
+                    className="flex-1 rounded-xl bg-emerald-600 py-4 font-bold text-white hover:bg-emerald-500 hover:shadow-[0_0_20px_rgba(16,185,129,0.4)] disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                  >
+                    Entrar
+                  </button>
+                </div>
+              </motion.div>
+            )}
           </div>
-          <button
-            onClick={() => {
-              onCancel()
-            }}
-            className="rounded-xl border border-white/10 px-8 py-3 font-bold text-zinc-400 transition-all hover:border-white/30 hover:bg-white/5 hover:text-white"
-          >
-            Cancelar
-          </button>
-        </div>
+        )}
       </div>
-    )
-  }
-
-  return (
-    <div className="flex min-h-[400px] flex-col items-center justify-center rounded-3xl border border-white/10 bg-white/5 p-8 shadow-[0_0_30px_rgba(0,0,0,0.3)] backdrop-blur-md animate-in fade-in zoom-in duration-500">
-      {view === 'menu' && (
-        <div className="w-full max-w-md space-y-8">
-          <div className="text-center space-y-2">
-            <h2 className="text-3xl font-black tracking-tight text-white">{title}</h2>
-            <p className="text-zinc-400">
-              {description}
-            </p>
-          </div>
-
-          <div className="grid gap-4">
-            <button
-              onClick={() => {
-                onJoinPublic()
-              }}
-              className="group flex items-center gap-4 rounded-2xl border border-white/10 bg-white/5 p-6 text-left transition-all hover:border-blue-500/50 hover:bg-white/10 hover:shadow-[0_0_20px_rgba(59,130,246,0.1)]"
-            >
-              <div className="rounded-xl bg-blue-500/20 p-4 text-2xl transition-colors group-hover:bg-blue-500/30 shadow-[0_0_10px_rgba(59,130,246,0.2)]">🌍</div>
-              <div>
-                <h3 className="font-bold text-white group-hover:text-blue-400 transition-colors">Procurar Jogo</h3>
-                <p className="text-sm text-zinc-400 group-hover:text-zinc-300">Matchmaking rápido com qualquer jogador.</p>
-              </div>
-            </button>
-
-            <button
-              onClick={() => {
-                setView('create')
-              }}
-              className="group flex items-center gap-4 rounded-2xl border border-white/10 bg-white/5 p-6 text-left transition-all hover:border-indigo-500/50 hover:bg-white/10 hover:shadow-[0_0_20px_rgba(99,102,241,0.1)]"
-            >
-              <div className="rounded-xl bg-indigo-500/20 p-4 text-2xl transition-colors group-hover:bg-indigo-500/30 shadow-[0_0_10px_rgba(99,102,241,0.2)]">🔑</div>
-              <div>
-                <h3 className="font-bold text-white group-hover:text-indigo-400 transition-colors">Criar Sala Privada</h3>
-                <p className="text-sm text-zinc-400 group-hover:text-zinc-300">Gera um código para convidar um amigo.</p>
-              </div>
-            </button>
-
-            <button
-              onClick={() => {
-                setView('join')
-              }}
-              className="group flex items-center gap-4 rounded-2xl border border-white/10 bg-white/5 p-6 text-left transition-all hover:border-emerald-500/50 hover:bg-white/10 hover:shadow-[0_0_20px_rgba(16,185,129,0.1)]"
-            >
-              <div className="rounded-xl bg-emerald-500/20 p-4 text-2xl transition-colors group-hover:bg-emerald-500/30 shadow-[0_0_10px_rgba(16,185,129,0.2)]">👋</div>
-              <div>
-                <h3 className="font-bold text-white group-hover:text-emerald-400 transition-colors">Entrar com Código</h3>
-                <p className="text-sm text-zinc-400 group-hover:text-zinc-300">Usa um código partilhado por um amigo.</p>
-              </div>
-            </button>
-          </div>
-        </div>
-      )}
-
-      {view === 'create' && (
-        <div className="w-full max-w-md space-y-8 animate-in slide-in-from-right duration-300">
-          <div className="text-center space-y-2">
-            <h3 className="text-2xl font-black tracking-tight text-white">Sala Privada</h3>
-            <p className="text-zinc-400">Partilha este código com o teu amigo</p>
-          </div>
-
-          <div className="flex items-center justify-center gap-4 rounded-2xl bg-white/5 border border-white/10 p-8 shadow-inner">
-            <code className="text-4xl font-black tracking-widest text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.3)]">
-              {generatedCode}
-            </code>
-          </div>
-
-          <div className="grid gap-3">
-            <button
-              onClick={() => {
-                onCreatePrivate(generatedCode)
-              }}
-              className="w-full rounded-xl bg-indigo-600 py-4 font-bold text-white transition-all hover:bg-indigo-500 hover:scale-[1.02] shadow-[0_0_20px_rgba(79,70,229,0.4)]"
-            >
-              Aguardar Amigo
-            </button>
-            <button
-              onClick={() => {
-                setView('menu')
-              }}
-              className="w-full rounded-xl border border-white/10 py-4 font-bold text-zinc-400 transition-all hover:border-white/30 hover:bg-white/5 hover:text-white"
-            >
-              Voltar
-            </button>
-          </div>
-        </div>
-      )}
-
-      {view === 'join' && (
-        <div className="w-full max-w-md space-y-8 animate-in slide-in-from-right duration-300">
-          <div className="text-center space-y-2">
-            <h3 className="text-2xl font-black tracking-tight text-white">Entrar em Sala</h3>
-            <p className="text-zinc-400">Insere o código partilhado</p>
-          </div>
-
-          <input
-            type="text"
-            value={inviteCode}
-            onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
-            placeholder="CÓDIGO"
-            maxLength={6}
-            className="w-full rounded-2xl border-2 border-white/10 bg-white/5 p-6 text-center text-3xl font-black tracking-widest outline-none transition-all focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 text-white placeholder:text-zinc-700"
-          />
-
-          <div className="grid gap-3">
-            <button
-              onClick={() => {
-                onJoinPrivate(inviteCode)
-              }}
-              disabled={inviteCode.length < 6}
-              className="w-full rounded-xl bg-emerald-600 py-4 font-bold text-white transition-all hover:bg-emerald-500 hover:scale-[1.02] shadow-[0_0_20px_rgba(16,185,129,0.4)] disabled:opacity-50 disabled:hover:scale-100 disabled:shadow-none"
-            >
-              Entrar
-            </button>
-            <button
-              onClick={() => {
-                setView('menu')
-              }}
-              className="w-full rounded-xl border border-white/10 py-4 font-bold text-zinc-400 transition-all hover:border-white/30 hover:bg-white/5 hover:text-white"
-            >
-              Voltar
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

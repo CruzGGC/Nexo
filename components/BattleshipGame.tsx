@@ -133,6 +133,10 @@ export default function BattleshipGame() {
     return online.opponent?.display_name || 'Adversário'
   }
 
+  if (viewMode === 'selection') {
+    return <ModeSelection onSelectMode={handleSelectMode} />
+  }
+
   return (
     <div className="min-h-screen bg-[#030014] text-white overflow-hidden relative selection:bg-cyan-500/30">
       {/* Background Ambience */}
@@ -143,20 +147,13 @@ export default function BattleshipGame() {
         <div className="flex justify-between items-center mb-8">
           <button
             onClick={handleBack}
-            className={`text-sm font-bold tracking-wider text-slate-400 hover:text-white transition-colors ${viewMode === 'selection' ? 'invisible' : ''}`}
+            className="text-sm font-bold tracking-wider text-slate-400 hover:text-white transition-colors"
           >
             ← VOLTAR
           </button>
         </div>
 
         <AnimatePresence mode="wait">
-          {/* Mode Selection */}
-          {viewMode === 'selection' && (
-            <FadeIn key="selection">
-              <ModeSelection onSelectMode={handleSelectMode} />
-            </FadeIn>
-          )}
-
           {/* Matchmaking (Online only) */}
           {viewMode === 'matchmaking' && (
             <ScaleIn key="matchmaking">

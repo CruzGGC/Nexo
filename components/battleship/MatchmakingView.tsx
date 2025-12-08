@@ -132,7 +132,7 @@ export function MatchmakingView({
             }}
             className="mt-4 text-sm font-bold text-slate-500 hover:text-white transition-colors"
           >
-            VOLTAR AO MENU
+            VOLTAR AO MENU PRINCIPAL
           </button>
         </div>
       )}

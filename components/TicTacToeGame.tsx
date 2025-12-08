@@ -159,15 +159,15 @@ export default function TicTacToeGame() {
 
   // --- Render ---
 
+  if (viewMode === 'selection') {
+    return <ModeSelection onSelectMode={handleSelectMode} />
+  }
+
   return (
     <div className="min-h-screen w-full bg-[#030014] relative overflow-hidden flex items-center justify-center p-4">
       <BackgroundAmbience />
 
       <div className="relative z-10 w-full max-w-6xl">
-        {viewMode === 'selection' && (
-          <ModeSelection onSelectMode={handleSelectMode} />
-        )}
-
         {viewMode === 'matchmaking' && (
           <MatchmakingView
             onJoinPublic={handleJoinPublic}
