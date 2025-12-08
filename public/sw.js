@@ -97,6 +97,11 @@ self.addEventListener('fetch', (event) => {
       !url.origin.includes('supabase.co')) {
     return;
   }
+
+  // Skip Vercel internal paths
+  if (url.pathname.startsWith('/_vercel/')) {
+    return;
+  }
   
   // Skip API routes - always go to network
   if (url.pathname.startsWith('/api/')) {
