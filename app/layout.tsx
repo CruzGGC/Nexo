@@ -31,12 +31,6 @@ export const metadata: Metadata = {
     capable: true,
     statusBarStyle: "black-translucent",
     title: "Nexo",
-    startupImage: [
-      {
-        url: "/icons/apple-touch-icon.png",
-        media: "(device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2)",
-      },
-    ],
   },
   
   // Format detection - prevent iOS from styling phone numbers
@@ -60,18 +54,6 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Nexo - Jogos de Palavras",
     description: "Plataforma de jogos de palavras em português.",
-  },
-  
-  // Icons - handled by manifest.ts
-  icons: {
-    icon: [
-      { url: "/icons/icon-32x32.png", sizes: "32x32", type: "image/png" },
-      { url: "/icons/icon-192x192.png", sizes: "192x192", type: "image/png" },
-    ],
-    apple: [
-      { url: "/icons/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
-    ],
-    shortcut: "/favicon.ico",
   },
   
   // Other

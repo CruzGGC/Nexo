@@ -26,8 +26,8 @@ const PRECACHE_ASSETS = [
   '/palavras-cruzadas',
   '/sopa-de-letras',
   '/leaderboards',
-  '/icons/icon-192x192.png',
-  '/icons/icon-512x512.png',
+  '/web-app-manifest-192x192.png',
+  '/web-app-manifest-512x512.png',
 ];
 
 // Install event - precache essential assets
@@ -206,8 +206,8 @@ self.addEventListener('push', (event) => {
     
     const options = {
       body: data.body || 'Tens uma nova notificação!',
-      icon: data.icon || '/icons/icon-192x192.png',
-      badge: '/icons/icon-96x96.png',
+      icon: data.icon || '/web-app-manifest-192x192.png',
+      badge: '/web-app-manifest-192x192.png',
       vibrate: [100, 50, 100],
       tag: data.tag || 'nexo-notification',
       renotify: true,
