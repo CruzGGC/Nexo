@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useLocalTicTacToe, useOnlineTicTacToe } from '@/hooks/tictactoe'
 import { ModeSelection } from '@/components/tictactoe/ModeSelection'
-import { MatchmakingView } from '@/components/tictactoe/MatchmakingView'
+import { MatchmakingView } from '@/components/MatchmakingView'
 import { GameBoard } from '@/components/tictactoe/GameBoard'
 import { GameResultModal } from '@/components/common'
 
@@ -164,10 +164,10 @@ export default function TicTacToeGame() {
   }
 
   return (
-    <div className="min-h-screen w-full bg-[#030014] relative overflow-hidden flex items-center justify-center p-4">
+    <div className="min-h-screen w-full bg-[#030014] relative overflow-hidden px-4 py-8">
       <BackgroundAmbience />
 
-      <div className="relative z-10 w-full max-w-6xl">
+      <div className="relative z-10 w-full max-w-6xl mx-auto">
         {viewMode === 'matchmaking' && (
           <MatchmakingView
             onJoinPublic={handleJoinPublic}

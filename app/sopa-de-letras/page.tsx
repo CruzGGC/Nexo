@@ -475,19 +475,26 @@ export default function WordSearchPage() {
 
   if (gameMode === 'duel' && !puzzle) {
     return (
-      <MatchmakingView
-        status={matchmaking.status}
-        onJoinPublic={() => matchmaking.joinQueue({ mode: 'public' })}
-        onCreatePrivate={(code) => matchmaking.joinQueue({ mode: 'private', matchCode: code, seat: 'host' })}
-        onJoinPrivate={(code) => matchmaking.joinQueue({ mode: 'private', matchCode: code, seat: 'guest' })}
-        onCancel={() => {
-          matchmaking.leaveQueue()
-          setGameMode(null)
-        }}
-        roomCode={(matchmaking.room?.game_state as unknown as GameState)?.room_code}
-        title="Duelo de Sopa de Letras"
-        description="Encontra um oponente e resolve o mesmo puzzle em tempo real."
-      />
+      <div className="min-h-screen w-full bg-[#030014] relative overflow-hidden px-4 py-8">
+        {/* Background Ambience */}
+        <div className="fixed inset-0 pointer-events-none">
+          <div className="absolute inset-0 bg-[url('/grid.svg')] bg-center [mask-image:linear-gradient(180deg,white,rgba(255,255,255,0))]" />
+          <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-blue-600/20 blur-[120px] rounded-full mix-blend-screen animate-pulse-slow" />
+          <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-purple-600/20 blur-[120px] rounded-full mix-blend-screen animate-pulse-slow delay-1000" />
+        </div>
+
+        <MatchmakingView
+          status={matchmaking.status}
+          onJoinPublic={() => matchmaking.joinQueue({ mode: 'public' })}
+          onCreatePrivate={(code) => matchmaking.joinQueue({ mode: 'private', matchCode: code, seat: 'host' })}
+          onJoinPrivate={(code) => matchmaking.joinQueue({ mode: 'private', matchCode: code, seat: 'guest' })}
+          onCancel={() => {
+            matchmaking.leaveQueue()
+            setGameMode(null)
+          }}
+          roomCode={(matchmaking.room?.game_state as unknown as GameState)?.room_code}
+        />
+      </div>
     )
   }
 

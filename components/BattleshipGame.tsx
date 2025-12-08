@@ -4,7 +4,7 @@ import { useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useLocalBattleship, useOnlineBattleship } from '@/hooks/battleship'
 import { ModeSelection } from '@/components/battleship/ModeSelection'
-import { MatchmakingView } from '@/components/battleship/MatchmakingView'
+import { MatchmakingView } from '@/components/MatchmakingView'
 import { PlacementBoard } from '@/components/battleship/PlacementBoard'
 import { BattleBoard } from '@/components/battleship/BattleBoard'
 import type { BattleshipViewMode } from '@/lib/types/battleship'
@@ -144,14 +144,16 @@ export default function BattleshipGame() {
 
       <div className="relative z-10 mx-auto max-w-7xl px-4 py-8">
         {/* Header / Controls */}
-        <div className="flex justify-between items-center mb-8">
-          <button
-            onClick={handleBack}
-            className="text-sm font-bold tracking-wider text-slate-400 hover:text-white transition-colors"
-          >
-            ← VOLTAR
-          </button>
-        </div>
+        {viewMode !== 'matchmaking' && (
+          <div className="flex justify-between items-center mb-8">
+            <button
+              onClick={handleBack}
+              className="text-sm font-bold tracking-wider text-slate-400 hover:text-white transition-colors"
+            >
+              ← VOLTAR
+            </button>
+          </div>
+        )}
 
         <AnimatePresence mode="wait">
           {/* Matchmaking (Online only) */}
@@ -161,7 +163,7 @@ export default function BattleshipGame() {
                 onJoinPublic={online.joinPublic}
                 onCreatePrivate={online.createPrivate}
                 onJoinPrivate={online.joinPrivate}
-                onCancel={online.cancelMatchmaking}
+                onCancel={handleBack}
                 status={online.status}
                 roomCode={online.roomCode}
               />
